@@ -121,11 +121,11 @@
             <div class="flex items-center justify-between gap-3">
                 <div>
                     <h2 class="font-display text-xs uppercase tracking-[0.18em] text-cyan-300">Planner Tuning</h2>
-                    <div id="model-check-hint" class="mt-1 text-[11px] text-slate-300">Uses Ollama every 4 ticks, cached plan in between.</div>
+                    <div id="model-check-hint" class="mt-1 text-[11px] text-slate-300">Uses Ollama every 8 ticks, cached plan in between.</div>
                 </div>
                 <div class="w-[130px]">
                     <label for="model-check-every" class="block text-[10px] uppercase tracking-[0.12em] text-cyan-200">Every N Ticks</label>
-                    <input id="model-check-every" type="number" min="1" max="50" value="4" class="mt-1 w-full rounded border border-cyan-800/70 bg-slate-950/80 px-2 py-1 text-sm text-cyan-100 outline-none focus:border-cyan-400" />
+                    <input id="model-check-every" type="number" min="1" max="50" value="8" class="mt-1 w-full rounded border border-cyan-800/70 bg-slate-950/80 px-2 py-1 text-sm text-cyan-100 outline-none focus:border-cyan-400" />
                 </div>
             </div>
         </section>
@@ -198,6 +198,7 @@
 
         const USE_MOCK_DATA = false;
         const LIVE_OBJECTIVE = 'Scan the South-East quadrant for thermal signatures';
+        const LIVE_TICK_REQUEST_TIMEOUT_MS = {{ max(5000, (int) env('SWARM_FRONTEND_TICK_TIMEOUT_MS', 30000)) }};
         const SWARM_WS_ENABLED = false;
         const SWARM_WS_URL = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws/swarm`;
 
@@ -217,9 +218,10 @@
             drones: {},
             mockTimer: null,
             liveTimer: null,
+            liveLoopActive: false,
             tickInFlight: false,
             tickCounter: 0,
-            modelCheckEveryTicks: 4,
+            modelCheckEveryTicks: 8,
             websocket: null
         };
 
@@ -567,9 +569,10 @@
                 runtime.mockTimer = null;
             }
             if (runtime.liveTimer) {
-                clearInterval(runtime.liveTimer);
+                clearTimeout(runtime.liveTimer);
                 runtime.liveTimer = null;
             }
+            runtime.liveLoopActive = false;
             if (runtime.websocket) {
                 runtime.websocket.close();
                 runtime.websocket = null;
@@ -796,26 +799,33 @@
             }
 
             if (runtime.liveTimer) {
-                clearInterval(runtime.liveTimer);
+                clearTimeout(runtime.liveTimer);
+                runtime.liveTimer = null;
             }
+            runtime.liveLoopActive = true;
             runtime.tickCounter = 0;
 
-            runtime.liveTimer = setInterval(async () => {
-                if (runtime.tickInFlight) {
+            const runLiveTick = async () => {
+                if (!runtime.liveLoopActive) {
                     return;
                 }
+                if (runtime.tickInFlight) {
+                    runtime.liveTimer = setTimeout(runLiveTick, 120);
+                    return;
+                }
+
                 runtime.tickInFlight = true;
                 runtime.tickCounter += 1;
                 const forceReplan = runtime.tickCounter % Math.max(1, runtime.modelCheckEveryTicks) === 0;
                 try {
-                    const tickResponse = await fetch('/api/swarm/tick', {
+                    const tickResponse = await fetchWithTimeout('/api/swarm/tick', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
                             'Accept': 'application/json'
                         },
                         body: JSON.stringify({ objective: LIVE_OBJECTIVE, force_replan: forceReplan })
-                    });
+                    }, LIVE_TICK_REQUEST_TIMEOUT_MS);
 
                     const tick = await tickResponse.json();
                     if (!tick.ok || !Array.isArray(tick.telemetry)) {
@@ -881,10 +891,17 @@
                     appendMissionLog(`Tick request failed: ${tickError.message}`);
                 } finally {
                     runtime.tickInFlight = false;
-                }
-            }, 500);
 
-            appendMissionLog('Tick engine active: polling /api/swarm/tick every 500ms.');
+                    if (runtime.liveLoopActive) {
+                        // Schedule the next tick only after the current request is fully completed.
+                        runtime.liveTimer = setTimeout(runLiveTick, 500);
+                    }
+                }
+            };
+
+            runtime.liveTimer = setTimeout(runLiveTick, 0);
+
+            appendMissionLog(`Tick engine active: sequential polling mode. Next tick waits for current response, then 500ms cooldown. Timeout=${Math.round(LIVE_TICK_REQUEST_TIMEOUT_MS / 1000)}s.`);
 
             if (!SWARM_WS_ENABLED) {
                 appendMissionLog('WebSocket disabled. Using API tick polling only.');
@@ -940,6 +957,26 @@
                 };
             } catch (connectionError) {
                 appendMissionLog(`WebSocket setup failed: ${connectionError.message}`);
+            }
+        }
+
+        async function fetchWithTimeout(url, options, timeoutMs) {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+            try {
+                return await fetch(url, {
+                    ...(options || {}),
+                    signal: controller.signal
+                });
+            } catch (error) {
+                if (error && error.name === 'AbortError') {
+                    throw new Error(`Request timed out after ${Math.round(timeoutMs / 1000)}s`);
+                }
+
+                throw error;
+            } finally {
+                clearTimeout(timer);
             }
         }
 
@@ -1187,8 +1224,9 @@
             if (runtime.mockTimer) {
                 clearInterval(runtime.mockTimer);
             }
+            runtime.liveLoopActive = false;
             if (runtime.liveTimer) {
-                clearInterval(runtime.liveTimer);
+                clearTimeout(runtime.liveTimer);
             }
             if (runtime.websocket) {
                 runtime.websocket.close();

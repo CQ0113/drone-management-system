@@ -269,7 +269,6 @@ class SwarmSimulationService
     {
         return match ($type) {
             'scan_sector' => 'Scanning sector',
-            'hold_position' => 'Holding position',
             'return_to_base' => 'Returning to base',
             default => 'Transit',
         };

@@ -357,16 +357,33 @@ class SwarmController extends Controller
     private function resolvePlannerPlanWithCache(array $plannerState, string $objective, array $runtime, bool $forceReplan = false): array
     {
         $ttl = max(0, (int) env('SWARM_OLLAMA_PLAN_CACHE_SECONDS', 30));
+        $cacheKey = $this->plannerCacheKey($objective, $runtime);
+        $lastSuccessKey = $this->plannerLastSuccessKey($objective);
+        $staleFallbackWindowSeconds = max(0, (int) env('SWARM_OLLAMA_STALE_FALLBACK_SECONDS', 600));
+
         if ($ttl <= 0 || $forceReplan) {
             $fresh = $this->planner->generatePlan($plannerState, $objective);
-            if ($forceReplan && is_array($fresh)) {
+            if ($this->isPlannerSuccess($fresh)) {
+                if ($ttl > 0) {
+                    Cache::put($cacheKey, $fresh, now()->addSeconds($ttl));
+                }
+                Cache::put($lastSuccessKey, $fresh, now()->addSeconds($staleFallbackWindowSeconds));
+            } else {
+                $stale = Cache::get($lastSuccessKey);
+                if (is_array($stale) && !empty($stale['actions']) && $staleFallbackWindowSeconds > 0) {
+                    $stale['source'] = 'ollama-stale-cache';
+
+                    return $stale;
+                }
+            }
+
+            if ($forceReplan && is_array($fresh) && !$this->isPlannerFallback($fresh)) {
                 $fresh['source'] = 'ollama-refresh';
             }
 
             return $fresh;
         }
 
-        $cacheKey = $this->plannerCacheKey($objective, $runtime);
         $cached = Cache::get($cacheKey);
         if (is_array($cached) && !empty($cached['actions'])) {
             $cached['source'] = 'ollama-cache';
@@ -375,8 +392,18 @@ class SwarmController extends Controller
         }
 
         $fresh = $this->planner->generatePlan($plannerState, $objective);
-        if (is_array($fresh) && !empty($fresh['actions'])) {
+        if ($this->isPlannerSuccess($fresh)) {
             Cache::put($cacheKey, $fresh, now()->addSeconds($ttl));
+            Cache::put($lastSuccessKey, $fresh, now()->addSeconds($staleFallbackWindowSeconds));
+
+            return $fresh;
+        }
+
+        $stale = Cache::get($lastSuccessKey);
+        if (is_array($stale) && !empty($stale['actions']) && $staleFallbackWindowSeconds > 0) {
+            $stale['source'] = 'ollama-stale-cache';
+
+            return $stale;
         }
 
         return $fresh;
@@ -390,16 +417,39 @@ class SwarmController extends Controller
         $snapshot = collect($runtime)
             ->map(fn ($drone, $id) => [
                 'id' => (string) $id,
-                'x' => round((float) data_get($drone, 'x', 0), 2),
-                'z' => round((float) data_get($drone, 'z', 0), 2),
-                'battery' => round((float) data_get($drone, 'battery', 100), 1),
-                'status' => (string) data_get($drone, 'status', ''),
             ])
             ->sortBy('id')
             ->values()
             ->all();
 
         return 'swarm:planner-cache:'.md5(strtolower(trim($objective)).'|'.json_encode($snapshot));
+    }
+
+    private function plannerLastSuccessKey(string $objective): string
+    {
+        return 'swarm:planner-last-success:'.md5(strtolower(trim($objective)));
+    }
+
+    /**
+     * @param array<string, mixed> $plan
+     */
+    private function isPlannerFallback(array $plan): bool
+    {
+        $source = strtolower((string) ($plan['source'] ?? ''));
+
+        return str_contains($source, 'fallback') || $source === 'mock-provider';
+    }
+
+    /**
+     * @param array<string, mixed> $plan
+     */
+    private function isPlannerSuccess(array $plan): bool
+    {
+        if (empty($plan['actions']) || !is_array($plan['actions'])) {
+            return false;
+        }
+
+        return !$this->isPlannerFallback($plan);
     }
 
     public function llmHealth(): JsonResponse

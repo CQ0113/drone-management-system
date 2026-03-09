@@ -60,14 +60,14 @@ class LlmPlannerService
                     'critical_below_percent' => 12,
                     'critical_action' => 'return_to_base',
                 ],
-                'allowed_actions' => ['scan_sector', 'move_to', 'hold_position', 'return_to_base'],
+                'allowed_actions' => ['scan_sector', 'move_to', 'return_to_base'],
                 'available_drone_ids' => array_values(array_map(fn (array $drone): string => (string) data_get($drone, 'id', ''), $plannerDrones)),
             ],
         ];
 
         $system = 'You are a swarm mission planner. Return only valid JSON. No markdown. '
             .'Output must be a single JSON object with keys intent, actions, reasoning. '
-            .'Each action.type must be exactly one of: scan_sector, move_to, hold_position, return_to_base. Never output pipe-delimited choices. '
+            .'Each action.type must be exactly one of: scan_sector, move_to, return_to_base. Never output pipe-delimited choices. '
             .'Each action.reason must be a non-empty short string. '
             .'Use rag_context as retrieval memory from previous similar missions. '
             .'State ingestion: use live_state.drone_runtime for current drone positions, battery, and statuses; use obstacles and live_state.obstacle_map for blocked zones. '
@@ -127,7 +127,7 @@ class LlmPlannerService
             ->filter(fn (string $id): bool => $id !== '')
             ->values()
             ->all();
-        $allowedTypes = ['scan_sector', 'move_to', 'hold_position', 'return_to_base'];
+        $allowedTypes = ['scan_sector', 'move_to', 'return_to_base'];
 
         $baseX = (float) data_get($state, 'base.x', 0);
         $baseZ = (float) data_get($state, 'base.z', 0);
@@ -168,7 +168,7 @@ class LlmPlannerService
 
             $byDrone[$id] = [
                 'drone_id' => $id,
-                'type' => 'hold_position',
+                'type' => 'move_to',
                 'target' => [
                     'x' => $this->clamp((float) data_get($defaultTargets, $id.'.x', $baseX), -49, 49),
                     'z' => $this->clamp((float) data_get($defaultTargets, $id.'.z', $baseZ), -49, 49),
@@ -203,7 +203,7 @@ class LlmPlannerService
             ->all();
         $defaultTargets = $this->buildDefaultTargets($allowedIds, $baseX, $baseZ);
 
-        $types = ['scan_sector', 'move_to', 'hold_position'];
+        $types = ['scan_sector', 'move_to', 'return_to_base'];
         $actions = [];
         foreach ($allowedIds as $index => $id) {
             $actions[] = [

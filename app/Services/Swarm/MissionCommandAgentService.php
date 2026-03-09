@@ -152,9 +152,9 @@ class MissionCommandAgentService
                 ],
                 [
                     'name' => 'stabilize-and-relay',
-                    'type' => 'hold_position',
+                    'type' => 'move_to',
                     'waypoints' => $this->relayPoints((float) data_get($state, 'base.x', 0), (float) data_get($state, 'base.z', 0)),
-                    'reasoning' => 'Phase 3: hold relay points and await next sweep cycle.',
+                    'reasoning' => 'Phase 3: move to relay points and await next sweep cycle.',
                 ],
             ],
             'created_at' => now()->toIso8601String(),
@@ -233,7 +233,7 @@ class MissionCommandAgentService
     private function buildActionsForPhase(array $phase, array $droneIds, array $runtime, array $state, int $sweepIteration = 0): array
     {
         $waypoints = (array) ($phase['waypoints'] ?? []);
-        $type = (string) ($phase['type'] ?? 'hold_position');
+        $type = (string) ($phase['type'] ?? 'move_to');
         $baseX = (float) data_get($state, 'base.x', 0.0);
         $baseZ = (float) data_get($state, 'base.z', 0.0);
         $waypointCount = max(1, count($waypoints));
