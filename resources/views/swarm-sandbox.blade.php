@@ -100,6 +100,33 @@
             animation: survivorPulse 0.9s ease-in-out infinite alternate;
         }
 
+        .terminal-scroll {
+            overflow-y: scroll;
+            overflow-x: hidden;
+            overscroll-behavior: contain;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(34, 211, 238, 0.65) rgba(8, 18, 30, 0.55);
+        }
+
+        .terminal-scroll::-webkit-scrollbar {
+            width: 10px;
+        }
+
+        .terminal-scroll::-webkit-scrollbar-track {
+            background: rgba(8, 18, 30, 0.55);
+            border-left: 1px solid rgba(34, 211, 238, 0.2);
+        }
+
+        .terminal-scroll::-webkit-scrollbar-thumb {
+            background: rgba(34, 211, 238, 0.65);
+            border-radius: 999px;
+            border: 2px solid rgba(8, 18, 30, 0.75);
+        }
+
+        .terminal-scroll::-webkit-scrollbar-thumb:hover {
+            background: rgba(103, 232, 249, 0.9);
+        }
+
         @keyframes survivorPulse {
             from { transform: scale(1); box-shadow: 0 0 10px rgba(250, 204, 21, 0.35); }
             to { transform: scale(1.02); box-shadow: 0 0 24px rgba(250, 204, 21, 0.75); }
@@ -114,7 +141,10 @@
     <div class="fixed inset-0 z-10 pointer-events-none">
         <header class="pointer-events-auto absolute top-4 left-4 right-4 glass-panel rounded-xl px-5 py-3 flex items-center justify-between">
             <h1 id="hud-title" class="font-display text-xl md:text-2xl tracking-widest text-cyan-300">Swarm Command Center - Setup Mode</h1>
-            <span class="text-xs md:text-sm uppercase tracking-[0.25em] text-slate-300">Decentralised Swarm Intelligence</span>
+            <div class="flex items-center gap-3">
+                <span id="planner-source-badge" class="rounded-full border border-cyan-600/60 bg-cyan-500/10 px-3 py-1 text-[10px] md:text-xs uppercase tracking-[0.16em] text-cyan-200">Source: Idle</span>
+                <span class="text-xs md:text-sm uppercase tracking-[0.25em] text-slate-300">Decentralised Swarm Intelligence</span>
+            </div>
         </header>
 
         <section class="pointer-events-auto absolute top-24 left-1/2 -translate-x-1/2 w-[360px] max-w-[92vw] glass-panel rounded-xl p-3">
@@ -160,28 +190,28 @@
                         <h2 class="font-display text-sm uppercase tracking-[0.2em] text-cyan-300">Mission Log</h2>
                         <span class="text-xs uppercase tracking-[0.15em] text-slate-400">Live Feed</span>
                     </div>
-                    <div id="mission-log" class="flex-1 min-h-0 overflow-y-auto rounded-md border border-cyan-900/60 bg-slate-950/70 px-3 py-2 text-xs md:text-sm leading-relaxed text-slate-200 font-mono"></div>
+                    <div id="mission-log" class="terminal-scroll flex-1 min-h-0 rounded-md border border-cyan-900/60 bg-slate-950/70 px-3 py-2 text-xs md:text-sm leading-relaxed text-slate-200 font-mono"></div>
                 </div>
                 <div class="h-full flex flex-col">
                     <div class="flex items-center justify-between mb-2">
                         <h2 class="font-display text-sm uppercase tracking-[0.2em] text-emerald-300">LLM Decision Terminal</h2>
                         <span class="text-xs uppercase tracking-[0.15em] text-slate-400">Reasoning</span>
                     </div>
-                    <div id="llm-decision-log" class="flex-1 min-h-0 overflow-y-auto rounded-md border border-emerald-900/60 bg-slate-950/70 px-3 py-2 text-xs md:text-sm leading-relaxed text-emerald-100 font-mono"></div>
+                    <div id="llm-decision-log" class="terminal-scroll flex-1 min-h-0 rounded-md border border-emerald-900/60 bg-slate-950/70 px-3 py-2 text-xs md:text-sm leading-relaxed text-emerald-100 font-mono"></div>
                 </div>
                 <div class="h-full flex flex-col">
                     <div class="flex items-center justify-between mb-2">
                         <h2 class="font-display text-sm uppercase tracking-[0.2em] text-amber-300">Found Survivors</h2>
                         <span class="text-xs uppercase tracking-[0.15em] text-slate-400">Registry</span>
                     </div>
-                    <div id="found-survivor-list" class="flex-1 min-h-0 overflow-y-auto rounded-md border border-amber-900/60 bg-slate-950/70 px-3 py-2 text-xs md:text-sm leading-relaxed text-amber-100 font-mono"></div>
+                    <div id="found-survivor-list" class="terminal-scroll flex-1 min-h-0 rounded-md border border-amber-900/60 bg-slate-950/70 px-3 py-2 text-xs md:text-sm leading-relaxed text-amber-100 font-mono"></div>
                 </div>
                 <div class="h-full flex flex-col">
                     <div class="flex items-center justify-between mb-2">
                         <h2 class="font-display text-sm uppercase tracking-[0.2em] text-fuchsia-300">Ollama Raw Output</h2>
                         <span class="text-xs uppercase tracking-[0.15em] text-slate-400">Complete</span>
                     </div>
-                    <div id="ollama-raw-log" class="flex-1 min-h-0 overflow-y-auto whitespace-pre-wrap break-words rounded-md border border-fuchsia-900/60 bg-slate-950/70 px-3 py-2 text-xs md:text-sm leading-relaxed text-fuchsia-100 font-mono"></div>
+                    <div id="ollama-raw-log" class="terminal-scroll flex-1 min-h-0 whitespace-pre-wrap break-words rounded-md border border-fuchsia-900/60 bg-slate-950/70 px-3 py-2 text-xs md:text-sm leading-relaxed text-fuchsia-100 font-mono"></div>
                 </div>
             </div>
         </section>
@@ -199,6 +229,7 @@
         const USE_MOCK_DATA = false;
         const LIVE_OBJECTIVE = 'Scan the South-East quadrant for thermal signatures';
         const LIVE_TICK_REQUEST_TIMEOUT_MS = {{ max(5000, (int) env('SWARM_FRONTEND_TICK_TIMEOUT_MS', 30000)) }};
+        const DRONE_SCAN_RADIUS = {{ max(1, min(25, (float) env('SWARM_SCAN_DETECTION_RADIUS', 6))) }};
         const SWARM_WS_ENABLED = false;
         const SWARM_WS_URL = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws/swarm`;
 
@@ -244,6 +275,7 @@
         const survivorAlertEl = document.getElementById('survivor-alert');
         const droneStatusListEl = document.getElementById('drone-status-list');
         const titleEl = document.getElementById('hud-title');
+        const plannerSourceBadgeEl = document.getElementById('planner-source-badge');
         const placementHintEl = document.getElementById('placement-hint');
         const deployBtn = document.getElementById('deploy-btn');
         const restartBtn = document.getElementById('restart-btn');
@@ -548,6 +580,7 @@
             });
 
             appendMissionLog('Swarm deployed. Initializing autonomy stack...');
+            setPlannerSourceBadge('bootstrap', null);
 
             createOrResetDronesAtBase(runtime.droneIds);
 
@@ -615,6 +648,9 @@
                 if (drone && drone.mesh) {
                     scene.remove(drone.mesh);
                 }
+                if (drone && drone.scanMesh) {
+                    scene.remove(drone.scanMesh);
+                }
                 delete runtime.drones[id];
             });
 
@@ -627,19 +663,32 @@
                     mesh.rotation.x = Math.PI;
                     scene.add(mesh);
 
+                    const scanMesh = createScanRadiusMesh(DRONE_SCAN_RADIUS);
+                    scene.add(scanMesh);
+
                     runtime.drones[id] = {
+                        id,
                         mesh,
+                        scanMesh,
                         targetX: state.base.x,
                         targetZ: state.base.z,
-                        battery: 100
+                        battery: 100,
+                        scanActive: false,
+                        scanPulsePhase: Math.random() * Math.PI * 2,
+                        lastScanCheckAt: 0
                     };
                 }
 
                 const drone = runtime.drones[id];
                 drone.battery = 100;
+                drone.scanActive = false;
                 drone.targetX = state.base.x + offsets[index].x;
                 drone.targetZ = state.base.z + offsets[index].z;
                 drone.mesh.position.set(drone.targetX, 1.45, drone.targetZ);
+                if (drone.scanMesh) {
+                    drone.scanMesh.position.set(drone.targetX, 0.08, drone.targetZ);
+                    drone.scanMesh.visible = false;
+                }
 
                 dronePanelState[id] = {
                     battery: 100,
@@ -720,6 +769,7 @@
                             battery: Math.round(drone.battery),
                             status: 'Charging at base'
                         };
+                        drone.scanActive = false;
                         return;
                     }
 
@@ -731,6 +781,7 @@
                             battery: 0,
                             status: 'Power depleted - stopped'
                         };
+                        drone.scanActive = false;
                         return;
                     }
 
@@ -743,6 +794,7 @@
                             battery: 0,
                             status: 'Power depleted - stopped'
                         };
+                        drone.scanActive = false;
                         appendMissionLog(`Drone ${id.slice(1)}: Power depleted - stopped.`);
                         return;
                     }
@@ -755,6 +807,7 @@
                             battery: Math.round(drone.battery),
                             status: 'Returning to base'
                         };
+                        drone.scanActive = false;
                         appendDecisionLog(`${id}: safety override -> return_to_base (${state.base.x}, ${state.base.z}).`);
                         return;
                     }
@@ -768,11 +821,12 @@
                         battery: Math.round(drone.battery),
                         status: drone.battery > 20 ? phrase : 'Returning to base'
                     };
+                    drone.scanActive = isScanningStatus(dronePanelState[id].status);
 
                     appendDecisionLog(`${id}: ${dronePanelState[id].status} at (${Math.round(drone.targetX)}, ${Math.round(drone.targetZ)}).`);
 
                     appendMissionLog(`Drone ${id.slice(1)}: ${dronePanelState[id].status}...`);
-                    emitMockSurvivorSignals(id, drone);
+                    emitScanRadiusSignals(id, drone, 'mock-scan');
                 });
 
                 renderDroneStatus();
@@ -843,6 +897,7 @@
                     }
 
                     appendDecisionLog(`Source=${tick.source || 'unknown'} Intent=${tick.intent || 'n/a'}`);
+                    setPlannerSourceBadge(tick.source || 'unknown', tick.timings || null);
                     if (Array.isArray(tick.actions)) {
                         tick.actions.slice(0, 3).forEach((action) => {
                             appendDecisionLog(`${action.drone_id}: ${action.type} -> (${Math.round(action.target.x)}, ${Math.round(action.target.z)})`);
@@ -873,6 +928,7 @@
                             battery: Math.round(drone.battery),
                             status: update.status || 'Live telemetry'
                         };
+                        drone.scanActive = isScanningStatus(dronePanelState[id].status);
                     });
 
                     if (Array.isArray(tick.logs)) {
@@ -940,6 +996,7 @@
                                 battery: Math.round(drone.battery),
                                 status: drone.battery > 20 ? 'Live telemetry' : 'Low battery'
                             };
+                            drone.scanActive = isScanningStatus(dronePanelState[id].status);
                         });
 
                         renderDroneStatus();
@@ -1053,19 +1110,81 @@
             ollamaRawLogEl.scrollTop = ollamaRawLogEl.scrollHeight;
         }
 
-        function emitMockSurvivorSignals(droneId, drone) {
+        function setPlannerSourceBadge(source, timings) {
+            if (!plannerSourceBadgeEl) {
+                return;
+            }
+
+            const text = String(source || 'unknown');
+            const lower = text.toLowerCase();
+            let visual = 'cache';
+            if (lower.includes('fallback') || lower.includes('stale') || lower.includes('mock')) {
+                visual = 'fallback';
+            } else if (lower.includes('ollama') && !lower.includes('cache')) {
+                visual = 'ollama';
+            }
+
+            let classes = 'rounded-full border px-3 py-1 text-[10px] md:text-xs uppercase tracking-[0.16em]';
+            if (visual === 'ollama') {
+                classes += ' border-emerald-400/70 bg-emerald-500/15 text-emerald-200';
+            } else if (visual === 'fallback') {
+                classes += ' border-amber-400/70 bg-amber-500/15 text-amber-100';
+            } else {
+                classes += ' border-cyan-600/60 bg-cyan-500/10 text-cyan-200';
+            }
+
+            plannerSourceBadgeEl.className = classes;
+
+            const ms = Number(timings && timings.total_ms);
+            const latency = Number.isFinite(ms) ? ` | ${Math.round(ms)}ms` : '';
+            plannerSourceBadgeEl.textContent = `Source: ${text}${latency}`;
+        }
+
+        function createScanRadiusMesh(radius) {
+            const mesh = new THREE.Mesh(
+                new THREE.RingGeometry(radius - 0.18, radius, 48),
+                new THREE.MeshBasicMaterial({
+                    color: 0x36f5c7,
+                    transparent: true,
+                    opacity: 0.45,
+                    side: THREE.DoubleSide,
+                    depthWrite: false
+                })
+            );
+            mesh.rotation.x = -Math.PI / 2;
+            mesh.position.y = 0.08;
+            mesh.visible = false;
+            return mesh;
+        }
+
+        function isScanningStatus(status) {
+            const text = String(status || '').toLowerCase();
+            return text.includes('scan') || text.includes('thermal sweep');
+        }
+
+        function emitScanRadiusSignals(droneId, drone, signalPrefix = 'scan-radius') {
+            if (!drone || !drone.mesh || !drone.scanActive) {
+                return;
+            }
+
+            const now = Date.now();
+            if (now - (drone.lastScanCheckAt || 0) < 220) {
+                return;
+            }
+            drone.lastScanCheckAt = now;
+
             state.survivors.forEach((survivor, index) => {
-                const signalKey = `mock-${index}`;
+                const signalKey = `${signalPrefix}-${index}`;
                 if (foundSurvivorSignals.has(signalKey)) {
                     return;
                 }
 
-                const close = Math.hypot(
+                const withinScanRadius = Math.hypot(
                     drone.mesh.position.x - survivor.x,
                     drone.mesh.position.z - survivor.z
-                ) <= 1.6;
+                ) <= DRONE_SCAN_RADIUS;
 
-                if (!close) {
+                if (!withinScanRadius) {
                     return;
                 }
 
@@ -1086,6 +1205,11 @@
 
         function handleSurvivorSignal(signal, sourcePrefix) {
             if (!signal || signal.type !== 'survivor_found') {
+                return;
+            }
+
+            const survivorIndex = Number(signal.survivor_index);
+            if (Number.isFinite(survivorIndex) && foundSurvivorRegistry.has(survivorIndex)) {
                 return;
             }
 
@@ -1193,6 +1317,7 @@
 
         function animate() {
             animationHandle = requestAnimationFrame(animate);
+            const nowSec = performance.now() / 1000;
 
             Object.values(runtime.drones).forEach((drone) => {
                 if (!drone || !drone.mesh) {
@@ -1207,6 +1332,22 @@
                     drone.targetZ - drone.mesh.position.z
                 );
                 drone.mesh.rotation.y = yaw;
+
+                if (drone.scanMesh) {
+                    drone.scanMesh.position.x = drone.mesh.position.x;
+                    drone.scanMesh.position.z = drone.mesh.position.z;
+                    drone.scanMesh.visible = Boolean(drone.scanActive);
+
+                    if (drone.scanMesh.visible && drone.scanMesh.material) {
+                        const pulse = 0.82 + 0.18 * Math.sin((nowSec * 4.2) + (drone.scanPulsePhase || 0));
+                        drone.scanMesh.scale.set(pulse, pulse, 1);
+                        drone.scanMesh.material.opacity = 0.22 + (pulse - 0.82) * 0.95;
+                    }
+                }
+
+                if (drone.id) {
+                    emitScanRadiusSignals(drone.id, drone, 'ui-scan');
+                }
             });
 
             renderer.render(scene, camera);

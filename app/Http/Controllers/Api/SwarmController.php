@@ -203,6 +203,14 @@ class SwarmController extends Controller
         }
         $timings['planning_ms'] = round((microtime(true) - $planningStartedAt) * 1000, 2);
 
+        if (empty($validated['actions']) && !empty($runtime) && $this->shouldUsePatrolFallback($plan)) {
+            $plan = $this->buildPatrolFallbackPlan($plan, $objective, $state, $runtime);
+        }
+
+        if (empty($validated['actions']) && !empty($runtime) && $this->shouldUseCachePatrolNudge($plan)) {
+            $plan = $this->applyCachePatrolNudge($plan, $state, $runtime);
+        }
+
         if (empty($validated['actions'])) {
             $mcpStartedAt = microtime(true);
             $mcp = $this->mcpExecutor->executePlan($plan, $state);
@@ -360,6 +368,26 @@ class SwarmController extends Controller
         $cacheKey = $this->plannerCacheKey($objective, $runtime);
         $lastSuccessKey = $this->plannerLastSuccessKey($objective);
         $staleFallbackWindowSeconds = max(0, (int) env('SWARM_OLLAMA_STALE_FALLBACK_SECONDS', 600));
+        $nonBlockingForceReplan = env('SWARM_NONBLOCKING_FORCE_REPLAN', true);
+        $nonBlockingForceReplan = is_bool($nonBlockingForceReplan)
+            ? $nonBlockingForceReplan
+            : in_array(strtolower((string) $nonBlockingForceReplan), ['1', 'true', 'yes', 'on'], true);
+
+        if ($forceReplan && $nonBlockingForceReplan) {
+            $cached = Cache::get($cacheKey);
+            if (is_array($cached) && !empty($cached['actions'])) {
+                $cached['source'] = 'ollama-cache-patrol';
+
+                return $cached;
+            }
+
+            $stale = Cache::get($lastSuccessKey);
+            if (is_array($stale) && !empty($stale['actions'])) {
+                $stale['source'] = 'ollama-stale-cache';
+
+                return $stale;
+            }
+        }
 
         if ($ttl <= 0 || $forceReplan) {
             $fresh = $this->planner->generatePlan($plannerState, $objective);
@@ -450,6 +478,190 @@ class SwarmController extends Controller
         }
 
         return !$this->isPlannerFallback($plan);
+    }
+
+    /**
+     * @param array<string, mixed> $plan
+     */
+    private function shouldUsePatrolFallback(array $plan): bool
+    {
+        $enabled = env('SWARM_PATROL_ON_LLM_TIMEOUT', true);
+        $enabled = is_bool($enabled)
+            ? $enabled
+            : in_array(strtolower((string) $enabled), ['1', 'true', 'yes', 'on'], true);
+
+        if (!$enabled) {
+            return false;
+        }
+
+        $source = strtolower((string) ($plan['source'] ?? ''));
+
+        return str_contains($source, 'fallback') || $source === 'ollama-stale-cache' || $source === 'mock-provider';
+    }
+
+    /**
+     * @param array<string, mixed> $plan
+     */
+    private function shouldUseCachePatrolNudge(array $plan): bool
+    {
+        $enabled = env('SWARM_CACHE_PATROL_ON_REACH', true);
+        $enabled = is_bool($enabled)
+            ? $enabled
+            : in_array(strtolower((string) $enabled), ['1', 'true', 'yes', 'on'], true);
+
+        if (!$enabled) {
+            return false;
+        }
+
+        $source = strtolower((string) ($plan['source'] ?? ''));
+
+        return $source === 'ollama-cache' || $source === 'ollama-stale-cache';
+    }
+
+    /**
+     * @param array<string, mixed> $plan
+     * @param array<string, mixed> $state
+     * @param array<string, array<string, mixed>> $runtime
+     * @return array<string, mixed>
+     */
+    private function applyCachePatrolNudge(array $plan, array $state, array $runtime): array
+    {
+        $reachThreshold = max(0.5, min(5.0, (float) env('SWARM_CACHE_PATROL_REACH_THRESHOLD', 1.2)));
+        $radius = max(1.0, min(20.0, (float) env('SWARM_CACHE_PATROL_RADIUS', 6.0)));
+        $actions = (array) ($plan['actions'] ?? []);
+        $nudged = false;
+
+        foreach ($actions as $index => $action) {
+            $id = (string) data_get($action, 'drone_id', '');
+            if ($id === '' || !isset($runtime[$id])) {
+                continue;
+            }
+
+            $type = (string) data_get($action, 'type', 'move_to');
+            if (!in_array($type, ['move_to', 'scan_sector'], true)) {
+                continue;
+            }
+
+            $currentX = (float) data_get($runtime, $id.'.x', (float) data_get($state, 'base.x', 0.0));
+            $currentZ = (float) data_get($runtime, $id.'.z', (float) data_get($state, 'base.z', 0.0));
+            $targetX = (float) data_get($action, 'target.x', $currentX);
+            $targetZ = (float) data_get($action, 'target.z', $currentZ);
+
+            if ($this->distance($currentX, $currentZ, $targetX, $targetZ) > $reachThreshold) {
+                continue;
+            }
+
+            $angle = mt_rand(0, 359) * (M_PI / 180);
+            $distance = mt_rand(35, 100) / 100 * $radius;
+            $nextX = $this->clamp($currentX + ($distance * cos($angle)), -49.0, 49.0);
+            $nextZ = $this->clamp($currentZ + ($distance * sin($angle)), -49.0, 49.0);
+
+            $actions[$index]['target'] = [
+                'x' => round($nextX, 2),
+                'z' => round($nextZ, 2),
+            ];
+            $actions[$index]['reason'] = sprintf('Cache patrol nudge: new nearby target within %.1f radius.', $radius);
+            $nudged = true;
+        }
+
+        if (!$nudged) {
+            return $plan;
+        }
+
+        $plan['actions'] = $actions;
+        $plan['source'] = 'ollama-cache-patrol';
+        $plan['reasoning'] = trim(((string) ($plan['reasoning'] ?? 'Cached plan.')).' Patrol nudge applied to maintain movement.');
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string, mixed> $plan
+     * @param array<string, mixed> $state
+     * @param array<string, array<string, mixed>> $runtime
+     * @return array<string, mixed>
+     */
+    private function buildPatrolFallbackPlan(array $plan, string $objective, array $state, array $runtime): array
+    {
+        $radius = max(1.0, min(20.0, (float) env('SWARM_PATROL_RADIUS', 8)));
+        $baseX = (float) data_get($state, 'base.x', 0.0);
+        $baseZ = (float) data_get($state, 'base.z', 0.0);
+        $actions = [];
+        $droneIds = array_values(array_filter(array_keys($runtime), fn ($id) => is_string($id) && $id !== ''));
+        sort($droneIds);
+        $droneCount = max(1, count($droneIds));
+
+        $phaseKey = $this->patrolPhaseKey($objective);
+        $phase = (int) Cache::get($phaseKey, 0);
+        Cache::put($phaseKey, $phase + 1, now()->addHours(6));
+
+        foreach ($droneIds as $index => $id) {
+            $entry = (array) ($runtime[$id] ?? []);
+
+            $x = (float) data_get($entry, 'x', $baseX);
+            $z = (float) data_get($entry, 'z', $baseZ);
+            $battery = (float) data_get($entry, 'battery', 100.0);
+
+            if ($battery <= 20.0) {
+                $actions[] = [
+                    'drone_id' => $id,
+                    'type' => 'return_to_base',
+                    'target' => ['x' => $baseX, 'z' => $baseZ],
+                    'priority' => 1,
+                    'reason' => 'LLM unavailable fallback: low battery safety return.',
+                ];
+                continue;
+            }
+
+            $angle = ((2 * M_PI * $index) / $droneCount) + ($phase * 0.5);
+            $tx = $this->clamp($baseX + ($radius * cos($angle)), -49.0, 49.0);
+            $tz = $this->clamp($baseZ + ($radius * sin($angle)), -49.0, 49.0);
+
+            // If the drone is already near this patrol waypoint, advance to next phase waypoint.
+            if ($this->distance($x, $z, $tx, $tz) <= 1.0) {
+                $nextAngle = ((2 * M_PI * $index) / $droneCount) + (($phase + 1) * 0.5);
+                $tx = $this->clamp($baseX + ($radius * cos($nextAngle)), -49.0, 49.0);
+                $tz = $this->clamp($baseZ + ($radius * sin($nextAngle)), -49.0, 49.0);
+            }
+
+            $actions[] = [
+                'drone_id' => $id,
+                'type' => 'scan_sector',
+                'target' => [
+                    'x' => round($tx, 2),
+                    'z' => round($tz, 2),
+                ],
+                'priority' => 5,
+                'reason' => sprintf('LLM unavailable fallback: patrol-scan ring waypoint (radius %.1f).', $radius),
+            ];
+        }
+
+        usort($actions, fn (array $a, array $b): int => strcmp((string) $a['drone_id'], (string) $b['drone_id']));
+
+        $plan['intent'] = $objective;
+        $plan['actions'] = $actions;
+        $plan['reasoning'] = sprintf('Planner fallback activated. Executing deterministic patrol-scan pattern (radius %.1f).', $radius);
+        $plan['source'] = 'patrol-fallback';
+
+        return $plan;
+    }
+
+    private function patrolPhaseKey(string $objective): string
+    {
+        return 'swarm:patrol-phase:'.md5(strtolower(trim($objective)));
+    }
+
+    private function clamp(float $value, float $min, float $max): float
+    {
+        return min($max, max($min, $value));
+    }
+
+    private function distance(float $x1, float $z1, float $x2, float $z2): float
+    {
+        $dx = $x1 - $x2;
+        $dz = $z1 - $z2;
+
+        return sqrt(($dx * $dx) + ($dz * $dz));
     }
 
     public function llmHealth(): JsonResponse

@@ -33,6 +33,8 @@ class LlmPlannerService
         $baseUrl = rtrim((string) config('services.ollama.base_url', 'http://127.0.0.1:11434'), '/');
         $model = (string) config('services.ollama.model', 'qwen2.5:7b-instruct');
         $timeout = (int) config('services.ollama.timeout', 30);
+        $temperature = max(0.0, min(2.0, (float) config('services.ollama.temperature', 0.45)));
+        $topP = max(0.0, min(1.0, (float) config('services.ollama.top_p', 0.9)));
 
         $promptState = [
             'objective' => $objective,
@@ -84,6 +86,10 @@ class LlmPlannerService
                     'model' => $model,
                     'format' => 'json',
                     'stream' => false,
+                    'options' => [
+                        'temperature' => $temperature,
+                        'top_p' => $topP,
+                    ],
                     'messages' => [
                         ['role' => 'system', 'content' => $system],
                         ['role' => 'user', 'content' => json_encode($promptState, JSON_UNESCAPED_SLASHES)],

@@ -31,10 +31,14 @@ class SwarmSimulationService
     {
         $logs = [];
         $signals = [];
-        $step = 2.2;
-        $unitsPerOnePercent = 5.0;
-        $idleDrain = 0.05;
-        $chargeRate = 6.0;
+        $step = $this->clamp((float) env('SWARM_MOVE_STEP', 2.8), 1.0, 6.0);
+        $scanDetectionRadius = $this->clamp((float) env('SWARM_SCAN_DETECTION_RADIUS', 6.0), 1.0, 25.0);
+        $scanOrbitRadius = $this->clamp((float) env('SWARM_SCAN_ORBIT_RADIUS', 2.4), 0.0, 8.0);
+        $scanOrbitStep = $this->clamp((float) env('SWARM_SCAN_ORBIT_STEP', 0.55), 0.1, 2.2);
+        $unitsPerOnePercent = max(2.0, min(20.0, (float) env('SWARM_BATTERY_UNITS_PER_PERCENT', 8.0)));
+        $idleDrain = max(0.0, min(1.0, (float) env('SWARM_BATTERY_IDLE_DRAIN', 0.03)));
+        $chargeRate = max(1.0, min(25.0, (float) env('SWARM_BATTERY_CHARGE_RATE', 10.0)));
+        $baseChargeUntil = max(25.0, min(100.0, (float) env('SWARM_BASE_CHARGE_UNTIL_PERCENT', 60.0)));
         $baseX = (float) data_get($state, 'base.x', 0);
         $baseZ = (float) data_get($state, 'base.z', 0);
         $survivors = array_values((array) data_get($state, 'survivors', []));
@@ -56,13 +60,13 @@ class SwarmSimulationService
             $currentBattery = (float) ($runtime[$id]['battery'] ?? 0.0);
             $atBase = $this->isClose($currentX, $currentZ, $baseX, $baseZ, 1.0);
 
-            if ($atBase && $currentBattery < 100.0) {
+            if ($atBase && $currentBattery < $baseChargeUntil) {
                 $runtime[$id]['battery'] = min(100.0, $currentBattery + $chargeRate);
                 $runtime[$id]['status'] = 'Charging at base';
                 $runtime[$id]['goal'] = sprintf('%.2f,%.2f', $baseX, $baseZ);
                 $runtime[$id]['path'] = [];
                 $logs[] = sprintf('%s: Charging at base.', $id);
-                $this->captureSurvivorSignal($id, (float) $runtime[$id]['x'], (float) $runtime[$id]['z'], $survivors, $foundMap, $signals, $logs, $runtime, $survivorProfiles);
+                $this->captureSurvivorSignal($id, (float) $runtime[$id]['x'], (float) $runtime[$id]['z'], $survivors, $foundMap, $signals, $logs, $runtime, $survivorProfiles, false, $scanDetectionRadius);
                 continue;
             }
 
@@ -71,14 +75,24 @@ class SwarmSimulationService
                 $runtime[$id]['status'] = 'Power depleted - stopped';
                 $runtime[$id]['path'] = [];
                 $logs[] = sprintf('%s: Power depleted - stopped.', $id);
-                $this->captureSurvivorSignal($id, (float) $runtime[$id]['x'], (float) $runtime[$id]['z'], $survivors, $foundMap, $signals, $logs, $runtime, $survivorProfiles);
+                $this->captureSurvivorSignal($id, (float) $runtime[$id]['x'], (float) $runtime[$id]['z'], $survivors, $foundMap, $signals, $logs, $runtime, $survivorProfiles, false, $scanDetectionRadius);
                 continue;
             }
 
             $runtime[$id]['path'] = is_array(data_get($runtime[$id], 'path')) ? $runtime[$id]['path'] : [];
 
+            $actionType = (string) data_get($action, 'type', 'move_to');
             $targetX = (float) data_get($action, 'target.x', $runtime[$id]['x']);
             $targetZ = (float) data_get($action, 'target.z', $runtime[$id]['z']);
+
+            if ($actionType === 'scan_sector' && $scanOrbitRadius > 0.0 && $this->isClose($currentX, $currentZ, $targetX, $targetZ, 0.9)) {
+                $angle = (float) data_get($runtime[$id], 'scan_angle', (($this->stableHash01($id) * 2.0 * M_PI)));
+                $angle += $scanOrbitStep;
+                $runtime[$id]['scan_angle'] = $angle;
+                $targetX = $this->clamp($targetX + (cos($angle) * $scanOrbitRadius), -49.0, 49.0);
+                $targetZ = $this->clamp($targetZ + (sin($angle) * $scanOrbitRadius), -49.0, 49.0);
+            }
+
             $goalKey = sprintf('%.2f,%.2f', $targetX, $targetZ);
 
             if (($runtime[$id]['goal'] ?? null) !== $goalKey) {
@@ -90,16 +104,22 @@ class SwarmSimulationService
                 );
             }
 
-            $moveTargetX = $targetX;
-            $moveTargetZ = $targetZ;
-            if (!empty($runtime[$id]['path']) && is_array($runtime[$id]['path'][0] ?? null)) {
-                $moveTargetX = (float) data_get($runtime[$id]['path'][0], 'x', $targetX);
-                $moveTargetZ = (float) data_get($runtime[$id]['path'][0], 'z', $targetZ);
-            }
-
-            $next = $this->stepTowardsWithCollision($currentX, $currentZ, $moveTargetX, $moveTargetZ, $step, $blocked);
+            $next = $this->advanceAlongPath(
+                $currentX,
+                $currentZ,
+                (array) $runtime[$id]['path'],
+                $targetX,
+                $targetZ,
+                $step,
+                $blocked
+            );
             $runtime[$id]['x'] = $this->clamp($next['x'], -49, 49);
             $runtime[$id]['z'] = $this->clamp($next['z'], -49, 49);
+            $consumedNodes = (int) ($next['consumed_nodes'] ?? 0);
+            while ($consumedNodes > 0 && !empty($runtime[$id]['path'])) {
+                array_shift($runtime[$id]['path']);
+                $consumedNodes--;
+            }
 
             $distanceMoved = sqrt(pow(((float) $runtime[$id]['x']) - $currentX, 2) + pow(((float) $runtime[$id]['z']) - $currentZ, 2));
             $consumption = max($idleDrain, $distanceMoved / $unitsPerOnePercent);
@@ -109,18 +129,22 @@ class SwarmSimulationService
                 $runtime[$id]['status'] = 'Power depleted - stopped';
                 $runtime[$id]['path'] = [];
                 $logs[] = sprintf('%s: Power depleted - stopped.', $id);
-                $this->captureSurvivorSignal($id, (float) $runtime[$id]['x'], (float) $runtime[$id]['z'], $survivors, $foundMap, $signals, $logs, $runtime, $survivorProfiles);
+                $this->captureSurvivorSignal($id, (float) $runtime[$id]['x'], (float) $runtime[$id]['z'], $survivors, $foundMap, $signals, $logs, $runtime, $survivorProfiles, false, $scanDetectionRadius);
                 continue;
             }
 
-            if (!empty($runtime[$id]['path']) && $this->isClose($runtime[$id]['x'], $runtime[$id]['z'], $moveTargetX, $moveTargetZ, 0.45)) {
-                array_shift($runtime[$id]['path']);
+            if (!empty($runtime[$id]['path']) && is_array($runtime[$id]['path'][0] ?? null)) {
+                $peekX = (float) data_get($runtime[$id]['path'][0], 'x', $targetX);
+                $peekZ = (float) data_get($runtime[$id]['path'][0], 'z', $targetZ);
+                if ($this->isClose($runtime[$id]['x'], $runtime[$id]['z'], $peekX, $peekZ, 0.35)) {
+                    array_shift($runtime[$id]['path']);
+                }
             }
 
             $runtime[$id]['battery'] = $nextBattery;
 
             $status = $nextBattery > 20
-                ? $this->statusFromAction((string) data_get($action, 'type', 'move_to'))
+                ? $this->statusFromAction($actionType)
                 : 'Low battery - return protocol';
 
             if ((bool) ($next['blocked'] ?? false)) {
@@ -131,7 +155,8 @@ class SwarmSimulationService
 
             $runtime[$id]['status'] = $status;
             $logs[] = sprintf('%s: %s.', $id, $status);
-            $this->captureSurvivorSignal($id, (float) $runtime[$id]['x'], (float) $runtime[$id]['z'], $survivors, $foundMap, $signals, $logs, $runtime, $survivorProfiles);
+            $isScanAction = $actionType === 'scan_sector';
+            $this->captureSurvivorSignal($id, (float) $runtime[$id]['x'], (float) $runtime[$id]['z'], $survivors, $foundMap, $signals, $logs, $runtime, $survivorProfiles, $isScanAction, $scanDetectionRadius);
         }
 
         $telemetry = [];
@@ -178,7 +203,13 @@ class SwarmSimulationService
         array &$logs,
         array &$runtime,
         array $survivorProfiles,
+        bool $scanActive,
+        float $scanRadius,
     ): void {
+        if (!$scanActive) {
+            return;
+        }
+
         foreach ($survivors as $index => $survivor) {
             $key = (string) $index;
             if (isset($foundMap[$key])) {
@@ -187,7 +218,7 @@ class SwarmSimulationService
 
             $sx = (float) data_get($survivor, 'x', 0);
             $sz = (float) data_get($survivor, 'z', 0);
-            if (!$this->isClose($x, $z, $sx, $sz, 1.6)) {
+            if (!$this->isClose($x, $z, $sx, $sz, $scanRadius)) {
                 continue;
             }
 
@@ -265,6 +296,74 @@ class SwarmSimulationService
         return ['x' => $target['x'], 'z' => $target['z'], 'blocked' => false];
     }
 
+    /**
+     * @param array<int, array{x:int, z:int}> $path
+     * @param array<string, bool> $blocked
+     * @return array{x: float, z: float, blocked: bool, consumed_nodes: int}
+     */
+    private function advanceAlongPath(float $x, float $z, array $path, float $targetX, float $targetZ, float $maxStep, array $blocked): array
+    {
+        $remaining = max(0.0, $maxStep);
+        $currentX = $x;
+        $currentZ = $z;
+        $consumedNodes = 0;
+
+        $nodes = [];
+        foreach ($path as $node) {
+            if (!is_array($node)) {
+                continue;
+            }
+
+            $nodes[] = [
+                'x' => (float) data_get($node, 'x', $targetX),
+                'z' => (float) data_get($node, 'z', $targetZ),
+                'is_path_node' => true,
+            ];
+        }
+        $nodes[] = [
+            'x' => $targetX,
+            'z' => $targetZ,
+            'is_path_node' => false,
+        ];
+
+        foreach ($nodes as $node) {
+            if ($remaining <= 0.0) {
+                break;
+            }
+
+            $next = $this->stepTowardsWithCollision($currentX, $currentZ, (float) $node['x'], (float) $node['z'], $remaining, $blocked);
+            $segmentMoved = sqrt(pow($next['x'] - $currentX, 2) + pow($next['z'] - $currentZ, 2));
+            $currentX = (float) $next['x'];
+            $currentZ = (float) $next['z'];
+            $remaining = max(0.0, $remaining - $segmentMoved);
+
+            if ((bool) ($next['blocked'] ?? false)) {
+                return [
+                    'x' => $currentX,
+                    'z' => $currentZ,
+                    'blocked' => true,
+                    'consumed_nodes' => $consumedNodes,
+                ];
+            }
+
+            if ((bool) $node['is_path_node'] && $this->isClose($currentX, $currentZ, (float) $node['x'], (float) $node['z'], 0.10)) {
+                $consumedNodes++;
+                continue;
+            }
+
+            if (!$this->isClose($currentX, $currentZ, (float) $node['x'], (float) $node['z'], 0.10)) {
+                break;
+            }
+        }
+
+        return [
+            'x' => $currentX,
+            'z' => $currentZ,
+            'blocked' => false,
+            'consumed_nodes' => $consumedNodes,
+        ];
+    }
+
     private function statusFromAction(string $type): string
     {
         return match ($type) {
@@ -272,6 +371,14 @@ class SwarmSimulationService
             'return_to_base' => 'Returning to base',
             default => 'Transit',
         };
+    }
+
+    private function stableHash01(string $text): float
+    {
+        $hash = sprintf('%u', crc32($text));
+        $int = (int) $hash;
+
+        return ($int % 1000) / 1000;
     }
 
     private function clamp(float $value, float $min, float $max): float
