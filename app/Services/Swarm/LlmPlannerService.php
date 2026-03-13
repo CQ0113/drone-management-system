@@ -33,48 +33,43 @@ class LlmPlannerService
         $baseUrl = rtrim((string) config('services.ollama.base_url', 'http://127.0.0.1:11434'), '/');
         $model = (string) config('services.ollama.model', 'qwen2.5:7b-instruct');
         $timeout = (int) config('services.ollama.timeout', 30);
+        $temperature = max(0.0, min(2.0, (float) config('services.ollama.temperature', 0.45)));
+        $topP = max(0.0, min(1.0, (float) config('services.ollama.top_p', 0.9)));
+        $maxActionDistance = 5.0;
+        $movementUnitsPerPercent = round(max(2.0, min(20.0, (float) data_get($state, 'operator_settings.battery.movement_units_per_percent', env('SWARM_BATTERY_MOVEMENT_UNITS_PER_PERCENT', 8.0)))), 2);
+        $scanDrain = round(max(0.0, min(10.0, (float) data_get($state, 'operator_settings.battery.scan_drain', env('SWARM_BATTERY_SCAN_DRAIN', 1.0)))), 2);
+        $leanDrones = array_map(static function (array $drone): array {
+            return [
+                'id' => (string) data_get($drone, 'id', ''),
+                'x' => (float) data_get($drone, 'x', 0.0),
+                'z' => (float) data_get($drone, 'z', 0.0),
+                'battery' => (int) round((float) data_get($drone, 'battery', 100)),
+            ];
+        }, $plannerDrones);
 
         $promptState = [
-            'objective' => $objective,
-            'base' => $state['base'] ?? null,
-            'survivors' => $state['survivors'] ?? [],
-            'obstacles' => $state['obstacles'] ?? [],
-            'drones' => $plannerDrones,
-            'rag_context' => (array) ($state['rag_context'] ?? []),
-            'live_state' => [
-                'source' => 'runtime_drones from latest swarm runtime cache (updated by /api/swarm/tick telemetry)',
-                'drone_runtime' => $plannerDrones,
-                'obstacle_map' => $state['obstacles'] ?? [],
-                'survivor_profiles' => (array) ($state['survivor_profiles'] ?? []),
-            ],
-            'constraints' => [
-                'map' => [
-                    'x_bounds' => [$mapMin, $mapMax],
-                    'z_bounds' => [$mapMin, $mapMax],
-                    'grid_size' => 100,
-                ],
-                'x_z_bounds' => [$mapMin, $mapMax],
-                'max_distance_from_base' => round($maxDistanceFromBase, 2),
-                'battery_policy' => [
-                    'recall_below_percent' => 20,
-                    'critical_below_percent' => 12,
-                    'critical_action' => 'return_to_base',
-                ],
-                'allowed_actions' => ['scan_sector', 'move_to', 'hold_position', 'return_to_base'],
-                'available_drone_ids' => array_values(array_map(fn (array $drone): string => (string) data_get($drone, 'id', ''), $plannerDrones)),
+            'objective'           => $objective,
+            'available_drone_ids' => array_values(array_map(fn (array $drone): string => (string) data_get($drone, 'id', ''), $plannerDrones)),
+            'base'                => ['x' => $baseX, 'z' => $baseZ],
+            'drones'              => $leanDrones,
+            'survivors'           => $state['survivors'] ?? [],
+            'obstacles'           => $state['obstacles'] ?? [],
+            'bounds'              => [$mapMin, $mapMax],
+            'max_step'            => $maxActionDistance,
+            'battery_recall'      => 20,
+            'battery_critical'    => 12,
+            'battery_costs'       => [
+                'movement_units_per_percent' => $movementUnitsPerPercent,
+                'scan_drain'                 => $scanDrain,
             ],
         ];
 
-        $system = 'You are a swarm mission planner. Return only valid JSON. No markdown. '
-            .'Output must be a single JSON object with keys intent, actions, reasoning. '
-            .'Each action.type must be exactly one of: scan_sector, move_to, hold_position, return_to_base. Never output pipe-delimited choices. '
-            .'Each action.reason must be a non-empty short string. '
-            .'Use rag_context as retrieval memory from previous similar missions. '
-            .'State ingestion: use live_state.drone_runtime for current drone positions, battery, and statuses; use obstacles and live_state.obstacle_map for blocked zones. '
-            .'Spatial rules: every target.x and target.z must stay within constraints.map.x_bounds and constraints.map.z_bounds. '
-            .'Distance rule: planned targets must not exceed constraints.max_distance_from_base from base. '
-            .'Battery rule: if battery <= constraints.battery_policy.recall_below_percent, prefer return_to_base. If battery <= constraints.battery_policy.critical_below_percent, action must be return_to_base. '
-            .'Provide exactly one action for each available drone id in constraints.available_drone_ids. If no drones are available, return an empty actions array.';
+        $system = 'Drone swarm planner. Return ONLY compact JSON: {"actions":[...]}. No markdown, no prose, no extra keys.'
+            .' Each action: {drone_id, type, target:{x,z}}. type ∈ {scan_sector, move_to, return_to_base}.'
+            .' One action per ID in available_drone_ids. Targets within bounds. Each target ≤ max_step units from drone current x,z.'
+            .' scan_sector required to find survivors. Spread drones apart, do not cluster.'
+            .' battery≤battery_recall → prefer return_to_base. battery≤battery_critical → must return_to_base.'
+            .' Ex: '.json_encode(['actions' => [['drone_id' => 'D1', 'type' => 'scan_sector', 'target' => ['x' => 3, 'z' => 4]]]], JSON_UNESCAPED_SLASHES);
 
         try {
             $response = Http::timeout($timeout)
@@ -84,6 +79,12 @@ class LlmPlannerService
                     'model' => $model,
                     'format' => 'json',
                     'stream' => false,
+                    'options' => [
+                        'temperature' => $temperature,
+                        'top_p' => $topP,
+                        'num_predict' => 300,
+                        'num_ctx' => 2048,
+                    ],
                     'messages' => [
                         ['role' => 'system', 'content' => $system],
                         ['role' => 'user', 'content' => json_encode($promptState, JSON_UNESCAPED_SLASHES)],
@@ -97,7 +98,7 @@ class LlmPlannerService
             $raw = (string) data_get($response->json(), 'message.content', '');
             $decoded = $this->decodeModelJson($raw);
 
-            if (!$decoded) {
+            if (!$decoded || !$this->isUsablePlanPayload($decoded)) {
                 $fallback = $this->mockPlan($state, $objective, 'ollama-parse-fallback');
                 $fallback['raw_model_output'] = $raw;
                 $fallback['parse_error'] = true;
@@ -127,7 +128,10 @@ class LlmPlannerService
             ->filter(fn (string $id): bool => $id !== '')
             ->values()
             ->all();
-        $allowedTypes = ['scan_sector', 'move_to', 'hold_position', 'return_to_base'];
+        $allowedTypes = ['scan_sector', 'move_to', 'return_to_base'];
+        $remainingIds = $allowedIds;
+        $plannerDroneLookup = collect($plannerDrones)
+            ->keyBy(fn (array $drone): string => (string) data_get($drone, 'id', ''));
 
         $baseX = (float) data_get($state, 'base.x', 0);
         $baseZ = (float) data_get($state, 'base.z', 0);
@@ -137,6 +141,9 @@ class LlmPlannerService
         $byDrone = [];
         foreach ((array) ($decoded['actions'] ?? []) as $action) {
             $id = (string) ($action['drone_id'] ?? '');
+            if ($id === '' && !empty($remainingIds)) {
+                $id = (string) array_shift($remainingIds);
+            }
             if (!in_array($id, $allowedIds, true)) {
                 continue;
             }
@@ -146,18 +153,23 @@ class LlmPlannerService
                 $type = 'move_to';
             }
 
-            $targetX = $this->clamp((float) data_get($action, 'target.x', data_get($defaultTargets, $id.'.x', $baseX)), -49, 49);
-            $targetZ = $this->clamp((float) data_get($action, 'target.z', data_get($defaultTargets, $id.'.z', $baseZ)), -49, 49);
+            $rawTargetX = data_get($action, 'target.x', data_get($action, 'x', data_get($defaultTargets, $id.'.x', $baseX)));
+            $rawTargetZ = data_get($action, 'target.z', data_get($action, 'z', data_get($defaultTargets, $id.'.z', $baseZ)));
+            $targetX = $this->clamp((float) $rawTargetX, -49, 49);
+            $targetZ = $this->clamp((float) $rawTargetZ, -49, 49);
+            $currentDrone = (array) ($plannerDroneLookup->get($id) ?? []);
+            $currentDroneX = (float) data_get($currentDrone, 'x', $baseX);
+            $currentDroneZ = (float) data_get($currentDrone, 'z', $baseZ);
+            ['x' => $targetX, 'z' => $targetZ] = $this->clampTargetDistanceFromPoint($targetX, $targetZ, $currentDroneX, $currentDroneZ, 5.0);
             ['x' => $targetX, 'z' => $targetZ] = $this->clampTargetDistanceFromBase($targetX, $targetZ, $baseX, $baseZ, $maxDistanceFromBase);
             $priority = (int) data_get($action, 'priority', 5);
-            $reason = trim((string) data_get($action, 'reason', 'Task assigned by planner.'));
 
             $byDrone[$id] = [
                 'drone_id' => $id,
                 'type' => $type,
                 'target' => ['x' => $targetX, 'z' => $targetZ],
                 'priority' => max(1, min(9, $priority)),
-                'reason' => mb_substr($reason === '' ? 'Task assigned by planner.' : $reason, 0, 180),
+                'reason' => $this->defaultReasonForType($type),
             ];
         }
 
@@ -168,7 +180,7 @@ class LlmPlannerService
 
             $byDrone[$id] = [
                 'drone_id' => $id,
-                'type' => 'hold_position',
+                'type' => 'move_to',
                 'target' => [
                     'x' => $this->clamp((float) data_get($defaultTargets, $id.'.x', $baseX), -49, 49),
                     'z' => $this->clamp((float) data_get($defaultTargets, $id.'.z', $baseZ), -49, 49),
@@ -180,9 +192,9 @@ class LlmPlannerService
 
         return [
             'ok' => true,
-            'intent' => (string) ($decoded['intent'] ?? $objective),
+            'intent' => $objective,
             'actions' => array_values($byDrone),
-            'reasoning' => (string) ($decoded['reasoning'] ?? 'Plan generated by local model.'),
+            'reasoning' => 'Plan generated by local model.',
             'source' => $source,
         ];
     }
@@ -203,7 +215,7 @@ class LlmPlannerService
             ->all();
         $defaultTargets = $this->buildDefaultTargets($allowedIds, $baseX, $baseZ);
 
-        $types = ['scan_sector', 'move_to', 'hold_position'];
+        $types = ['scan_sector', 'move_to', 'return_to_base'];
         $actions = [];
         foreach ($allowedIds as $index => $id) {
             $actions[] = [
@@ -312,6 +324,67 @@ class LlmPlannerService
     private function clamp(float $value, float $min, float $max): float
     {
         return min($max, max($min, $value));
+    }
+
+    /**
+     * @param array<string, mixed> $decoded
+     */
+    private function isUsablePlanPayload(array $decoded): bool
+    {
+        $actions = $decoded['actions'] ?? null;
+        if (!is_array($actions) || empty($actions)) {
+            return false;
+        }
+
+        foreach ($actions as $action) {
+            if (!is_array($action)) {
+                continue;
+            }
+
+            $hasType = is_string($action['type'] ?? null) && trim((string) $action['type']) !== '';
+            $hasNestedTarget = is_numeric(data_get($action, 'target.x')) && is_numeric(data_get($action, 'target.z'));
+            $hasFlatTarget = is_numeric($action['x'] ?? null) && is_numeric($action['z'] ?? null);
+
+            if ($hasType && ($hasNestedTarget || $hasFlatTarget)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function defaultReasonForType(string $type): string
+    {
+        return match ($type) {
+            'scan_sector' => 'Planner assigned scan sector.',
+            'return_to_base' => 'Planner assigned return to base.',
+            default => 'Planner assigned movement target.',
+        };
+    }
+
+    /**
+     * @return array{x: float, z: float}
+     */
+    private function clampTargetDistanceFromPoint(float $x, float $z, float $fromX, float $fromZ, float $maxDistance): array
+    {
+        if ($maxDistance <= 0) {
+            return ['x' => $fromX, 'z' => $fromZ];
+        }
+
+        $dx = $x - $fromX;
+        $dz = $z - $fromZ;
+        $distance = sqrt(($dx ** 2) + ($dz ** 2));
+
+        if ($distance <= $maxDistance || $distance == 0.0) {
+            return ['x' => $x, 'z' => $z];
+        }
+
+        $scale = $maxDistance / $distance;
+
+        return [
+            'x' => $fromX + ($dx * $scale),
+            'z' => $fromZ + ($dz * $scale),
+        ];
     }
 
     private function maxDistanceFromBaseToMapEnd(float $baseX, float $baseZ, float $mapMin, float $mapMax): float

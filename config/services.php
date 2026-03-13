@@ -39,6 +39,8 @@ return [
         'base_url' => env('OLLAMA_BASE_URL', 'http://127.0.0.1:11434'),
         'model' => env('OLLAMA_MODEL', 'qwen2.5:7b-instruct'),
         'timeout' => env('OLLAMA_TIMEOUT', 30),
+        'temperature' => env('OLLAMA_TEMPERATURE', 0.45),
+        'top_p' => env('OLLAMA_TOP_P', 0.9),
     ],
 
 ];

@@ -13,7 +13,7 @@ class SwarmCommandValidator
     public function validateActions(array $actions, array $state, array $runtime = []): array
     {
         $allowedIds = $this->resolveAllowedIds($runtime, $actions);
-        $allowedTypes = ['scan_sector', 'move_to', 'hold_position', 'return_to_base'];
+        $allowedTypes = ['scan_sector', 'move_to', 'return_to_base'];
         $lowBatteryThreshold = 20.0;
         $warnings = [];
         $safe = [];
@@ -36,8 +36,8 @@ class SwarmCommandValidator
 
             $type = (string) data_get($action, 'type', 'move_to');
             if (!in_array($type, $allowedTypes, true)) {
-                $warnings[] = "{$id}: unsupported action '{$type}', replaced with hold_position.";
-                $type = 'hold_position';
+                $warnings[] = "{$id}: unsupported action '{$type}', replaced with move_to.";
+                $type = 'move_to';
             }
 
             $target = [
@@ -56,8 +56,8 @@ class SwarmCommandValidator
 
             if ($battery > 0 && $battery <= $lowBatteryThreshold) {
                 if ($atBase) {
-                    $warnings[] = "{$id}: low battery at base, switched to hold for charging.";
-                    $type = 'hold_position';
+                    $warnings[] = "{$id}: low battery at base, staying on return_to_base safety action.";
+                    $type = 'return_to_base';
                     $target = ['x' => $baseX, 'z' => $baseZ];
                 } else {
                     $warnings[] = "{$id}: low battery override, returning to base.";
@@ -71,12 +71,9 @@ class SwarmCommandValidator
                 if ($detour) {
                     $warnings[] = "{$id}: target intersects obstacle, rerouted to nearest free cell.";
                     $target = $detour;
-                    if ($type === 'hold_position') {
-                        $type = 'move_to';
-                    }
                 } else {
-                    $warnings[] = "{$id}: target intersects obstacle, switched to base hold.";
-                    $type = 'hold_position';
+                    $warnings[] = "{$id}: target intersects obstacle, switched to return_to_base.";
+                    $type = 'return_to_base';
                     $target = ['x' => $baseX, 'z' => $baseZ];
                 }
             }
@@ -95,10 +92,10 @@ class SwarmCommandValidator
                 continue;
             }
 
-            $warnings[] = "{$id}: no action provided, default hold at base.";
+            $warnings[] = "{$id}: no action provided, default return_to_base.";
             $safe[] = [
                 'drone_id' => $id,
-                'type' => 'hold_position',
+                'type' => 'return_to_base',
                 'target' => ['x' => $baseX, 'z' => $baseZ],
                 'priority' => 5,
                 'reason' => 'Safety default.',

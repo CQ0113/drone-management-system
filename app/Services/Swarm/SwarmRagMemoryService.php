@@ -36,7 +36,7 @@ class SwarmRagMemoryService
         $actionText = collect($actions)
             ->map(function ($action): string {
                 $id = (string) data_get($action, 'drone_id', 'unknown');
-                $type = (string) data_get($action, 'type', 'hold_position');
+                $type = (string) data_get($action, 'type', 'move_to');
                 $x = (float) data_get($action, 'target.x', 0);
                 $z = (float) data_get($action, 'target.z', 0);
 
