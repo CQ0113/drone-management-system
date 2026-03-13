@@ -138,29 +138,17 @@
     <div class="scanline-overlay"></div>
     <div id="survivor-alert" class="hidden fixed top-20 left-1/2 -translate-x-1/2 z-20 pointer-events-none rounded-lg border border-amber-300/70 bg-amber-500/20 px-5 py-3 text-amber-100 font-display tracking-wide text-sm md:text-base"></div>
 
-    <div class="fixed inset-0 z-10 pointer-events-none">
-        <header class="pointer-events-auto absolute top-4 left-4 right-4 glass-panel rounded-xl px-5 py-3 flex items-center justify-between">
+    <div class="fixed inset-0 z-10 pointer-events-none overflow-y-auto overscroll-contain md:overflow-hidden">
+        <div class="relative min-h-[1040px] pb-4 pt-4 md:min-h-full md:pb-0 md:pt-0">
+        <header class="pointer-events-auto mx-4 glass-panel rounded-xl px-5 py-3 flex flex-col gap-2 md:absolute md:top-4 md:left-4 md:right-4 md:mx-0 md:flex-row md:items-center md:justify-between">
             <h1 id="hud-title" class="font-display text-xl md:text-2xl tracking-widest text-cyan-300">Swarm Command Center - Setup Mode</h1>
-            <div class="flex items-center gap-3">
+            <div class="flex flex-wrap items-center gap-3">
                 <span id="planner-source-badge" class="rounded-full border border-cyan-600/60 bg-cyan-500/10 px-3 py-1 text-[10px] md:text-xs uppercase tracking-[0.16em] text-cyan-200">Source: Idle</span>
                 <span class="text-xs md:text-sm uppercase tracking-[0.25em] text-slate-300">Decentralised Swarm Intelligence</span>
             </div>
         </header>
 
-        <section class="pointer-events-auto absolute top-24 left-1/2 -translate-x-1/2 w-[360px] max-w-[92vw] glass-panel rounded-xl p-3">
-            <div class="flex items-center justify-between gap-3">
-                <div>
-                    <h2 class="font-display text-xs uppercase tracking-[0.18em] text-cyan-300">Planner Tuning</h2>
-                    <div id="model-check-hint" class="mt-1 text-[11px] text-slate-300">Uses Ollama every 8 ticks, cached plan in between.</div>
-                </div>
-                <div class="w-[130px]">
-                    <label for="model-check-every" class="block text-[10px] uppercase tracking-[0.12em] text-cyan-200">Every N Ticks</label>
-                    <input id="model-check-every" type="number" min="1" max="50" value="8" class="mt-1 w-full rounded border border-cyan-800/70 bg-slate-950/80 px-2 py-1 text-sm text-cyan-100 outline-none focus:border-cyan-400" />
-                </div>
-            </div>
-        </section>
-
-        <aside class="pointer-events-auto absolute top-24 left-4 w-[280px] max-w-[90vw] glass-panel rounded-xl p-4">
+        <aside class="pointer-events-auto mx-4 mt-4 glass-panel rounded-xl p-4 md:absolute md:top-24 md:left-4 md:right-auto md:mt-0 md:w-[280px] md:max-w-[90vw] md:mx-0">
             <h2 class="font-display text-sm uppercase tracking-[0.2em] text-cyan-300 mb-3">Placement Controls</h2>
             <div class="space-y-2">
                 <button class="hud-btn active w-full rounded-md py-2 px-3 text-left font-medium" data-mode="base">Place Base (Max 1)</button>
@@ -174,47 +162,125 @@
             <button id="restart-btn" class="mt-2 w-full rounded-md py-2.5 bg-amber-500/90 hover:bg-amber-400 text-slate-950 font-display tracking-[0.08em] font-bold uppercase transition-colors">
                 Restart Deployment
             </button>
+            <button id="clear-all-btn" class="mt-2 w-full rounded-md py-2.5 bg-rose-600/90 hover:bg-rose-500 text-slate-50 font-display tracking-[0.08em] font-bold uppercase transition-colors">
+                Delete All
+            </button>
 
             <p id="placement-hint" class="mt-3 text-xs text-slate-300">Click the tactical grid to place objects.</p>
         </aside>
 
-        <aside class="pointer-events-auto absolute top-24 right-4 w-[320px] max-w-[92vw] glass-panel rounded-xl p-4">
+        <aside class="pointer-events-auto mx-4 mt-4 glass-panel rounded-xl p-4 md:absolute md:top-24 md:left-auto md:right-4 md:mt-0 md:w-[320px] md:max-w-[92vw] md:mx-0">
             <h2 class="font-display text-sm uppercase tracking-[0.2em] text-cyan-300 mb-3">Drone Status</h2>
-            <ul id="drone-status-list" class="space-y-2 text-sm"></ul>
+            <ul id="drone-status-list" class="space-y-2 text-sm max-h-[52vh] overflow-y-auto pr-1 terminal-scroll"></ul>
         </aside>
 
-        <section class="pointer-events-auto absolute left-4 right-4 bottom-4 glass-panel rounded-xl p-4 h-[420px] md:h-[300px]">
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 h-full">
-                <div class="h-full flex flex-col">
-                    <div class="flex items-center justify-between mb-2">
-                        <h2 class="font-display text-sm uppercase tracking-[0.2em] text-cyan-300">Mission Log</h2>
-                        <span class="text-xs uppercase tracking-[0.15em] text-slate-400">Live Feed</span>
+        <section id="dashboard-section" class="pointer-events-auto fixed left-4 right-4 bottom-3 z-30 glass-panel rounded-xl p-4 h-[350px] sm:h-[360px] md:bottom-4 md:h-[300px]">
+            <div class="mb-2 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <h2 class="font-display text-sm uppercase tracking-[0.2em] text-cyan-300">Dashboard Panels</h2>
+                    <div class="flex rounded-md border border-cyan-900/60 bg-slate-950/70 p-1">
+                        <button id="dashboard-output-btn" class="hud-btn active rounded px-3 py-1.5 text-[10px] md:text-xs font-display uppercase tracking-[0.12em] text-cyan-100">Output</button>
+                        <button id="dashboard-tune-btn" class="hud-btn rounded px-3 py-1.5 text-[10px] md:text-xs font-display uppercase tracking-[0.12em] text-cyan-100">Tune</button>
+                        <button id="dashboard-debug-btn" class="hud-btn rounded px-3 py-1.5 text-[10px] md:text-xs font-display uppercase tracking-[0.12em] text-cyan-100">Debug</button>
                     </div>
-                    <div id="mission-log" class="terminal-scroll flex-1 min-h-0 rounded-md border border-cyan-900/60 bg-slate-950/70 px-3 py-2 text-xs md:text-sm leading-relaxed text-slate-200 font-mono"></div>
                 </div>
-                <div class="h-full flex flex-col">
-                    <div class="flex items-center justify-between mb-2">
-                        <h2 class="font-display text-sm uppercase tracking-[0.2em] text-emerald-300">LLM Decision Terminal</h2>
-                        <span class="text-xs uppercase tracking-[0.15em] text-slate-400">Reasoning</span>
+                <button id="toggle-dashboard-btn" class="hud-btn rounded-md px-3 py-1.5 text-[10px] md:text-xs font-display uppercase tracking-[0.12em] text-cyan-100">Close Dashboard</button>
+            </div>
+            <div id="dashboard-panels" class="h-[calc(100%-2rem)]">
+                <div id="dashboard-output-view" class="grid h-full grid-cols-1 gap-3 auto-rows-fr sm:grid-cols-2 xl:grid-cols-4">
+                    <div class="h-full flex flex-col">
+                        <div class="flex items-center justify-between mb-2">
+                            <h2 class="font-display text-sm uppercase tracking-[0.2em] text-cyan-300">Mission Log</h2>
+                            <span class="text-xs uppercase tracking-[0.15em] text-slate-400">Live Feed</span>
+                        </div>
+                        <div id="mission-log" class="terminal-scroll flex-1 min-h-0 rounded-md border border-cyan-900/60 bg-slate-950/70 px-3 py-2 text-xs md:text-sm leading-relaxed text-slate-200 font-mono"></div>
                     </div>
-                    <div id="llm-decision-log" class="terminal-scroll flex-1 min-h-0 rounded-md border border-emerald-900/60 bg-slate-950/70 px-3 py-2 text-xs md:text-sm leading-relaxed text-emerald-100 font-mono"></div>
+                    <div class="h-full flex flex-col">
+                        <div class="flex items-center justify-between mb-2">
+                            <h2 class="font-display text-sm uppercase tracking-[0.2em] text-emerald-300">LLM Decision Terminal</h2>
+                            <span class="text-xs uppercase tracking-[0.15em] text-slate-400">Reasoning</span>
+                        </div>
+                        <div id="llm-decision-log" class="terminal-scroll flex-1 min-h-0 rounded-md border border-emerald-900/60 bg-slate-950/70 px-3 py-2 text-xs md:text-sm leading-relaxed text-emerald-100 font-mono"></div>
+                    </div>
+                    <div class="h-full flex flex-col">
+                        <div class="flex items-center justify-between mb-2">
+                            <h2 class="font-display text-sm uppercase tracking-[0.2em] text-amber-300">Found Survivors</h2>
+                            <span class="text-xs uppercase tracking-[0.15em] text-slate-400">Registry</span>
+                        </div>
+                        <div id="found-survivor-list" class="terminal-scroll flex-1 min-h-0 rounded-md border border-amber-900/60 bg-slate-950/70 px-3 py-2 text-xs md:text-sm leading-relaxed text-amber-100 font-mono"></div>
+                    </div>
+                    <div class="h-full flex flex-col">
+                        <div class="flex items-center justify-between mb-2">
+                            <h2 class="font-display text-sm uppercase tracking-[0.2em] text-fuchsia-300">Ollama Raw Output</h2>
+                            <span class="text-xs uppercase tracking-[0.15em] text-slate-400">Complete</span>
+                        </div>
+                        <div id="ollama-raw-log" class="terminal-scroll flex-1 min-h-0 whitespace-pre-wrap break-words rounded-md border border-fuchsia-900/60 bg-slate-950/70 px-3 py-2 text-xs md:text-sm leading-relaxed text-fuchsia-100 font-mono"></div>
+                    </div>
                 </div>
-                <div class="h-full flex flex-col">
-                    <div class="flex items-center justify-between mb-2">
-                        <h2 class="font-display text-sm uppercase tracking-[0.2em] text-amber-300">Found Survivors</h2>
-                        <span class="text-xs uppercase tracking-[0.15em] text-slate-400">Registry</span>
+                <div id="dashboard-tune-view" class="hidden grid h-full grid-cols-1 gap-3 auto-rows-fr lg:grid-cols-[minmax(280px,340px)_minmax(0,1fr)]">
+                    <div class="flex h-full min-h-0 flex-col rounded-md border border-cyan-900/60 bg-slate-950/70 p-3 text-slate-100">
+                        <div class="flex items-center justify-between mb-3">
+                            <h2 class="font-display text-sm uppercase tracking-[0.2em] text-cyan-300">Planner Tuning</h2>
+                            <span class="text-xs uppercase tracking-[0.15em] text-slate-400">Cadence</span>
+                        </div>
+                        <label for="model-check-every" class="block text-[10px] uppercase tracking-[0.12em] text-cyan-200">Ollama Refresh Every N Ticks</label>
+                        <input id="model-check-every" type="number" min="1" max="50" value="8" class="mt-1 w-full rounded border border-cyan-800/70 bg-slate-950/80 px-2 py-1 text-sm text-cyan-100 outline-none focus:border-cyan-400" />
+                        <div id="model-check-hint" class="mt-3 text-[11px] text-slate-300">Uses Ollama every 8 ticks, cached plan in between.</div>
+                        <div class="mt-4 rounded border border-cyan-900/40 bg-cyan-500/5 p-3 text-[11px] leading-relaxed text-slate-300">Tune mode groups all live planning and battery controls in one place so you can switch between runtime outputs and parameter adjustment inside the same dashboard.</div>
                     </div>
-                    <div id="found-survivor-list" class="terminal-scroll flex-1 min-h-0 rounded-md border border-amber-900/60 bg-slate-950/70 px-3 py-2 text-xs md:text-sm leading-relaxed text-amber-100 font-mono"></div>
+                    <div class="flex h-full min-h-0 flex-col rounded-md border border-sky-900/60 bg-slate-950/70 p-3 text-slate-100">
+                        <div class="flex items-center justify-between mb-2">
+                            <h2 class="font-display text-sm uppercase tracking-[0.2em] text-sky-300">Battery Lab</h2>
+                            <span class="text-xs uppercase tracking-[0.15em] text-slate-400">Tuning</span>
+                        </div>
+                        <div class="grid grid-cols-1 gap-3 lg:grid-cols-[220px_220px_minmax(0,1fr)]">
+                            <label class="text-[11px] uppercase tracking-[0.12em] text-sky-200">
+                                Move Units / 1%
+                                <input id="battery-move-input" type="number" min="2" max="20" step="0.1" class="mt-1 w-full rounded border border-sky-800/70 bg-slate-950/80 px-2 py-1 text-sm text-sky-100 outline-none focus:border-sky-400" />
+                            </label>
+                            <label class="text-[11px] uppercase tracking-[0.12em] text-sky-200">
+                                Scan Drain
+                                <input id="battery-scan-input" type="number" min="0" max="10" step="0.1" class="mt-1 w-full rounded border border-sky-800/70 bg-slate-950/80 px-2 py-1 text-sm text-sky-100 outline-none focus:border-sky-400" />
+                            </label>
+                            <div class="flex flex-wrap items-end gap-2 lg:justify-end">
+                                <button id="battery-save-btn" class="hud-btn rounded-md px-3 py-2 text-[11px] font-display uppercase tracking-[0.12em] text-sky-100">Apply Battery Settings</button>
+                                <button id="battery-trial-btn" class="hud-btn rounded-md px-3 py-2 text-[11px] font-display uppercase tracking-[0.12em] text-emerald-100">Run 60-Tick Trial</button>
+                                <button id="battery-chart-reset-btn" class="hud-btn rounded-md px-3 py-2 text-[11px] font-display uppercase tracking-[0.12em] text-slate-200">Reset Graph</button>
+                            </div>
+                        </div>
+                        <div id="battery-settings-status" class="mt-3 text-[11px] text-slate-300">Loading runtime battery settings...</div>
+                        <div id="battery-trial-summary" class="mt-1 text-[11px] text-slate-400">No battery trial data yet.</div>
+                        <div class="mt-3 flex-1 min-h-0 rounded-md border border-sky-900/50 bg-slate-950/90 p-2">
+                            <canvas id="battery-usage-chart" height="150"></canvas>
+                        </div>
+                    </div>
                 </div>
-                <div class="h-full flex flex-col">
-                    <div class="flex items-center justify-between mb-2">
-                        <h2 class="font-display text-sm uppercase tracking-[0.2em] text-fuchsia-300">Ollama Raw Output</h2>
-                        <span class="text-xs uppercase tracking-[0.15em] text-slate-400">Complete</span>
+                <div id="dashboard-debug-view" class="hidden grid h-full grid-cols-1 gap-3 auto-rows-fr lg:grid-cols-3">
+                    <div class="h-full flex flex-col">
+                        <div class="flex items-center justify-between mb-2">
+                            <h2 class="font-display text-sm uppercase tracking-[0.2em] text-fuchsia-300">Stage 1 Raw Model</h2>
+                            <span class="text-xs uppercase tracking-[0.15em] text-slate-400">Parsed</span>
+                        </div>
+                        <div id="debug-raw-actions-log" class="terminal-scroll flex-1 min-h-0 whitespace-pre-wrap break-words rounded-md border border-fuchsia-900/60 bg-slate-950/70 px-3 py-2 text-xs md:text-sm leading-relaxed text-fuchsia-100 font-mono"></div>
                     </div>
-                    <div id="ollama-raw-log" class="terminal-scroll flex-1 min-h-0 whitespace-pre-wrap break-words rounded-md border border-fuchsia-900/60 bg-slate-950/70 px-3 py-2 text-xs md:text-sm leading-relaxed text-fuchsia-100 font-mono"></div>
+                    <div class="h-full flex flex-col">
+                        <div class="flex items-center justify-between mb-2">
+                            <h2 class="font-display text-sm uppercase tracking-[0.2em] text-cyan-300">Stage 2 Post MCP</h2>
+                            <span class="text-xs uppercase tracking-[0.15em] text-slate-400">Tool Rewrites</span>
+                        </div>
+                        <div id="debug-post-mcp-log" class="terminal-scroll flex-1 min-h-0 whitespace-pre-wrap break-words rounded-md border border-cyan-900/60 bg-slate-950/70 px-3 py-2 text-xs md:text-sm leading-relaxed text-cyan-100 font-mono"></div>
+                    </div>
+                    <div class="h-full flex flex-col">
+                        <div class="flex items-center justify-between mb-2">
+                            <h2 class="font-display text-sm uppercase tracking-[0.2em] text-emerald-300">Stage 3 Validated</h2>
+                            <span class="text-xs uppercase tracking-[0.15em] text-slate-400">Executed</span>
+                        </div>
+                        <div id="debug-validated-log" class="terminal-scroll flex-1 min-h-0 whitespace-pre-wrap break-words rounded-md border border-emerald-900/60 bg-slate-950/70 px-3 py-2 text-xs md:text-sm leading-relaxed text-emerald-100 font-mono"></div>
+                    </div>
                 </div>
             </div>
         </section>
+        </div>
     </div>
 
     <script>
@@ -229,9 +295,14 @@
         const USE_MOCK_DATA = false;
         const LIVE_OBJECTIVE = 'Scan the South-East quadrant for thermal signatures';
         const LIVE_TICK_REQUEST_TIMEOUT_MS = {{ max(5000, (int) env('SWARM_FRONTEND_TICK_TIMEOUT_MS', 30000)) }};
+        const LIVE_TICK_COOLDOWN_MS = {{ max(0, (int) env('SWARM_FRONTEND_TICK_COOLDOWN_MS', 0)) }};
+        const FRONTEND_SHARED_STATE_MODE = {{ in_array(strtolower((string) env('SWARM_FRONTEND_TICK_MODE', 'api_tick')), ['state_poll', 'shared_state'], true) ? 'true' : 'false' }};
         const DRONE_SCAN_RADIUS = {{ max(1, min(25, (float) env('SWARM_SCAN_DETECTION_RADIUS', 6))) }};
+        const DEFAULT_MOVEMENT_UNITS_PER_PERCENT = {{ round(max(2, min(20, (float) env('SWARM_BATTERY_MOVEMENT_UNITS_PER_PERCENT', 8))), 2) }};
+        const DEFAULT_SCAN_DRAIN = {{ round(max(0, min(10, (float) env('SWARM_BATTERY_SCAN_DRAIN', 1))), 2) }};
         const SWARM_WS_ENABLED = false;
         const SWARM_WS_URL = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws/swarm`;
+        const DASHBOARD_VIEW_STORAGE_KEY = 'swarm.dashboard.view';
 
         const state = {
             base: null,
@@ -253,7 +324,27 @@
             tickInFlight: false,
             tickCounter: 0,
             modelCheckEveryTicks: 8,
-            websocket: null
+            websocket: null,
+            benchmarkRunning: false,
+            dashboardView: 'output'
+        };
+
+        const operatorSettings = {
+            battery: {
+                movementUnitsPerPercent: DEFAULT_MOVEMENT_UNITS_PER_PERCENT,
+                scanDrain: DEFAULT_SCAN_DRAIN
+            }
+        };
+
+        const batteryAnalytics = {
+            history: [],
+            totals: {
+                scan_sector: 0,
+                move_to: 0,
+                return_to_base: 0,
+                idle: 0
+            },
+            lastTrialTicks: 0
         };
 
         const foundSurvivorSignals = new Set();
@@ -276,11 +367,32 @@
         const droneStatusListEl = document.getElementById('drone-status-list');
         const titleEl = document.getElementById('hud-title');
         const plannerSourceBadgeEl = document.getElementById('planner-source-badge');
+        const dashboardSectionEl = document.getElementById('dashboard-section');
+        const dashboardPanelsEl = document.getElementById('dashboard-panels');
+        const dashboardOutputViewEl = document.getElementById('dashboard-output-view');
+        const dashboardTuneViewEl = document.getElementById('dashboard-tune-view');
+        const dashboardDebugViewEl = document.getElementById('dashboard-debug-view');
         const placementHintEl = document.getElementById('placement-hint');
         const deployBtn = document.getElementById('deploy-btn');
         const restartBtn = document.getElementById('restart-btn');
+        const clearAllBtn = document.getElementById('clear-all-btn');
+        const toggleDashboardBtn = document.getElementById('toggle-dashboard-btn');
+        const dashboardOutputBtn = document.getElementById('dashboard-output-btn');
+        const dashboardTuneBtn = document.getElementById('dashboard-tune-btn');
+        const dashboardDebugBtn = document.getElementById('dashboard-debug-btn');
+        const debugRawActionsLogEl = document.getElementById('debug-raw-actions-log');
+        const debugPostMcpLogEl = document.getElementById('debug-post-mcp-log');
+        const debugValidatedLogEl = document.getElementById('debug-validated-log');
         const modelCheckEveryInput = document.getElementById('model-check-every');
         const modelCheckHintEl = document.getElementById('model-check-hint');
+        const batteryMoveInput = document.getElementById('battery-move-input');
+        const batteryScanInput = document.getElementById('battery-scan-input');
+        const batterySaveBtn = document.getElementById('battery-save-btn');
+        const batteryTrialBtn = document.getElementById('battery-trial-btn');
+        const batteryChartResetBtn = document.getElementById('battery-chart-reset-btn');
+        const batterySettingsStatusEl = document.getElementById('battery-settings-status');
+        const batteryTrialSummaryEl = document.getElementById('battery-trial-summary');
+        const batteryUsageChartEl = document.getElementById('battery-usage-chart');
         const modeButtons = Array.from(document.querySelectorAll('[data-mode]'));
 
         let renderer;
@@ -295,12 +407,23 @@
         ensureThreeLoaded()
             .then(() => {
                 initScene();
-                bindUI();
-                renderDroneStatus();
-                renderFoundSurvivorRegistry();
-                appendMissionLog('System ready. Select placement mode and click on grid to configure mission.');
-                appendDecisionLog('Decision terminal online. Awaiting planner output.');
                 animate();
+
+                // Keep scene/clicks alive even if dashboard widgets fail to initialize.
+                try {
+                    bindUI();
+                    applyDashboardPreferences();
+                    renderDroneStatus();
+                    renderFoundSurvivorRegistry();
+                    populateBatteryInputs();
+                    renderBatteryChart();
+                    appendMissionLog('System ready. Select placement mode and click on grid to configure mission.');
+                    appendDecisionLog('Decision terminal online. Awaiting planner output.');
+                    loadBatterySettings();
+                } catch (uiError) {
+                    console.error('UI bootstrap error:', uiError);
+                    placementHintEl.textContent = 'Map is active. Some dashboard widgets failed to initialize.';
+                }
             })
             .catch((error) => {
                 titleEl.textContent = 'Simulation Error';
@@ -404,7 +527,7 @@
 
             const groundGeo = new THREE.PlaneGeometry(100, 100);
             const groundMat = new THREE.MeshStandardMaterial({
-                color: 0x0e1f2d,
+                color: 0x13324a,
                 roughness: 0.94,
                 metalness: 0.06
             });
@@ -414,7 +537,7 @@
             ground.name = 'ground';
             scene.add(ground);
 
-            const grid = new THREE.GridHelper(100, 50, 0x22d3ee, 0x163349);
+            const grid = new THREE.GridHelper(100, 50, 0x5de9ff, 0x2a5d80);
             grid.position.y = 0.03;
             scene.add(grid);
 
@@ -430,7 +553,8 @@
             pointer = new THREE.Vector2();
 
             window.addEventListener('resize', onResize);
-            renderer.domElement.addEventListener('click', onCanvasClick);
+            // Capture clicks at the window level so placement still works even if HUD layers overlap the canvas.
+            window.addEventListener('click', onCanvasClick, true);
         }
 
         function bindUI() {
@@ -446,8 +570,24 @@
                 });
             });
 
-            deployBtn.addEventListener('click', deploySwarm);
-            restartBtn.addEventListener('click', restartDeployment);
+            if (deployBtn) {
+                deployBtn.addEventListener('click', deploySwarm);
+            }
+            if (restartBtn) {
+                restartBtn.addEventListener('click', restartDeployment);
+            }
+            if (clearAllBtn) {
+                clearAllBtn.addEventListener('click', clearAllStuff);
+            }
+            if (toggleDashboardBtn) {
+                toggleDashboardBtn.addEventListener('click', toggleDashboardPanels);
+            }
+            if (dashboardOutputBtn) {
+                dashboardOutputBtn.addEventListener('click', () => setDashboardView('output'));
+            }
+            if (dashboardTuneBtn) {
+                dashboardTuneBtn.addEventListener('click', () => setDashboardView('tune'));
+            }
 
             if (modelCheckEveryInput) {
                 modelCheckEveryInput.addEventListener('change', () => {
@@ -460,16 +600,121 @@
                     appendMissionLog(`Model cadence updated: refresh from Ollama every ${parsed} ticks.`);
                 });
             }
+
+            if (batterySaveBtn) {
+                batterySaveBtn.addEventListener('click', saveBatterySettings);
+            }
+
+            if (batteryTrialBtn) {
+                batteryTrialBtn.addEventListener('click', runBatteryBalanceTrial);
+            }
+
+            if (batteryChartResetBtn) {
+                batteryChartResetBtn.addEventListener('click', () => {
+                    resetBatteryAnalytics();
+                    appendMissionLog('Battery chart history cleared.');
+                });
+            }
+            if (dashboardDebugBtn) {
+                dashboardDebugBtn.addEventListener('click', () => setDashboardView('debug'));
+            }
+        }
+
+        function setDashboardView(view) {
+            const nextView = view === 'tune' || view === 'debug' ? view : 'output';
+            runtime.dashboardView = nextView;
+
+            if (dashboardOutputViewEl) {
+                dashboardOutputViewEl.classList.toggle('hidden', nextView !== 'output');
+            }
+            if (dashboardTuneViewEl) {
+                dashboardTuneViewEl.classList.toggle('hidden', nextView !== 'tune');
+            }
+            if (dashboardDebugViewEl) {
+                dashboardDebugViewEl.classList.toggle('hidden', nextView !== 'debug');
+            }
+            if (dashboardOutputBtn) {
+                dashboardOutputBtn.classList.toggle('active', nextView === 'output');
+            }
+            if (dashboardTuneBtn) {
+                dashboardTuneBtn.classList.toggle('active', nextView === 'tune');
+            }
+            if (dashboardDebugBtn) {
+                dashboardDebugBtn.classList.toggle('active', nextView === 'debug');
+            }
+
+            if (nextView === 'tune') {
+                renderBatteryChart();
+            }
+
+            try {
+                window.localStorage.setItem(DASHBOARD_VIEW_STORAGE_KEY, nextView);
+            } catch (_e) {
+                // Ignore storage failures in restricted environments.
+            }
+        }
+
+        function toggleDashboardPanels() {
+            if (!dashboardPanelsEl || !toggleDashboardBtn || !dashboardSectionEl) {
+                return;
+            }
+
+            const isOpen = dashboardPanelsEl.classList.contains('hidden');
+            setDashboardOpen(isOpen);
+        }
+
+        function setDashboardOpen(isOpen) {
+            if (!dashboardPanelsEl || !toggleDashboardBtn || !dashboardSectionEl) {
+                return;
+            }
+
+            dashboardPanelsEl.classList.toggle('hidden', !isOpen);
+            toggleDashboardBtn.textContent = isOpen ? 'Close Dashboard' : 'Open Dashboard';
+
+            if (isOpen) {
+                dashboardSectionEl.classList.remove('h-auto');
+                dashboardSectionEl.classList.add('h-[350px]', 'sm:h-[360px]', 'md:h-[300px]');
+            } else {
+                dashboardSectionEl.classList.remove('h-[350px]', 'sm:h-[360px]', 'md:h-[300px]');
+                dashboardSectionEl.classList.add('h-auto');
+            }
+
+        }
+
+        function applyDashboardPreferences() {
+            let preferredView = 'output';
+
+            try {
+                const savedView = window.localStorage.getItem(DASHBOARD_VIEW_STORAGE_KEY);
+                preferredView = savedView === 'tune' || savedView === 'debug' ? savedView : 'output';
+                // Always start collapsed after refresh so map interaction is immediately available.
+                window.localStorage.removeItem('swarm.dashboard.open');
+            } catch (_e) {
+                preferredView = 'output';
+            }
+
+            setDashboardView(preferredView);
+            setDashboardOpen(false);
         }
 
         function onResize() {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
+            renderBatteryChart();
         }
 
         function onCanvasClick(event) {
             if (runtime.setupLocked) {
+                return;
+            }
+
+            const targetEl = event.target instanceof Element ? event.target : null;
+            if (targetEl && targetEl.closest('header, aside, #dashboard-section, #survivor-alert, button, input, label')) {
+                return;
+            }
+
+            if (!renderer || !renderer.domElement || !ground || !raycaster || !pointer) {
                 return;
             }
 
@@ -581,6 +826,7 @@
 
             appendMissionLog('Swarm deployed. Initializing autonomy stack...');
             setPlannerSourceBadge('bootstrap', null);
+            resetBatteryAnalytics();
 
             createOrResetDronesAtBase(runtime.droneIds);
 
@@ -597,6 +843,85 @@
                 return;
             }
 
+            stopRuntimeLoops();
+
+            runtime.tickInFlight = false;
+            runtime.tickCounter = 0;
+            foundSurvivorSignals.clear();
+            foundSurvivorRegistry.clear();
+            renderFoundSurvivorRegistry();
+            resetBatteryAnalytics();
+
+            appendMissionLog('Deployment restart requested. Reinitializing swarm runtime...');
+
+            createOrResetDronesAtBase(runtime.droneIds);
+            if (USE_MOCK_DATA) {
+                startMockSimulation();
+            } else {
+                startLivePipeline();
+            }
+        }
+
+        function clearAllStuff() {
+            stopRuntimeLoops();
+
+            runtime.tickInFlight = false;
+            runtime.tickCounter = 0;
+            runtime.setupLocked = false;
+            runtime.activeMode = 'base';
+            runtime.droneIds = USE_MOCK_DATA ? ['D1', 'D2', 'D3'] : [];
+
+            Object.keys(runtime.drones).forEach((id) => {
+                const drone = runtime.drones[id];
+                if (drone && drone.mesh) {
+                    scene.remove(drone.mesh);
+                }
+                if (drone && drone.scanMesh) {
+                    scene.remove(drone.scanMesh);
+                }
+                delete runtime.drones[id];
+            });
+
+            if (placementMeshes.base) {
+                scene.remove(placementMeshes.base);
+                placementMeshes.base = null;
+            }
+            placementMeshes.survivors.forEach((mesh) => scene.remove(mesh));
+            placementMeshes.obstacles.forEach((mesh) => scene.remove(mesh));
+            placementMeshes.survivors = [];
+            placementMeshes.obstacles = [];
+
+            state.base = null;
+            state.survivors = [];
+            state.obstacles = [];
+            survivorMetadata.length = 0;
+
+            foundSurvivorSignals.clear();
+            foundSurvivorRegistry.clear();
+            renderFoundSurvivorRegistry();
+            resetBatteryAnalytics();
+
+            resetDronePanelState([], 'Idle');
+            renderDroneStatus();
+
+            titleEl.textContent = 'Swarm Command Center - Setup Mode';
+            placementHintEl.textContent = 'Click the tactical grid to place objects.';
+            deployBtn.disabled = false;
+            deployBtn.classList.remove('opacity-60', 'cursor-not-allowed');
+            modeButtons.forEach((btn) => {
+                btn.disabled = false;
+                btn.classList.remove('opacity-50', 'cursor-not-allowed', 'active');
+            });
+            if (modeButtons.length) {
+                modeButtons[0].classList.add('active');
+            }
+
+            setPlannerSourceBadge('idle', null);
+            appendMissionLog('All objects and runtime state cleared. Setup mode restored.');
+            appendDecisionLog('System reset: planner context cleared on UI side.');
+        }
+
+        function stopRuntimeLoops() {
             if (runtime.mockTimer) {
                 clearInterval(runtime.mockTimer);
                 runtime.mockTimer = null;
@@ -609,21 +934,6 @@
             if (runtime.websocket) {
                 runtime.websocket.close();
                 runtime.websocket = null;
-            }
-
-            runtime.tickInFlight = false;
-            runtime.tickCounter = 0;
-            foundSurvivorSignals.clear();
-            foundSurvivorRegistry.clear();
-            renderFoundSurvivorRegistry();
-
-            appendMissionLog('Deployment restart requested. Reinitializing swarm runtime...');
-
-            createOrResetDronesAtBase(runtime.droneIds);
-            if (USE_MOCK_DATA) {
-                startMockSimulation();
-            } else {
-                startLivePipeline();
             }
         }
 
@@ -833,23 +1143,18 @@
             }, 500);
         }
 
-        async function startLivePipeline() {
-            appendMissionLog('Live mode enabled. Sending setup state to backend API...');
+        async function startLivePipeline(skipInit = false) {
+            appendMissionLog(skipInit
+                ? 'Live mode resumed from existing backend runtime.'
+                : 'Live mode enabled. Sending setup state to backend API...');
 
-            try {
-                const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
-                await fetch('/api/init-swarm', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json',
-                        ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {})
-                    },
-                    body: JSON.stringify(state)
-                });
-                appendMissionLog('Initialization payload sent to /api/init-swarm.');
-            } catch (error) {
-                appendMissionLog(`Init request failed: ${error.message}`);
+            if (!skipInit) {
+                try {
+                    await sendInitSwarm();
+                    appendMissionLog('Initialization payload sent to /api/init-swarm.');
+                } catch (error) {
+                    appendMissionLog(`Init request failed: ${error.message}`);
+                }
             }
 
             if (runtime.liveTimer) {
@@ -872,17 +1177,24 @@
                 runtime.tickCounter += 1;
                 const forceReplan = runtime.tickCounter % Math.max(1, runtime.modelCheckEveryTicks) === 0;
                 try {
-                    const tickResponse = await fetchWithTimeout('/api/swarm/tick', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Accept': 'application/json'
-                        },
-                        body: JSON.stringify({ objective: LIVE_OBJECTIVE, force_replan: forceReplan })
-                    }, LIVE_TICK_REQUEST_TIMEOUT_MS);
+                    const tickResponse = FRONTEND_SHARED_STATE_MODE
+                        ? await fetchWithTimeout('/api/swarm/state', {
+                            method: 'GET',
+                            headers: {
+                                'Accept': 'application/json'
+                            }
+                        }, LIVE_TICK_REQUEST_TIMEOUT_MS)
+                        : await fetchWithTimeout('/api/swarm/tick', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json'
+                            },
+                            body: JSON.stringify({ objective: LIVE_OBJECTIVE, force_replan: forceReplan })
+                        }, LIVE_TICK_REQUEST_TIMEOUT_MS);
 
                     const tick = await tickResponse.json();
-                    if (!tick.ok || !Array.isArray(tick.telemetry)) {
+                    if (!Array.isArray(tick.telemetry) || (!FRONTEND_SHARED_STATE_MODE && !tick.ok)) {
                         appendMissionLog('Tick response unavailable.');
                         return;
                     }
@@ -896,8 +1208,10 @@
                         }
                     }
 
+                    applyBatteryAnalyticsFromTick(tick);
                     appendDecisionLog(`Source=${tick.source || 'unknown'} Intent=${tick.intent || 'n/a'}`);
                     setPlannerSourceBadge(tick.source || 'unknown', tick.timings || null);
+                    syncBatterySettingsFromResponse(tick.settings || null);
                     if (Array.isArray(tick.actions)) {
                         tick.actions.slice(0, 3).forEach((action) => {
                             appendDecisionLog(`${action.drone_id}: ${action.type} -> (${Math.round(action.target.x)}, ${Math.round(action.target.z)})`);
@@ -906,6 +1220,7 @@
                     if (tick.model && typeof tick.model.raw_output === 'string' && tick.model.raw_output.trim().length) {
                         appendOllamaRawLog(tick.model.raw_output);
                     }
+                    appendActionStageDebug(tick);
                     if (tick.model && tick.model.parse_error) {
                         appendDecisionLog('Model parse fallback triggered; check raw output terminal.');
                     }
@@ -950,14 +1265,19 @@
 
                     if (runtime.liveLoopActive) {
                         // Schedule the next tick only after the current request is fully completed.
-                        runtime.liveTimer = setTimeout(runLiveTick, 500);
+                        runtime.liveTimer = setTimeout(runLiveTick, LIVE_TICK_COOLDOWN_MS);
                     }
                 }
             };
 
             runtime.liveTimer = setTimeout(runLiveTick, 0);
 
-            appendMissionLog(`Tick engine active: sequential polling mode. Next tick waits for current response, then 500ms cooldown. Timeout=${Math.round(LIVE_TICK_REQUEST_TIMEOUT_MS / 1000)}s.`);
+            if (FRONTEND_SHARED_STATE_MODE) {
+                appendMissionLog(`Tick engine active: shared-state polling mode (/api/swarm/state). Cooldown=${LIVE_TICK_COOLDOWN_MS}ms.`);
+                appendDecisionLog('Planner mode: CLI-driven. UI is read-only for telemetry/actions cache.');
+            } else {
+                appendMissionLog(`Tick engine active: sequential polling mode. Next tick waits for current response, then ${LIVE_TICK_COOLDOWN_MS}ms cooldown. Timeout=${Math.round(LIVE_TICK_REQUEST_TIMEOUT_MS / 1000)}s.`);
+            }
 
             if (!SWARM_WS_ENABLED) {
                 appendMissionLog('WebSocket disabled. Using API tick polling only.');
@@ -1015,6 +1335,85 @@
             } catch (connectionError) {
                 appendMissionLog(`WebSocket setup failed: ${connectionError.message}`);
             }
+            clearActionStageDebug();
+        }
+        function actionToLine(action) {
+            const id = String(action && action.drone_id ? action.drone_id : '?');
+            const type = String(action && action.type ? action.type : 'unknown');
+            const x = Number(action && action.target ? action.target.x : NaN);
+            const z = Number(action && action.target ? action.target.z : NaN);
+            const xLabel = Number.isFinite(x) ? x.toFixed(2) : '?';
+            const zLabel = Number.isFinite(z) ? z.toFixed(2) : '?';
+
+            return `${id}: ${type} -> (${xLabel}, ${zLabel})`;
+        }
+
+        function parseRawModelActions(rawOutput) {
+            if (typeof rawOutput !== 'string' || rawOutput.trim() === '') {
+                return [];
+            }
+
+            try {
+                const parsed = JSON.parse(rawOutput);
+                if (parsed && Array.isArray(parsed.actions)) {
+                    return parsed.actions;
+                }
+            } catch (_e) {
+                return [];
+            }
+
+            return [];
+        }
+
+        function appendStageLog(targetEl, title, actions) {
+            if (!targetEl) {
+                return;
+            }
+
+            const now = new Date();
+            const stamp = now.toLocaleTimeString();
+            const block = document.createElement('div');
+            block.className = 'mb-2 pb-2 border-b border-slate-800/80';
+
+            const safeActions = Array.isArray(actions) ? actions : [];
+            const lines = safeActions.length
+                ? safeActions.map((action) => actionToLine(action))
+                : ['(no actions)'];
+
+            block.textContent = `[${stamp}] ${title}\n${lines.join('\n')}`;
+            targetEl.appendChild(block);
+
+            while (targetEl.children.length > 40) {
+                targetEl.removeChild(targetEl.firstChild);
+            }
+
+            targetEl.scrollTop = targetEl.scrollHeight;
+        }
+
+        function appendActionStageDebug(tick) {
+            const modelRaw = tick && tick.model ? tick.model.raw_output : '';
+            const rawActions = parseRawModelActions(modelRaw);
+            const plannerActions = rawActions.length
+                ? rawActions
+                : (tick && tick.debug && Array.isArray(tick.debug.planner_actions) ? tick.debug.planner_actions : []);
+            const postMcpActions = tick && tick.debug && Array.isArray(tick.debug.post_mcp_actions)
+                ? tick.debug.post_mcp_actions
+                : [];
+            const validatedActions = tick && tick.debug && Array.isArray(tick.debug.validated_actions)
+                ? tick.debug.validated_actions
+                : (Array.isArray(tick && tick.actions ? tick.actions : null) ? tick.actions : []);
+
+            appendStageLog(debugRawActionsLogEl, 'Stage 1 raw/planner actions', plannerActions);
+            appendStageLog(debugPostMcpLogEl, 'Stage 2 post-MCP actions', postMcpActions);
+            appendStageLog(debugValidatedLogEl, 'Stage 3 validated actions', validatedActions);
+        }
+
+        function clearActionStageDebug() {
+            [debugRawActionsLogEl, debugPostMcpLogEl, debugValidatedLogEl].forEach((el) => {
+                if (el) {
+                    el.innerHTML = '';
+                }
+            });
         }
 
         async function fetchWithTimeout(url, options, timeoutMs) {
@@ -1034,6 +1433,383 @@
                 throw error;
             } finally {
                 clearTimeout(timer);
+            }
+        }
+
+        async function sendInitSwarm() {
+            const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
+            const response = await fetch('/api/init-swarm', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {})
+                },
+                body: JSON.stringify(state)
+            });
+
+            return response.json().catch(() => ({}));
+        }
+
+        async function loadBatterySettings() {
+            try {
+                const response = await fetch('/api/swarm/settings', {
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+                const payload = await response.json();
+                syncBatterySettingsFromResponse(payload.settings || null);
+                if (batterySettingsStatusEl) {
+                    batterySettingsStatusEl.textContent = 'Runtime battery settings loaded from API.';
+                }
+            } catch (error) {
+                if (batterySettingsStatusEl) {
+                    batterySettingsStatusEl.textContent = `Using env defaults. Settings load failed: ${error.message}`;
+                }
+            }
+        }
+
+        function syncBatterySettingsFromResponse(settings) {
+            if (!settings || typeof settings !== 'object') {
+                return;
+            }
+
+            const moveValue = Number(settings.battery && settings.battery.movement_units_per_percent);
+            const scanValue = Number(settings.battery && settings.battery.scan_drain);
+
+            if (Number.isFinite(moveValue)) {
+                operatorSettings.battery.movementUnitsPerPercent = clamp(moveValue, 2, 20);
+            }
+            if (Number.isFinite(scanValue)) {
+                operatorSettings.battery.scanDrain = clamp(scanValue, 0, 10);
+            }
+
+            populateBatteryInputs();
+        }
+
+        function populateBatteryInputs() {
+            if (batteryMoveInput) {
+                batteryMoveInput.value = String(operatorSettings.battery.movementUnitsPerPercent);
+            }
+            if (batteryScanInput) {
+                batteryScanInput.value = String(operatorSettings.battery.scanDrain);
+            }
+        }
+
+        async function saveBatterySettings() {
+            const movementUnitsPerPercent = clamp(Number(batteryMoveInput?.value) || operatorSettings.battery.movementUnitsPerPercent, 2, 20);
+            const scanDrain = clamp(Number(batteryScanInput?.value) || operatorSettings.battery.scanDrain, 0, 10);
+
+            if (batterySaveBtn) {
+                batterySaveBtn.disabled = true;
+                batterySaveBtn.classList.add('opacity-60', 'cursor-not-allowed');
+            }
+
+            try {
+                const response = await fetch('/api/swarm/settings', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        movement_units_per_percent: movementUnitsPerPercent,
+                        scan_drain: scanDrain
+                    })
+                });
+                const payload = await response.json();
+                syncBatterySettingsFromResponse(payload.settings || null);
+                if (batterySettingsStatusEl) {
+                    batterySettingsStatusEl.textContent = `Applied: move 1% per ${operatorSettings.battery.movementUnitsPerPercent.toFixed(1)} units, scan drain ${operatorSettings.battery.scanDrain.toFixed(1)}.`;
+                }
+                appendMissionLog(`Battery settings updated. Move=1%/${operatorSettings.battery.movementUnitsPerPercent.toFixed(1)}u Scan=${operatorSettings.battery.scanDrain.toFixed(1)}.`);
+                appendDecisionLog('Runtime battery tuning updated from dashboard.');
+            } catch (error) {
+                if (batterySettingsStatusEl) {
+                    batterySettingsStatusEl.textContent = `Battery settings update failed: ${error.message}`;
+                }
+                appendMissionLog(`Battery settings update failed: ${error.message}`);
+            } finally {
+                if (batterySaveBtn) {
+                    batterySaveBtn.disabled = false;
+                    batterySaveBtn.classList.remove('opacity-60', 'cursor-not-allowed');
+                }
+            }
+        }
+
+        function resetBatteryAnalytics() {
+            batteryAnalytics.history = [];
+            batteryAnalytics.totals = {
+                scan_sector: 0,
+                move_to: 0,
+                return_to_base: 0,
+                idle: 0
+            };
+            batteryAnalytics.lastTrialTicks = 0;
+            renderBatterySummary();
+            renderBatteryChart();
+        }
+
+        function applyBatteryAnalyticsFromTick(tick) {
+            if (!tick || !Array.isArray(tick.telemetry)) {
+                return;
+            }
+
+            const priorBattery = {};
+            Object.keys(runtime.drones).forEach((id) => {
+                const battery = Number(runtime.drones[id] && runtime.drones[id].battery);
+                if (Number.isFinite(battery)) {
+                    priorBattery[id] = battery;
+                }
+            });
+
+            const actionByDrone = new Map();
+            (Array.isArray(tick.actions) ? tick.actions : []).forEach((action) => {
+                if (action && typeof action.drone_id === 'string') {
+                    actionByDrone.set(action.drone_id, String(action.type || 'idle'));
+                }
+            });
+
+            const entry = {
+                tick: batteryAnalytics.history.length + 1,
+                scan_sector: 0,
+                move_to: 0,
+                return_to_base: 0,
+                idle: 0
+            };
+
+            tick.telemetry.forEach((update) => {
+                const id = update && update.id;
+                if (typeof id !== 'string' || !Object.prototype.hasOwnProperty.call(priorBattery, id)) {
+                    return;
+                }
+
+                const previousBattery = Number(priorBattery[id]);
+                const nextBattery = Number(update.battery);
+                if (!Number.isFinite(previousBattery) || !Number.isFinite(nextBattery)) {
+                    return;
+                }
+
+                const drain = Math.max(0, previousBattery - nextBattery);
+                const type = actionByDrone.get(id);
+                const bucket = Object.prototype.hasOwnProperty.call(entry, type) ? type : 'idle';
+                entry[bucket] += drain;
+            });
+
+            ['scan_sector', 'move_to', 'return_to_base', 'idle'].forEach((key) => {
+                batteryAnalytics.totals[key] += entry[key];
+            });
+
+            batteryAnalytics.history.push(entry);
+            if (batteryAnalytics.history.length > 90) {
+                const removed = batteryAnalytics.history.shift();
+                if (removed) {
+                    ['scan_sector', 'move_to', 'return_to_base', 'idle'].forEach((key) => {
+                        batteryAnalytics.totals[key] = Math.max(0, batteryAnalytics.totals[key] - (removed[key] || 0));
+                    });
+                }
+            }
+
+            renderBatterySummary();
+            renderBatteryChart();
+        }
+
+        function renderBatterySummary() {
+            if (!batteryTrialSummaryEl) {
+                return;
+            }
+
+            const totalTicks = batteryAnalytics.history.length;
+            if (!totalTicks) {
+                batteryTrialSummaryEl.textContent = 'No battery trial data yet.';
+                return;
+            }
+
+            const totals = batteryAnalytics.totals;
+            batteryTrialSummaryEl.textContent = `Ticks ${totalTicks} | Scan ${totals.scan_sector.toFixed(1)} | Move ${totals.move_to.toFixed(1)} | Return ${totals.return_to_base.toFixed(1)} | Idle ${totals.idle.toFixed(1)}`;
+        }
+
+        function renderBatteryChart() {
+            if (!batteryUsageChartEl) {
+                return;
+            }
+
+            const rect = batteryUsageChartEl.getBoundingClientRect();
+            const width = Math.max(280, Math.floor(rect.width || batteryUsageChartEl.parentElement?.clientWidth || 280));
+            const height = Number(batteryUsageChartEl.getAttribute('height')) || 150;
+            batteryUsageChartEl.width = width;
+            batteryUsageChartEl.height = height;
+
+            const ctx = batteryUsageChartEl.getContext('2d');
+            if (!ctx) {
+                return;
+            }
+
+            ctx.clearRect(0, 0, width, height);
+            ctx.fillStyle = '#02050a';
+            ctx.fillRect(0, 0, width, height);
+
+            const padding = { top: 14, right: 10, bottom: 24, left: 30 };
+            const chartWidth = width - padding.left - padding.right;
+            const chartHeight = height - padding.top - padding.bottom;
+            const history = batteryAnalytics.history.slice(-60);
+
+            ctx.strokeStyle = 'rgba(34, 211, 238, 0.18)';
+            ctx.lineWidth = 1;
+            for (let i = 0; i <= 4; i += 1) {
+                const y = padding.top + (chartHeight * i / 4);
+                ctx.beginPath();
+                ctx.moveTo(padding.left, y);
+                ctx.lineTo(width - padding.right, y);
+                ctx.stroke();
+            }
+
+            if (!history.length) {
+                ctx.fillStyle = '#94a3b8';
+                ctx.font = '12px Exo 2';
+                ctx.fillText('Battery usage graph will appear after ticks start.', padding.left, padding.top + 24);
+                return;
+            }
+
+            const maxY = Math.max(1, ...history.flatMap((entry) => [entry.scan_sector, entry.move_to, entry.return_to_base, entry.idle]));
+            const series = [
+                { key: 'scan_sector', color: '#22d3ee', label: 'Scan' },
+                { key: 'move_to', color: '#f59e0b', label: 'Move' },
+                { key: 'return_to_base', color: '#ef4444', label: 'Return' },
+                { key: 'idle', color: '#94a3b8', label: 'Idle' }
+            ];
+
+            series.forEach((item, index) => {
+                ctx.strokeStyle = item.color;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                history.forEach((entry, entryIndex) => {
+                    const x = padding.left + (chartWidth * (history.length === 1 ? 1 : entryIndex / (history.length - 1)));
+                    const y = padding.top + chartHeight - ((entry[item.key] / maxY) * chartHeight);
+                    if (entryIndex === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                });
+                ctx.stroke();
+
+                ctx.fillStyle = item.color;
+                ctx.fillRect(padding.left + (index * 62), height - 14, 10, 3);
+                ctx.font = '10px Exo 2';
+                ctx.fillText(item.label, padding.left + 14 + (index * 62), height - 9);
+            });
+
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = '10px Exo 2';
+            ctx.fillText('0', 10, padding.top + chartHeight + 3);
+            ctx.fillText(maxY.toFixed(1), 6, padding.top + 8);
+            ctx.fillText(`Last ${history.length} ticks`, width - 74, height - 9);
+        }
+
+        async function runBatteryBalanceTrial() {
+            if (!state.base) {
+                appendMissionLog('Battery trial blocked: place one base first.');
+                return;
+            }
+            if (runtime.benchmarkRunning) {
+                return;
+            }
+
+            const wasLive = runtime.liveLoopActive;
+            runtime.benchmarkRunning = true;
+            if (batteryTrialBtn) {
+                batteryTrialBtn.disabled = true;
+                batteryTrialBtn.classList.add('opacity-60', 'cursor-not-allowed');
+                batteryTrialBtn.textContent = 'Running Trial...';
+            }
+
+            if (wasLive) {
+                stopRuntimeLoops();
+                runtime.tickInFlight = false;
+            }
+
+            try {
+                resetBatteryAnalytics();
+                await sendInitSwarm();
+                appendMissionLog('Battery balance trial started: 60 sequential ticks.');
+                appendDecisionLog('Battery trial mode active: collecting drain by action type.');
+
+                for (let tickIndex = 1; tickIndex <= 60; tickIndex += 1) {
+                    const forceReplan = tickIndex % Math.max(1, runtime.modelCheckEveryTicks) === 0;
+                    const tickResponse = await fetchWithTimeout('/api/swarm/tick', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json'
+                        },
+                        body: JSON.stringify({ objective: LIVE_OBJECTIVE, force_replan: forceReplan })
+                    }, LIVE_TICK_REQUEST_TIMEOUT_MS);
+
+                    const tick = await tickResponse.json();
+                    if (!tick.ok || !Array.isArray(tick.telemetry)) {
+                        throw new Error(`Trial tick ${tickIndex} returned invalid telemetry.`);
+                    }
+
+                    if (tick.mcp && Array.isArray(tick.mcp.discovered_drones) && tick.mcp.discovered_drones.length) {
+                        const discoveredIds = tick.mcp.discovered_drones
+                            .map((entry) => entry && entry.id)
+                            .filter((id) => typeof id === 'string' && id.length);
+                        if (discoveredIds.length) {
+                            ensureDroneMeshes(discoveredIds);
+                        }
+                    }
+
+                    applyBatteryAnalyticsFromTick(tick);
+                    syncBatterySettingsFromResponse(tick.settings || null);
+
+                    tick.telemetry.forEach((update) => {
+                        const id = update.id;
+                        if (!runtime.drones[id] && typeof id === 'string' && id.length) {
+                            ensureDroneMeshes([id]);
+                        }
+
+                        const drone = runtime.drones[id];
+                        if (!drone) {
+                            return;
+                        }
+
+                        drone.targetX = Number(update.x) || 0;
+                        drone.targetZ = Number(update.z) || 0;
+                        drone.battery = clamp(Number(update.battery) || 0, 0, 100);
+                        dronePanelState[id] = {
+                            battery: Math.round(drone.battery),
+                            status: update.status || 'Trial telemetry'
+                        };
+                        drone.scanActive = isScanningStatus(dronePanelState[id].status);
+                    });
+
+                    renderDroneStatus();
+
+                    if (tickIndex % 10 === 0) {
+                        appendMissionLog(`Battery trial progress: ${tickIndex}/60 ticks.`);
+                        await new Promise((resolve) => setTimeout(resolve, 0));
+                    }
+                }
+
+                batteryAnalytics.lastTrialTicks = 60;
+                renderBatterySummary();
+                appendMissionLog('Battery balance trial completed. Review Battery Lab chart for per-action drain trends.');
+                appendDecisionLog('Battery trial completed successfully.');
+            } catch (error) {
+                appendMissionLog(`Battery trial failed: ${error.message}`);
+            } finally {
+                runtime.benchmarkRunning = false;
+                if (batteryTrialBtn) {
+                    batteryTrialBtn.disabled = false;
+                    batteryTrialBtn.classList.remove('opacity-60', 'cursor-not-allowed');
+                    batteryTrialBtn.textContent = 'Run 60-Tick Trial';
+                }
+
+                if (wasLive) {
+                    startLivePipeline(true);
+                }
             }
         }
 
@@ -1064,6 +1840,10 @@
         }
 
         function appendMissionLog(message) {
+            if (!missionLogEl) {
+                return;
+            }
+
             const now = new Date();
             const stamp = now.toLocaleTimeString();
             const line = document.createElement('div');
@@ -1078,6 +1858,10 @@
         }
 
         function appendDecisionLog(message) {
+            if (!llmDecisionLogEl) {
+                return;
+            }
+
             const now = new Date();
             const stamp = now.toLocaleTimeString();
             const line = document.createElement('div');
@@ -1362,16 +2146,7 @@
         }
 
         window.addEventListener('beforeunload', () => {
-            if (runtime.mockTimer) {
-                clearInterval(runtime.mockTimer);
-            }
-            runtime.liveLoopActive = false;
-            if (runtime.liveTimer) {
-                clearTimeout(runtime.liveTimer);
-            }
-            if (runtime.websocket) {
-                runtime.websocket.close();
-            }
+            stopRuntimeLoops();
             if (animationHandle) {
                 cancelAnimationFrame(animationHandle);
             }

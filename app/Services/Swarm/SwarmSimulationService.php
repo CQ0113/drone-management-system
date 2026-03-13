@@ -31,11 +31,14 @@ class SwarmSimulationService
     {
         $logs = [];
         $signals = [];
+        $movementUnitsSetting = data_get($state, 'operator_settings.battery.movement_units_per_percent', env('SWARM_BATTERY_MOVEMENT_UNITS_PER_PERCENT', 8.0));
+        $scanDrainSetting = data_get($state, 'operator_settings.battery.scan_drain', env('SWARM_BATTERY_SCAN_DRAIN', 1.0));
         $step = $this->clamp((float) env('SWARM_MOVE_STEP', 2.8), 1.0, 6.0);
         $scanDetectionRadius = $this->clamp((float) env('SWARM_SCAN_DETECTION_RADIUS', 6.0), 1.0, 25.0);
         $scanOrbitRadius = $this->clamp((float) env('SWARM_SCAN_ORBIT_RADIUS', 2.4), 0.0, 8.0);
         $scanOrbitStep = $this->clamp((float) env('SWARM_SCAN_ORBIT_STEP', 0.55), 0.1, 2.2);
-        $unitsPerOnePercent = max(2.0, min(20.0, (float) env('SWARM_BATTERY_UNITS_PER_PERCENT', 8.0)));
+        $movementUnitsPerPercent = max(2.0, min(20.0, (float) $movementUnitsSetting));
+        $scanActionDrain = max(0.0, min(10.0, (float) $scanDrainSetting));
         $idleDrain = max(0.0, min(1.0, (float) env('SWARM_BATTERY_IDLE_DRAIN', 0.03)));
         $chargeRate = max(1.0, min(25.0, (float) env('SWARM_BATTERY_CHARGE_RATE', 10.0)));
         $baseChargeUntil = max(25.0, min(100.0, (float) env('SWARM_BASE_CHARGE_UNTIL_PERCENT', 60.0)));
@@ -94,8 +97,10 @@ class SwarmSimulationService
             }
 
             $goalKey = sprintf('%.2f,%.2f', $targetX, $targetZ);
+            $nearTargetNow = $this->isClose($currentX, $currentZ, $targetX, $targetZ, 0.20);
+            $needsPathRefresh = (($runtime[$id]['goal'] ?? null) !== $goalKey) || (empty($runtime[$id]['path']) && !$nearTargetNow);
 
-            if (($runtime[$id]['goal'] ?? null) !== $goalKey) {
+            if ($needsPathRefresh) {
                 $runtime[$id]['goal'] = $goalKey;
                 $runtime[$id]['path'] = $this->findPath(
                     ['x' => (int) round($currentX), 'z' => (int) round($currentZ)],
@@ -122,7 +127,9 @@ class SwarmSimulationService
             }
 
             $distanceMoved = sqrt(pow(((float) $runtime[$id]['x']) - $currentX, 2) + pow(((float) $runtime[$id]['z']) - $currentZ, 2));
-            $consumption = max($idleDrain, $distanceMoved / $unitsPerOnePercent);
+            $movementConsumption = $distanceMoved / $movementUnitsPerPercent;
+            $scanConsumption = $actionType === 'scan_sector' ? $scanActionDrain : 0.0;
+            $consumption = max($idleDrain, $movementConsumption + $scanConsumption);
             $nextBattery = max(0.0, $currentBattery - $consumption);
             if ($nextBattery <= 0.0) {
                 $runtime[$id]['battery'] = 0.0;
@@ -143,13 +150,19 @@ class SwarmSimulationService
 
             $runtime[$id]['battery'] = $nextBattery;
 
-            $status = $nextBattery > 20
-                ? $this->statusFromAction($actionType)
-                : 'Low battery - return protocol';
+            $atCommandTarget = $this->isClose((float) $runtime[$id]['x'], (float) $runtime[$id]['z'], $targetX, $targetZ, 0.20);
+            if ($nextBattery <= 20) {
+                $status = 'Low battery - return protocol';
+            } elseif ($atCommandTarget && in_array($actionType, ['move_to', 'return_to_base'], true)) {
+                $status = $actionType === 'return_to_base' ? 'Holding at base' : 'Holding position';
+            } else {
+                $status = $this->statusFromAction($actionType);
+            }
 
             if ((bool) ($next['blocked'] ?? false)) {
                 $status = 'Obstacle block - holding';
                 $runtime[$id]['path'] = [];
+                $runtime[$id]['goal'] = null;
                 $logs[] = sprintf('%s: movement blocked by obstacle footprint.', $id);
             }
 
