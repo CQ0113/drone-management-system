@@ -64,15 +64,24 @@ class LlmPlannerService
             ],
         ];
 
-      $system = 'Drone swarm planner. Return ONLY compact JSON: {"actions":[...]}. No markdown, no prose, no extra keys.'
-    .' Each action: {drone_id, type, target:{x,z}}. type ∈ {scan_sector, move_to, return_to_base}.'
-    .' One action per ID in available_drone_ids. Targets within bounds. Each target ≤ max_step units from drone current x,z.'
-    .' CRITICAL: Spread drones across the ENTIRE map. Send drones to corners (-49,-49), (49,-49), (-49,49), (49,49).'
-    .' Do NOT cluster drones near base. Cover all quadrants evenly.'
-    .' scan_sector required to find survivors. Spread drones apart, do not cluster.'
-    .' battery≤battery_recall → prefer return_to_base. battery≤battery_critical → must return_to_base.'
-    .' Ex: '.json_encode(['actions' => [['drone_id' => 'D1', 'type' => 'scan_sector', 'target' => ['x' => 40, 'z' => 40]]]], JSON_UNESCAPED_SLASHES);
+     $survivorsList = '';
+    if (!empty($state['survivors'])) {
+        $survivorsText = [];
+        foreach ($state['survivors'] as $index => $s) {
+            $survivorsText[] = "S" . ($index+1) . " at (" . round($s['x']) . "," . round($s['z']) . ")";
+        }
+        $survivorsList = "KNOWN SURVIVOR LOCATIONS: " . implode(', ', $survivorsText) . ". ";
+    }
 
+    $system = 'Drone swarm planner. Return ONLY compact JSON: {"actions":[...]}. No markdown, no prose, no extra keys.'
+        .' Each action: {drone_id, type, target:{x,z}}. type ∈ {scan_sector, move_to, return_to_base}.'
+        .' One action per ID in available_drone_ids. Targets within bounds. Each target ≤ max_step units from drone current x,z.'
+        .' MISSION: Search and rescue. ' . $survivorsList
+        .' CRITICAL: Assign drones to SCAN NEAR SURVIVOR LOCATIONS first. Prioritize S1(5,35), S2(-30,-20), S3(40,-5), S4(-15,40), S5(25,-35).'
+        .' Use scan_sector at survivor coordinates to find them. Do NOT send drones to corners - send them to survivors.'
+        .' Spread drones across different survivor locations. battery≤battery_recall → prefer return_to_base. battery≤battery_critical → must return_to_base.'
+        .' Ex: '.json_encode(['actions' => [['drone_id' => 'D1', 'type' => 'scan_sector', 'target' => ['x' => 5, 'z' => 35]]]], JSON_UNESCAPED_SLASHES);
+        
         try {
             $response = Http::timeout($timeout)
                 ->acceptJson()
@@ -125,11 +134,11 @@ class LlmPlannerService
      */
     private function sanitizePlan(array $decoded, array $state, string $objective, string $source, array $plannerDrones = []): array
     {
-        $allowedIds = collect($plannerDrones)
-            ->map(fn (array $drone): string => (string) data_get($drone, 'id', ''))
-            ->filter(fn (string $id): bool => $id !== '')
-            ->values()
-            ->all();
+         $allowedIds = collect($plannerDrones)
+        ->map(fn (array $drone): string => (string) data_get($drone, 'id', ''))
+        ->filter(fn (string $id): bool => $id !== '')
+        ->values()
+        ->all();
         $allowedTypes = ['scan_sector', 'move_to', 'return_to_base'];
         $remainingIds = $allowedIds;
         $plannerDroneLookup = collect($plannerDrones)
@@ -137,9 +146,31 @@ class LlmPlannerService
 
         $baseX = (float) data_get($state, 'base.x', 0);
         $baseZ = (float) data_get($state, 'base.z', 0);
+        $survivors = (array) data_get($state, 'survivors', []);  
         $maxDistanceFromBase = $this->maxDistanceFromBaseToMapEnd($baseX, $baseZ, -49.0, 49.0);
-        $defaultTargets = $this->buildDefaultTargets($allowedIds, $baseX, $baseZ);
 
+        $defaultTargets = [];
+        foreach ($allowedIds as $index => $id) {
+            if (isset($survivors[$index])) {
+                $defaultTargets[$id] = [
+                    'x' => $this->clamp($survivors[$index]['x'], -49, 49),
+                    'z' => $this->clamp($survivors[$index]['z'], -49, 49),
+                ];
+            } else {
+
+                $corners = [
+                    ['x' => -40, 'z' => -40],
+                    ['x' => 40, 'z' => -40],
+                    ['x' => -40, 'z' => 40],
+                    ['x' => 40, 'z' => 40],
+                ];
+                $defaultTargets[$id] = [
+                    'x' => $this->clamp($corners[$index % 4]['x'], -49, 49),
+                    'z' => $this->clamp($corners[$index % 4]['z'], -49, 49),
+                ];
+            }
+        }
+        
         $byDrone = [];
         foreach ((array) ($decoded['actions'] ?? []) as $action) {
             $id = (string) ($action['drone_id'] ?? '');
@@ -181,16 +212,16 @@ class LlmPlannerService
             }
 
             $byDrone[$id] = [
-                'drone_id' => $id,
-                'type' => 'move_to',
-                'target' => [
-                    'x' => $this->clamp((float) data_get($defaultTargets, $id.'.x', $baseX), -49, 49),
-                    'z' => $this->clamp((float) data_get($defaultTargets, $id.'.z', $baseZ), -49, 49),
-                ],
-                'priority' => 5,
-                'reason' => 'Default safe action due to incomplete model output.',
-            ];
-        }
+            'drone_id' => $id,
+            'type' => 'scan_sector',  
+            'target' => [
+                'x' => $this->clamp((float) data_get($defaultTargets, $id.'.x', $baseX), -49, 49),
+                'z' => $this->clamp((float) data_get($defaultTargets, $id.'.z', $baseZ), -49, 49),
+            ],
+            'priority' => 5,
+            'reason' => 'Default: scanning survivor location',
+        ];
+    }
 
         return [
             'ok' => true,
@@ -280,38 +311,26 @@ class LlmPlannerService
      * @return array<string, array{x: float, z: float}>
      */
     private function buildDefaultTargets(array $ids, float $baseX, float $baseZ): array
-{
-    $targets = [];
-    $count = max(1, count($ids));
+    {
+        $targets = [];
     
-    $radius = 35.0;  
-    
-    $corners = [
-        ['x' => -40, 'z' => -40],  
-        ['x' => 40, 'z' => -40],   
-        ['x' => -40, 'z' => 40],   
-        ['x' => 40, 'z' => 40],    
-    ];
-
-    foreach ($ids as $index => $id) {
+        $corners = [
+            ['x' => -40, 'z' => -40],
+            ['x' => 40, 'z' => -40],
+            ['x' => -40, 'z' => 40],
+            ['x' => 40, 'z' => 40],
+        ];
         
-        if ($count <= 4) {
+        foreach ($ids as $index => $id) {
             $targets[$id] = [
                 'x' => $this->clamp($corners[$index % 4]['x'], -49, 49),
                 'z' => $this->clamp($corners[$index % 4]['z'], -49, 49),
             ];
-        } else {
-        
-            $angle = (2 * M_PI * $index) / $count;
-            $targets[$id] = [
-                'x' => $this->clamp($baseX + ($radius * cos($angle)), -49, 49),
-                'z' => $this->clamp($baseZ + ($radius * sin($angle)), -49, 49),
-            ];
         }
+
+        return $targets;
     }
 
-    return $targets;
-}
     /**
      * @return array<string, mixed>|null
      */
