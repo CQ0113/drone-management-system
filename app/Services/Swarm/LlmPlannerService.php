@@ -64,12 +64,14 @@ class LlmPlannerService
             ],
         ];
 
-        $system = 'Drone swarm planner. Return ONLY compact JSON: {"actions":[...]}. No markdown, no prose, no extra keys.'
-            .' Each action: {drone_id, type, target:{x,z}}. type ∈ {scan_sector, move_to, return_to_base}.'
-            .' One action per ID in available_drone_ids. Targets within bounds. Each target ≤ max_step units from drone current x,z.'
-            .' scan_sector required to find survivors. Spread drones apart, do not cluster.'
-            .' battery≤battery_recall → prefer return_to_base. battery≤battery_critical → must return_to_base.'
-            .' Ex: '.json_encode(['actions' => [['drone_id' => 'D1', 'type' => 'scan_sector', 'target' => ['x' => 3, 'z' => 4]]]], JSON_UNESCAPED_SLASHES);
+      $system = 'Drone swarm planner. Return ONLY compact JSON: {"actions":[...]}. No markdown, no prose, no extra keys.'
+    .' Each action: {drone_id, type, target:{x,z}}. type ∈ {scan_sector, move_to, return_to_base}.'
+    .' One action per ID in available_drone_ids. Targets within bounds. Each target ≤ max_step units from drone current x,z.'
+    .' CRITICAL: Spread drones across the ENTIRE map. Send drones to corners (-49,-49), (49,-49), (-49,49), (49,49).'
+    .' Do NOT cluster drones near base. Cover all quadrants evenly.'
+    .' scan_sector required to find survivors. Spread drones apart, do not cluster.'
+    .' battery≤battery_recall → prefer return_to_base. battery≤battery_critical → must return_to_base.'
+    .' Ex: '.json_encode(['actions' => [['drone_id' => 'D1', 'type' => 'scan_sector', 'target' => ['x' => 40, 'z' => 40]]]], JSON_UNESCAPED_SLASHES);
 
         try {
             $response = Http::timeout($timeout)
@@ -160,7 +162,7 @@ class LlmPlannerService
             $currentDrone = (array) ($plannerDroneLookup->get($id) ?? []);
             $currentDroneX = (float) data_get($currentDrone, 'x', $baseX);
             $currentDroneZ = (float) data_get($currentDrone, 'z', $baseZ);
-            ['x' => $targetX, 'z' => $targetZ] = $this->clampTargetDistanceFromPoint($targetX, $targetZ, $currentDroneX, $currentDroneZ, 5.0);
+            ['x' => $targetX, 'z' => $targetZ] = $this->clampTargetDistanceFromPoint($targetX, $targetZ, $currentDroneX, $currentDroneZ, 15.0);
             ['x' => $targetX, 'z' => $targetZ] = $this->clampTargetDistanceFromBase($targetX, $targetZ, $baseX, $baseZ, $maxDistanceFromBase);
             $priority = (int) data_get($action, 'priority', 5);
 
@@ -278,22 +280,38 @@ class LlmPlannerService
      * @return array<string, array{x: float, z: float}>
      */
     private function buildDefaultTargets(array $ids, float $baseX, float $baseZ): array
-    {
-        $targets = [];
-        $count = max(1, count($ids));
-        $radius = 9.0;
+{
+    $targets = [];
+    $count = max(1, count($ids));
+    
+    $radius = 35.0;  
+    
+    $corners = [
+        ['x' => -40, 'z' => -40],  
+        ['x' => 40, 'z' => -40],   
+        ['x' => -40, 'z' => 40],   
+        ['x' => 40, 'z' => 40],    
+    ];
 
-        foreach ($ids as $index => $id) {
+    foreach ($ids as $index => $id) {
+        
+        if ($count <= 4) {
+            $targets[$id] = [
+                'x' => $this->clamp($corners[$index % 4]['x'], -49, 49),
+                'z' => $this->clamp($corners[$index % 4]['z'], -49, 49),
+            ];
+        } else {
+        
             $angle = (2 * M_PI * $index) / $count;
             $targets[$id] = [
                 'x' => $this->clamp($baseX + ($radius * cos($angle)), -49, 49),
                 'z' => $this->clamp($baseZ + ($radius * sin($angle)), -49, 49),
             ];
         }
-
-        return $targets;
     }
 
+    return $targets;
+}
     /**
      * @return array<string, mixed>|null
      */

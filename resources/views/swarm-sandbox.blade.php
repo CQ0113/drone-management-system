@@ -141,20 +141,60 @@
     <div class="fixed inset-0 z-10 pointer-events-none overflow-y-auto overscroll-contain md:overflow-hidden">
         <div class="relative min-h-[1040px] pb-4 pt-4 md:min-h-full md:pb-0 md:pt-0">
         <header class="pointer-events-auto mx-4 glass-panel rounded-xl px-5 py-3 flex flex-col gap-2 md:absolute md:top-4 md:left-4 md:right-4 md:mx-0 md:flex-row md:items-center md:justify-between">
-            <h1 id="hud-title" class="font-display text-xl md:text-2xl tracking-widest text-cyan-300">Swarm Command Center - Setup Mode</h1>
-            <div class="flex flex-wrap items-center gap-3">
-                <span id="planner-source-badge" class="rounded-full border border-cyan-600/60 bg-cyan-500/10 px-3 py-1 text-[10px] md:text-xs uppercase tracking-[0.16em] text-cyan-200">Source: Idle</span>
-                <span class="text-xs md:text-sm uppercase tracking-[0.25em] text-slate-300">Decentralised Swarm Intelligence</span>
-            </div>
-        </header>
+    <h1 id="hud-title" class="font-display text-xl md:text-2xl tracking-widest text-cyan-300">Swarm Command Center - Setup Mode</h1>
+    <div class="flex flex-wrap items-center gap-3">
+        <!-- Map selection dropdown -->
+        <select id="map-select" class="hud-btn rounded-md px-3 py-1.5 text-xs font-display uppercase tracking-[0.12em] text-cyan-100 bg-slate-900/80 border border-cyan-800/60">
+            <option value="">-- Select Default Map --</option>
+            <option value="map1">Map 1: Training Ground (3 survivors)</option>
+            <option value="map2">Map 2: Urban Ruins (5 survivors)</option>
+            <option value="map3">Map 3: Maze Challenge (4 survivors)</option>
+            <option value="map4">Map 4: Open Terrain (4 survivors)</option>
+            <option value="map5">Map 5: Night Search (6 survivors)</option>
+        </select>
+        <button id="load-map-btn" class="hud-btn rounded-md px-3 py-1.5 text-xs font-display uppercase tracking-[0.12em] text-emerald-100 border border-emerald-800/60">
+            Load Map
+        </button>
+        <span id="planner-source-badge" class="rounded-full border border-cyan-600/60 bg-cyan-500/10 px-3 py-1 text-[10px] md:text-xs uppercase tracking-[0.16em] text-cyan-200">Source: Idle</span>
+        <span class="text-xs md:text-sm uppercase tracking-[0.25em] text-slate-300">Decentralised Swarm Intelligence</span>
+    </div>
+</header>
 
         <aside class="pointer-events-auto mx-4 mt-4 glass-panel rounded-xl p-4 md:absolute md:top-24 md:left-4 md:right-auto md:mt-0 md:w-[280px] md:max-w-[90vw] md:mx-0">
-            <h2 class="font-display text-sm uppercase tracking-[0.2em] text-cyan-300 mb-3">Placement Controls</h2>
+        <h2 class="font-display text-sm uppercase tracking-[0.2em] text-cyan-300 mb-3">Placement Controls</h2>
             <div class="space-y-2">
                 <button class="hud-btn active w-full rounded-md py-2 px-3 text-left font-medium" data-mode="base">Place Base (Max 1)</button>
                 <button class="hud-btn w-full rounded-md py-2 px-3 text-left font-medium" data-mode="survivor">Place Survivor</button>
                 <button class="hud-btn w-full rounded-md py-2 px-3 text-left font-medium" data-mode="obstacle">Place Obstacle</button>
+                
+            <div class="border-t border-cyan-800/40 my-2"></div>
+                <button class="hud-btn w-full rounded-md py-2 px-3 text-left font-medium text-rose-300 hover:text-rose-200" data-mode="delete-survivor">🗑️ Delete Survivor</button>
+                <button class="hud-btn w-full rounded-md py-2 px-3 text-left font-medium text-rose-300 hover:text-rose-200" data-mode="delete-obstacle">🗑️ Delete Obstacle</button>
+
+            <div id="obstacle-direction-control" class="mt-3 p-2 border border-cyan-800/40 rounded-md hidden">
+                <label class="block text-xs uppercase tracking-[0.12em] text-cyan-200 mb-2">Obstacle Direction</label>
+                <div class="flex gap-2">
+                    <button id="obstacle-rotate-left" class="hud-btn flex-1 py-1 px-2 text-xs">↺ Left</button>
+                    <button id="obstacle-rotate-right" class="hud-btn flex-1 py-1 px-2 text-xs">↻ Right</button>
+                </div>
+                <div class="mt-2 text-center">
+                    <span id="obstacle-rotation-display" class="text-xs text-cyan-100">0°</span>
+                </div>
             </div>
+
+            <div id="obstacle-type-control" class="mt-3 p-2 border border-cyan-800/40 rounded-md hidden">
+                <label class="block text-xs uppercase tracking-[0.12em] text-cyan-200 mb-2">Obstacle Type</label>
+                <div class="grid grid-cols-2 gap-2">
+                    <button id="obstacle-type-square" class="hud-btn py-2 px-1 text-xs border border-cyan-700/60">Square (2x2)</button>
+                    <button id="obstacle-type-long" class="hud-btn py-2 px-1 text-xs border border-cyan-700/60">Long (1x4)</button>
+                    <button id="obstacle-type-wide" class="hud-btn py-2 px-1 text-xs border border-cyan-700/60">Wide (4x1)</button>
+                    <button id="obstacle-type-wall" class="hud-btn py-2 px-1 text-xs border border-cyan-700/60">Wall (1x6)</button>
+                </div>
+                <div class="mt-2 text-center">
+                    <span id="obstacle-type-display" class="text-xs text-cyan-100">Square</span>
+                </div>
+            </div>
+        </div>
 
             <button id="deploy-btn" class="mt-5 w-full rounded-md py-3 bg-emerald-500/90 hover:bg-emerald-400 text-slate-950 font-display tracking-[0.1em] font-bold uppercase transition-colors">
                 Deploy Swarm
@@ -329,6 +369,10 @@
             dashboardView: 'output'
         };
 
+        let currentRotation = 0;
+        let currentObstacleType = 'square';
+        let hoveredObject = null; 
+
         const operatorSettings = {
             battery: {
                 movementUnitsPerPercent: DEFAULT_MOVEMENT_UNITS_PER_PERCENT,
@@ -420,6 +464,7 @@
                     appendMissionLog('System ready. Select placement mode and click on grid to configure mission.');
                     appendDecisionLog('Decision terminal online. Awaiting planner output.');
                     loadBatterySettings();
+                    loadCurrentMapState();
                 } catch (uiError) {
                     console.error('UI bootstrap error:', uiError);
                     placementHintEl.textContent = 'Map is active. Some dashboard widgets failed to initialize.';
@@ -555,6 +600,85 @@
             window.addEventListener('resize', onResize);
             // Capture clicks at the window level so placement still works even if HUD layers overlap the canvas.
             window.addEventListener('click', onCanvasClick, true);
+            window.addEventListener('mousemove', onMouseMove);
+        }
+
+        function onMouseMove(event) {
+            if (runtime.setupLocked || (runtime.activeMode !== 'delete-survivor' && runtime.activeMode !== 'delete-obstacle')) {
+                
+                if (hoveredObject) {
+                    resetHighlight(hoveredObject);
+                    hoveredObject = null;
+                }
+                return;
+            }
+
+            if (!renderer || !renderer.domElement || !camera || !scene) {
+                return;
+            }
+
+            const rect = renderer.domElement.getBoundingClientRect();
+            const mouse = new THREE.Vector2();
+            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(mouse, camera);
+
+
+            let objectsToCheck = [];
+            if (runtime.activeMode === 'delete-survivor') {
+                objectsToCheck = placementMeshes.survivors;
+            } else if (runtime.activeMode === 'delete-obstacle') {
+                objectsToCheck = placementMeshes.obstacles;
+            }
+
+            const intersects = raycaster.intersectObjects(objectsToCheck);
+
+            
+            if (hoveredObject) {
+                resetHighlight(hoveredObject);
+                hoveredObject = null;
+            }
+
+            if (intersects.length > 0) {
+                hoveredObject = intersects[0].object;
+                highlightObject(hoveredObject);
+            }
+        }
+
+        function highlightObject(obj) {
+            if (!obj || !obj.material) return;
+            
+
+            if (!obj.userData.originalColor) {
+                if (Array.isArray(obj.material)) {
+                    obj.userData.originalColor = obj.material.map(m => m.color.clone());
+                } else {
+                    obj.userData.originalColor = obj.material.color.clone();
+                }
+            }
+        
+            if (Array.isArray(obj.material)) {
+                obj.material.forEach(m => m.color.setHex(0xffaa00));
+            } else {
+                obj.material.color.setHex(0xffaa00);
+            }
+        }
+
+        function resetHighlight(obj) {
+            if (!obj || !obj.material || !obj.userData.originalColor) return;
+            
+
+            if (Array.isArray(obj.material)) {
+                obj.material.forEach((m, i) => {
+                    if (obj.userData.originalColor[i]) {
+                        m.color.copy(obj.userData.originalColor[i]);
+                    }
+                });
+            } else {
+                obj.material.color.copy(obj.userData.originalColor);
+            }
         }
 
         function bindUI() {
@@ -567,8 +691,186 @@
                     modeButtons.forEach((item) => item.classList.remove('active'));
                     btn.classList.add('active');
                     appendMissionLog(`Mode changed: ${runtime.activeMode.toUpperCase()}.`);
+                    
+                    
+                    const directionControl = document.getElementById('obstacle-direction-control');
+                    if (directionControl) {
+                        if (runtime.activeMode === 'obstacle') {
+                            directionControl.classList.remove('hidden');
+                        } else {
+                            directionControl.classList.add('hidden');
+                        }
+                    }
                 });
             });
+
+            const typeSquareBtn = document.getElementById('obstacle-type-square');
+            const typeLongBtn = document.getElementById('obstacle-type-long');
+            const typeWideBtn = document.getElementById('obstacle-type-wide');
+            const typeWallBtn = document.getElementById('obstacle-type-wall');
+            const typeDisplay = document.getElementById('obstacle-type-display');
+
+            function updateObstacleType(type) {
+                currentObstacleType = type;
+                if (typeDisplay) {
+                    const typeNames = {
+                        square: 'Square (2x2)',
+                        long: 'Long (1x4)',
+                        wide: 'Wide (4x1)',
+                        wall: 'Wall (1x6)'
+                    };
+                    typeDisplay.textContent = typeNames[type] || 'Square';
+                }
+                
+            
+                [typeSquareBtn, typeLongBtn, typeWideBtn, typeWallBtn].forEach(btn => {
+                    if (btn) btn.classList.remove('bg-cyan-700/40', 'border-cyan-400');
+                });
+                
+                if (type === 'square' && typeSquareBtn) typeSquareBtn.classList.add('bg-cyan-700/40', 'border-cyan-400');
+                if (type === 'long' && typeLongBtn) typeLongBtn.classList.add('bg-cyan-700/40', 'border-cyan-400');
+                if (type === 'wide' && typeWideBtn) typeWideBtn.classList.add('bg-cyan-700/40', 'border-cyan-400');
+                if (type === 'wall' && typeWallBtn) typeWallBtn.classList.add('bg-cyan-700/40', 'border-cyan-400');
+            }
+
+            if (typeSquareBtn) {
+                typeSquareBtn.addEventListener('click', () => updateObstacleType('square'));
+            }
+            if (typeLongBtn) {
+                typeLongBtn.addEventListener('click', () => updateObstacleType('long'));
+            }
+            if (typeWideBtn) {
+                typeWideBtn.addEventListener('click', () => updateObstacleType('wide'));
+            }
+            if (typeWallBtn) {
+                typeWallBtn.addEventListener('click', () => updateObstacleType('wall'));
+            }
+
+        
+            modeButtons.forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    if (runtime.setupLocked) {
+                        return;
+                    }
+                    runtime.activeMode = btn.dataset.mode;
+                    modeButtons.forEach((item) => item.classList.remove('active'));
+                    btn.classList.add('active');
+                    appendMissionLog(`Mode changed: ${runtime.activeMode.toUpperCase()}.`);
+                    
+                    const directionControl = document.getElementById('obstacle-direction-control');
+                    const typeControl = document.getElementById('obstacle-type-control');
+                    
+                    if (directionControl && typeControl) {
+                        if (runtime.activeMode === 'obstacle') {
+                            directionControl.classList.remove('hidden');
+                            typeControl.classList.remove('hidden');
+                        } else {
+                            directionControl.classList.add('hidden');
+                            typeControl.classList.add('hidden');
+                        }
+                    }
+                });
+            });
+
+
+            const rotationStep = Math.PI / 4; 
+            
+            const rotateLeftBtn = document.getElementById('obstacle-rotate-left');
+            const rotateRightBtn = document.getElementById('obstacle-rotate-right');
+            const rotationDisplay = document.getElementById('obstacle-rotation-display');
+            
+            if (rotateLeftBtn) {
+                rotateLeftBtn.addEventListener('click', () => {
+                    currentRotation = (currentRotation - rotationStep) % (2 * Math.PI);
+                    if (rotationDisplay) {
+                        rotationDisplay.textContent = `${Math.round(currentRotation * 180 / Math.PI)}°`;
+                    }
+                });
+            }
+            
+            if (rotateRightBtn) {
+                rotateRightBtn.addEventListener('click', () => {
+                    currentRotation = (currentRotation + rotationStep) % (2 * Math.PI);
+                    if (rotationDisplay) {
+                        rotationDisplay.textContent = `${Math.round(currentRotation * 180 / Math.PI)}°`;
+                    }
+                });
+            }
+
+        
+            const mapSelect = document.getElementById('map-select');
+            const loadMapBtn = document.getElementById('load-map-btn');
+            
+        
+
+            if (loadMapBtn && mapSelect) {
+                loadMapBtn.addEventListener('click', async () => {
+                    const mapId = mapSelect.value;
+                    if (!mapId) {
+                        alert('Please select a map first');  
+                        return;
+                    }
+                    
+            try {
+                loadMapBtn.disabled = true;
+                loadMapBtn.textContent = 'Loading...';  
+                
+                const response = await fetch('/api/swarm/init', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ use_default_map: mapId })
+                });
+                
+                const data = await response.json();
+                
+                if (data.ok) {
+                    
+                    clearAllStuff();
+                    
+                    
+                    if (data.state) {
+                        
+                        if (data.state.base) {
+                            placeBase(data.state.base.x, data.state.base.z);
+                        }
+                        
+            
+                        if (Array.isArray(data.state.survivors)) {
+                            data.state.survivors.forEach(s => {
+                                placeSurvivor(s.x, s.z);
+                            });
+                        }
+                        
+                    
+                        if (Array.isArray(data.state.obstacles)) {
+                            data.state.obstacles.forEach(o => {
+                                placeObstacle(o.x, o.z);
+                            });
+                        }
+                        
+                        appendMissionLog(`✅ Map loaded successfully: ${data.state.map_name}`);
+                        appendMissionLog(`Survivors: ${data.state.survivors.length}, Obstacles: ${data.state.obstacles.length}`);  
+                        
+            
+                        const titleEl = document.getElementById('hud-title');
+                        if (titleEl) {
+                            titleEl.textContent = `Swarm Command Center - ${data.state.map_name}`;
+                        }
+                    }
+                } else {
+                    appendMissionLog(`❌ Map load failed: ${data.message}`);  
+                }
+            } catch (error) {
+                appendMissionLog(`❌ Map load error: ${error.message}`); 
+            } finally {
+                loadMapBtn.disabled = false;
+                loadMapBtn.textContent = 'Load Map';  
+            }
+        });
+    }
 
             if (deployBtn) {
                 deployBtn.addEventListener('click', deploySwarm);
@@ -723,12 +1025,48 @@
             pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
             raycaster.setFromCamera(pointer, camera);
-            const hits = raycaster.intersectObject(ground);
-            if (!hits.length) {
+            const groundHits = raycaster.intersectObject(ground);
+
+            if (runtime.activeMode === 'delete-survivor' || runtime.activeMode === 'delete-obstacle') {
+                const objectsToCheck = runtime.activeMode === 'delete-survivor' 
+                    ? placementMeshes.survivors 
+                    : placementMeshes.obstacles;
+                
+                const hits = raycaster.intersectObjects(objectsToCheck);
+                
+                if (hits.length > 0) {
+                    const hitObject = hits[0].object;
+                    const index = objectsToCheck.indexOf(hitObject);
+                    
+                    if (index !== -1) {
+                        scene.remove(hitObject);
+                        
+                        if (runtime.activeMode === 'delete-survivor') {
+                            placementMeshes.survivors.splice(index, 1);
+                            state.survivors.splice(index, 1);
+                            survivorMetadata.splice(index, 1);
+                            appendMissionLog(`Survivor ${index + 1} deleted`);
+                        } else {
+                            placementMeshes.obstacles.splice(index, 1);
+                            state.obstacles.splice(index, 1);
+                            appendMissionLog(`Obstacle ${index + 1} deleted`);
+                        }
+                        
+                        if (hoveredObject === hitObject) {
+                            hoveredObject = null;
+                        }
+                    }
+                    return;
+                }
+            }
+
+
+            const groundHit = groundHits[0];
+            if (!groundHit) {
                 return;
             }
 
-            const hit = hits[0].point;
+            const hit = groundHit.point;
             const snapped = {
                 x: snapCoord(hit.x),
                 z: snapCoord(hit.z)
@@ -745,7 +1083,9 @@
             }
 
             if (runtime.activeMode === 'obstacle') {
-                placeObstacle(snapped.x, snapped.z);
+                const rotation = currentRotation || 0;
+                const type = currentObstacleType || 'square';
+                placeObstacle(snapped.x, snapped.z, rotation, type);
             }
         }
 
@@ -787,18 +1127,57 @@
             appendMissionLog(`Survivor marker added at X:${x}, Z:${z}.`);
         }
 
-        function placeObstacle(x, z) {
+        function placeObstacle(x, z, rotation = 0, type = 'square') {
+            let width, height, depth;
+            
+            
+            switch(type) {
+                case 'long': 
+                    width = 1;
+                    height = 5.5;
+                    depth = 4;
+                    break;
+                case 'wide': 
+                    width = 4;
+                    height = 5.5;
+                    depth = 1;
+                    break;
+                case 'wall': 
+                    width = 1;
+                    height = 8;
+                    depth = 6;
+                    break;
+                case 'square':
+                default: 
+                    width = 2;
+                    height = 5.5;
+                    depth = 2;
+                    break;
+            }
+            
+            const geometry = new THREE.BoxGeometry(width, height, depth); 
+            
             const mesh = new THREE.Mesh(
-                new THREE.BoxGeometry(2, 5.5, 2),
+                geometry,
                 new THREE.MeshStandardMaterial({ color: 0x8e9aa7, roughness: 0.85, metalness: 0.12 })
             );
-            mesh.position.set(x, 2.75, z);
+            
+            mesh.position.set(x, height/2, z);
+            mesh.rotation.y = rotation;
+            
             scene.add(mesh);
 
             placementMeshes.obstacles.push(mesh);
-            state.obstacles.push({ x, z });
 
-            appendMissionLog(`Obstacle placed at X:${x}, Z:${z}.`);
+            state.obstacles.push({ x, z, rotation, type });
+
+            const typeNames = {
+                square: 'Square',
+                long: 'Long',
+                wide: 'Wide',
+                wall: 'Wall'
+            };
+            appendMissionLog(`Obstacle placed at X:${x}, Z:${z} - Type: ${typeNames[type]}, Rotation: ${(rotation * 180 / Math.PI).toFixed(0)}°`);
         }
 
         function deploySwarm() {
@@ -820,9 +1199,34 @@
             deployBtn.disabled = true;
             deployBtn.classList.add('opacity-60', 'cursor-not-allowed');
             modeButtons.forEach((btn) => {
-                btn.disabled = true;
-                btn.classList.add('opacity-50', 'cursor-not-allowed');
+            btn.addEventListener('click', () => {
+                if (runtime.setupLocked) {
+                    return;
+                }
+                runtime.activeMode = btn.dataset.mode;
+                modeButtons.forEach((item) => item.classList.remove('active'));
+                btn.classList.add('active');
+                appendMissionLog(`Mode changed: ${runtime.activeMode.toUpperCase()}.`);
+                
+                const directionControl = document.getElementById('obstacle-direction-control');
+                const typeControl = document.getElementById('obstacle-type-control');
+        
+                if (directionControl && typeControl) {
+                    if (runtime.activeMode === 'obstacle') {
+                        directionControl.classList.remove('hidden');
+                        typeControl.classList.remove('hidden');
+                    } else {
+                        directionControl.classList.add('hidden');
+                        typeControl.classList.add('hidden');
+                    }
+                }
+            
+                if (hoveredObject) {
+                    resetHighlight(hoveredObject);
+                    hoveredObject = null;
+                }
             });
+        });
 
             appendMissionLog('Swarm deployed. Initializing autonomy stack...');
             setPlannerSourceBadge('bootstrap', null);
@@ -919,6 +1323,25 @@
             setPlannerSourceBadge('idle', null);
             appendMissionLog('All objects and runtime state cleared. Setup mode restored.');
             appendDecisionLog('System reset: planner context cleared on UI side.');
+
+            currentObstacleType = 'square';
+            const typeDisplay = document.getElementById('obstacle-type-display');
+            if (typeDisplay) {
+                typeDisplay.textContent = 'Square (2x2)';
+            }
+
+            ['square', 'long', 'wide', 'wall'].forEach(type => {
+                const btn = document.getElementById(`obstacle-type-${type}`);
+                if (btn) btn.classList.remove('bg-cyan-700/40', 'border-cyan-400');
+            });
+            const squareBtn = document.getElementById('obstacle-type-square');
+            if (squareBtn) squareBtn.classList.add('bg-cyan-700/40', 'border-cyan-400');
+
+        
+            if (hoveredObject) {
+                resetHighlight(hoveredObject);
+                hoveredObject = null;
+            }
         }
 
         function stopRuntimeLoops() {
@@ -2144,6 +2567,49 @@
         function clamp(value, min, max) {
             return Math.min(max, Math.max(min, value));
         }
+
+       
+
+    async function loadCurrentMapState() {
+        try {
+            const response = await fetch('/api/swarm/state');
+            const data = await response.json();
+            
+            if (data && data.state) {
+                
+                if (data.state.survivors && data.state.survivors.length > 0) {
+                    clearAllStuff();
+                
+                    if (data.state.base) {
+                        placeBase(data.state.base.x, data.state.base.z);
+                    }
+                
+                    data.state.survivors.forEach(s => {
+                        placeSurvivor(s.x, s.z);
+                    });
+            
+                    if (Array.isArray(data.state.obstacles)) {
+                        data.state.obstacles.forEach(o => {
+                            
+                            const rotation = o.rotation || 0;
+                            const type = o.type || 'square';
+                            placeObstacle(o.x, o.z, rotation, type);
+                        });
+                    }
+                    
+                    appendMissionLog(`Current map: ${data.state.map_name || 'Unknown'}`);
+                    
+                
+                    const titleEl = document.getElementById('hud-title');
+                    if (titleEl && data.state.map_name) {
+                        titleEl.textContent = `Swarm Command Center - ${data.state.map_name}`;
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Failed to load map state:', error);
+        }
+    }
 
         window.addEventListener('beforeunload', () => {
             stopRuntimeLoops();
