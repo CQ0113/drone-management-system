@@ -27,22 +27,22 @@ class SwarmController extends Controller
         private readonly SwarmRagMemoryService $ragMemory,
     ) {}
 
-    public function initSwarm(Request $request): JsonResponse
+   public function initSwarm(Request $request): JsonResponse
 {
     $validated = $request->validate([
-    'base' => ['nullable', 'array'],
-    'base.x' => ['nullable', 'numeric'],
-    'base.z' => ['nullable', 'numeric'],
-    'survivors' => ['nullable', 'array'],
-    'survivors.*.x' => ['required_with:survivors', 'numeric'],
-    'survivors.*.z' => ['required_with:survivors', 'numeric'],
-    'survivors.*.name' => ['nullable', 'string'],
-    'obstacles' => ['nullable', 'array'],
-    'obstacles.*.x' => ['required_with:obstacles', 'numeric'],
-    'obstacles.*.z' => ['required_with:obstacles', 'numeric'],
-    'obstacles.*.height' => ['nullable', 'numeric'],
-    'use_default_map' => ['nullable', 'string', 'in:map1,map2,map3,map4,map5'],  
-]);
+        'base' => ['nullable', 'array'],
+        'base.x' => ['nullable', 'numeric'],
+        'base.z' => ['nullable', 'numeric'],
+        'survivors' => ['nullable', 'array'],
+        'survivors.*.x' => ['required_with:survivors', 'numeric'],
+        'survivors.*.z' => ['required_with:survivors', 'numeric'],
+        'survivors.*.name' => ['nullable', 'string'],
+        'obstacles' => ['nullable', 'array'],
+        'obstacles.*.x' => ['required_with:obstacles', 'numeric'],
+        'obstacles.*.z' => ['required_with:obstacles', 'numeric'],
+        'obstacles.*.height' => ['nullable', 'numeric'],
+        'use_default_map' => ['nullable', 'string', 'in:map1,map2,map3,map4,map5'],  
+    ]);
 
     
     if ($request->has('use_default_map')) {
