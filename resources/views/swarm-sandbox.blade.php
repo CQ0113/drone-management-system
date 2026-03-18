@@ -169,13 +169,13 @@
         </div>
         </header>
 
-        <aside class="pointer-events-auto mx-4 mt-4 glass-panel rounded-xl p-4 md:absolute md:top-24 md:left-4 md:right-auto md:mt-0 md:w-[300px] md:max-w-[90vw] md:mx-0 flex flex-col max-h-[calc(100vh-8rem)] shadow-2xl shadow-cyan-900/20">
+        <aside class="pointer-events-auto mx-4 mt-4 glass-panel rounded-xl p-4 md:absolute md:top-24 md:left-4 md:right-auto md:mt-0 md:w-[300px] md:max-w-[90vw] md:mx-0 flex flex-col max-h-[calc(100vh-8rem)] shadow-2xl shadow-cyan-900/20 overflow-y-scroll terminal-scroll">
             <div class="flex items-center gap-2 mb-4 shrink-0 border-b border-cyan-800/50 pb-3">
                 <div class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></div>
                 <h2 class="font-display text-sm uppercase tracking-[0.2em] text-cyan-300">Tactical Deploy</h2>
             </div>
             
-            <div class="overflow-y-auto terminal-scroll pr-2 flex-1 min-h-0 space-y-5">
+            <div class="flex-1 space-y-5">
                 <!-- Primary Placement -->
                 <div class="space-y-2.5">
                     <button class="hud-btn active w-full rounded-md py-2.5 px-3 text-left font-medium text-sm flex items-center justify-between" data-mode="base">
@@ -220,22 +220,22 @@
                         <span id="obstacle-type-display" class="text-xs font-mono text-cyan-200 font-bold">Square</span>
                     </div>
                 </div>
-            </div>
 
-            <!-- Action Buttons Footer -->
-            <div class="pt-4 mt-3 border-t border-cyan-800/50 shrink-0 space-y-2.5 shadow-[0_-10px_20px_-10px_rgba(0,0,0,0.5)]">
-                <button id="deploy-btn" class="w-full rounded-lg py-3.5 bg-gradient-to-r from-emerald-600 to-emerald-400 hover:from-emerald-500 hover:to-emerald-300 text-emerald-950 font-display tracking-[0.15em] font-extrabold uppercase transition-all shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 transform hover:-translate-y-0.5">
-                    Launch Swarm
-                </button>
-                <div class="grid grid-cols-2 gap-2">
-                    <button id="restart-btn" class="w-full rounded-md py-2 bg-slate-800 hover:bg-amber-500/20 border border-amber-600/50 text-amber-400 text-[10px] font-display tracking-[0.1em] font-bold uppercase transition-colors">
-                        Restart
+                <!-- Action Buttons Footer -->
+                <div class="pt-4 mt-3 border-t border-cyan-800/50 space-y-2.5 pb-2">
+                    <button id="deploy-btn" class="w-full rounded-lg py-3.5 bg-gradient-to-r from-emerald-600 to-emerald-400 hover:from-emerald-500 hover:to-emerald-300 text-emerald-950 font-display tracking-[0.15em] font-extrabold uppercase transition-all shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 transform hover:-translate-y-0.5">
+                        Launch Swarm
                     </button>
-                    <button id="clear-all-btn" class="w-full rounded-md py-2 bg-slate-800 hover:bg-rose-500/20 border border-rose-600/50 text-rose-400 text-[10px] font-display tracking-[0.1em] font-bold uppercase transition-colors">
-                        Clear Map
-                    </button>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button id="restart-btn" class="w-full rounded-md py-2 bg-slate-800 hover:bg-amber-500/20 border border-amber-600/50 text-amber-400 text-[10px] font-display tracking-[0.1em] font-bold uppercase transition-colors">
+                            Restart
+                        </button>
+                        <button id="clear-all-btn" class="w-full rounded-md py-2 bg-slate-800 hover:bg-rose-500/20 border border-rose-600/50 text-rose-400 text-[10px] font-display tracking-[0.1em] font-bold uppercase transition-colors">
+                            Clear Map
+                        </button>
+                    </div>
+                    <p id="placement-hint" class="mt-2 text-[11px] text-cyan-600/80 text-center font-medium max-w-[250px] mx-auto leading-tight">Click the tactical grid to add elements.</p>
                 </div>
-                <p id="placement-hint" class="mt-2 text-[11px] text-cyan-600/80 text-center font-medium max-w-[250px] mx-auto leading-tight">Click the tactical grid to add elements.</p>
             </div>
         </aside>
 
