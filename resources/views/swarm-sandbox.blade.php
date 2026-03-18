@@ -56,10 +56,11 @@
         }
 
         .glass-panel {
-            background: linear-gradient(140deg, rgba(11, 18, 26, 0.85), rgba(6, 12, 19, 0.72));
-            border: 1px solid rgba(34, 211, 238, 0.28);
-            box-shadow: 0 0 40px rgba(6, 182, 212, 0.12), inset 0 0 20px rgba(21, 94, 117, 0.18);
-            backdrop-filter: blur(8px);
+            background: linear-gradient(140deg, rgba(8, 15, 24, 0.88), rgba(4, 8, 15, 0.8));
+            border: 1px solid rgba(34, 211, 238, 0.2);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 0 20px rgba(34, 211, 238, 0.05);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
         }
 
         .hud-btn {
@@ -109,30 +110,30 @@
         }
 
         .terminal-scroll {
-            overflow-y: scroll;
+            overflow-y: auto;
             overflow-x: hidden;
             overscroll-behavior: contain;
             scrollbar-width: thin;
-            scrollbar-color: rgba(34, 211, 238, 0.65) rgba(8, 18, 30, 0.55);
+            scrollbar-color: rgba(34, 211, 238, 0.4) transparent;
         }
 
         .terminal-scroll::-webkit-scrollbar {
-            width: 10px;
+            width: 6px;
         }
 
         .terminal-scroll::-webkit-scrollbar-track {
-            background: rgba(8, 18, 30, 0.55);
-            border-left: 1px solid rgba(34, 211, 238, 0.2);
+            background: transparent;
         }
 
         .terminal-scroll::-webkit-scrollbar-thumb {
-            background: rgba(34, 211, 238, 0.65);
+            background: rgba(34, 211, 238, 0.3);
             border-radius: 999px;
-            border: 2px solid rgba(8, 18, 30, 0.75);
+            border: 1px solid transparent;
+            background-clip: content-box;
         }
 
         .terminal-scroll::-webkit-scrollbar-thumb:hover {
-            background: rgba(103, 232, 249, 0.9);
+            background-color: rgba(34, 211, 238, 0.6);
         }
 
         @keyframes survivorPulse {
@@ -168,71 +169,98 @@
         </div>
         </header>
 
-        <aside class="pointer-events-auto mx-4 mt-4 glass-panel rounded-xl p-4 md:absolute md:top-24 md:left-4 md:right-auto md:mt-0 md:w-[280px] md:max-w-[90vw] md:mx-0">
-        <h2 class="font-display text-sm uppercase tracking-[0.2em] text-cyan-300 mb-3">Placement Controls</h2>
-            <div class="space-y-2">
-                <button class="hud-btn active w-full rounded-md py-2 px-3 text-left font-medium" data-mode="base">Place Base (Max 1)</button>
-                <button id="btn-place-survivor" class="hud-btn w-full rounded-md py-2 px-3 text-left font-medium transition-colors duration-500" data-mode="survivor">Place Survivor</button>
-                <button class="hud-btn w-full rounded-md py-2 px-3 text-left font-medium" data-mode="obstacle">Place Obstacle</button>
+        <aside class="pointer-events-auto mx-4 mt-4 glass-panel rounded-xl p-4 md:absolute md:top-24 md:left-4 md:right-auto md:mt-0 md:w-[300px] md:max-w-[90vw] md:mx-0 flex flex-col max-h-[calc(100vh-8rem)] shadow-2xl shadow-cyan-900/20">
+            <div class="flex items-center gap-2 mb-4 shrink-0 border-b border-cyan-800/50 pb-3">
+                <div class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></div>
+                <h2 class="font-display text-sm uppercase tracking-[0.2em] text-cyan-300">Tactical Deploy</h2>
+            </div>
+            
+            <div class="overflow-y-auto terminal-scroll pr-2 flex-1 min-h-0 space-y-5">
+                <!-- Primary Placement -->
+                <div class="space-y-2.5">
+                    <button class="hud-btn active w-full rounded-md py-2.5 px-3 text-left font-medium text-sm flex items-center justify-between" data-mode="base">
+                        <span>🛰️ Place Base</span> <span class="text-[10px] text-cyan-500 bg-cyan-950/50 px-1.5 py-0.5 rounded">MAX 1</span>
+                    </button>
+                    <button id="btn-place-survivor" class="hud-btn w-full rounded-md py-2.5 px-3 text-left font-medium text-sm flex items-center justify-between transition-colors duration-500" data-mode="survivor">
+                        <span>📍 Place Survivor</span>
+                    </button>
+                    <button class="hud-btn w-full rounded-md py-2.5 px-3 text-left font-medium text-sm flex items-center justify-between" data-mode="obstacle">
+                        <span>🧱 Place Obstacle</span>
+                    </button>
+                </div>
                 
-            <div class="border-t border-cyan-800/40 my-2"></div>
-                <button class="hud-btn w-full rounded-md py-2 px-3 text-left font-medium text-rose-300 hover:text-rose-200" data-mode="delete-survivor">🗑️ Delete Survivor</button>
-                <button class="hud-btn w-full rounded-md py-2 px-3 text-left font-medium text-rose-300 hover:text-rose-200" data-mode="delete-obstacle">🗑️ Delete Obstacle</button>
-
-            <div id="obstacle-direction-control" class="mt-3 p-2 border border-cyan-800/40 rounded-md hidden">
-                <label class="block text-xs uppercase tracking-[0.12em] text-cyan-200 mb-2">Obstacle Direction</label>
-                <div class="flex gap-2">
-                    <button id="obstacle-rotate-left" class="hud-btn flex-1 py-1 px-2 text-xs">↺ Left</button>
-                    <button id="obstacle-rotate-right" class="hud-btn flex-1 py-1 px-2 text-xs">↻ Right</button>
+                <!-- Removal Tools -->
+                <div class="space-y-2.5 bg-rose-950/20 p-2 rounded-lg border border-rose-900/30">
+                    <h3 class="text-[10px] uppercase tracking-widest text-rose-400 font-display mb-1 ml-1">Removal Tools</h3>
+                    <button class="hud-btn w-full rounded-md py-2 px-3 text-left text-xs font-medium text-rose-300 hover:text-rose-200 hover:border-rose-500/50 hover:bg-rose-900/20" data-mode="delete-survivor">🗑️ Delete Survivor</button>
+                    <button class="hud-btn w-full rounded-md py-2 px-3 text-left text-xs font-medium text-rose-300 hover:text-rose-200 hover:border-rose-500/50 hover:bg-rose-900/20" data-mode="delete-obstacle">🗑️ Delete Obstacle</button>
                 </div>
-                <div class="mt-2 text-center">
-                    <span id="obstacle-rotation-display" class="text-xs text-cyan-100">0°</span>
+
+                <!-- Obstacle Config -->
+                <div id="obstacle-direction-control" class="p-3 border border-cyan-800/40 bg-cyan-950/20 rounded-lg hidden">
+                    <label class="block text-[10px] uppercase tracking-[0.15em] text-cyan-400 mb-2 font-display">Rotation Angle</label>
+                    <div class="flex gap-2">
+                        <button id="obstacle-rotate-left" class="hud-btn flex-1 py-1.5 px-2 text-xs rounded hover:bg-cyan-800/40">↺ -45°</button>
+                        <button id="obstacle-rotate-right" class="hud-btn flex-1 py-1.5 px-2 text-xs rounded hover:bg-cyan-800/40">↻ +45°</button>
+                    </div>
+                    <div class="mt-2 text-center bg-black/40 rounded py-1">
+                        <span id="obstacle-rotation-display" class="text-xs font-mono text-cyan-200 font-bold">0°</span>
+                    </div>
+                </div>
+
+                <div id="obstacle-type-control" class="p-3 border border-cyan-800/40 bg-cyan-950/20 rounded-lg hidden">
+                    <label class="block text-[10px] uppercase tracking-[0.15em] text-cyan-400 mb-2 font-display">Structure Type</label>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button id="obstacle-type-square" class="hud-btn py-2 px-1 text-[11px] rounded border border-cyan-700/60 bg-cyan-900/30">Square 2x2</button>
+                        <button id="obstacle-type-long" class="hud-btn py-2 px-1 text-[11px] rounded border border-cyan-700/60">Long 1x4</button>
+                        <button id="obstacle-type-wide" class="hud-btn py-2 px-1 text-[11px] rounded border border-cyan-700/60">Wide 4x1</button>
+                        <button id="obstacle-type-wall" class="hud-btn py-2 px-1 text-[11px] rounded border border-cyan-700/60">Wall 1x6</button>
+                    </div>
+                    <div class="mt-2 text-center bg-black/40 rounded py-1">
+                        <span id="obstacle-type-display" class="text-xs font-mono text-cyan-200 font-bold">Square</span>
+                    </div>
                 </div>
             </div>
 
-            <div id="obstacle-type-control" class="mt-3 p-2 border border-cyan-800/40 rounded-md hidden">
-                <label class="block text-xs uppercase tracking-[0.12em] text-cyan-200 mb-2">Obstacle Type</label>
+            <!-- Action Buttons Footer -->
+            <div class="pt-4 mt-3 border-t border-cyan-800/50 shrink-0 space-y-2.5 shadow-[0_-10px_20px_-10px_rgba(0,0,0,0.5)]">
+                <button id="deploy-btn" class="w-full rounded-lg py-3.5 bg-gradient-to-r from-emerald-600 to-emerald-400 hover:from-emerald-500 hover:to-emerald-300 text-emerald-950 font-display tracking-[0.15em] font-extrabold uppercase transition-all shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 transform hover:-translate-y-0.5">
+                    Launch Swarm
+                </button>
                 <div class="grid grid-cols-2 gap-2">
-                    <button id="obstacle-type-square" class="hud-btn py-2 px-1 text-xs border border-cyan-700/60">Square (2x2)</button>
-                    <button id="obstacle-type-long" class="hud-btn py-2 px-1 text-xs border border-cyan-700/60">Long (1x4)</button>
-                    <button id="obstacle-type-wide" class="hud-btn py-2 px-1 text-xs border border-cyan-700/60">Wide (4x1)</button>
-                    <button id="obstacle-type-wall" class="hud-btn py-2 px-1 text-xs border border-cyan-700/60">Wall (1x6)</button>
+                    <button id="restart-btn" class="w-full rounded-md py-2 bg-slate-800 hover:bg-amber-500/20 border border-amber-600/50 text-amber-400 text-[10px] font-display tracking-[0.1em] font-bold uppercase transition-colors">
+                        Restart
+                    </button>
+                    <button id="clear-all-btn" class="w-full rounded-md py-2 bg-slate-800 hover:bg-rose-500/20 border border-rose-600/50 text-rose-400 text-[10px] font-display tracking-[0.1em] font-bold uppercase transition-colors">
+                        Clear Map
+                    </button>
                 </div>
-                <div class="mt-2 text-center">
-                    <span id="obstacle-type-display" class="text-xs text-cyan-100">Square</span>
-                </div>
+                <p id="placement-hint" class="mt-2 text-[11px] text-cyan-600/80 text-center font-medium max-w-[250px] mx-auto leading-tight">Click the tactical grid to add elements.</p>
             </div>
-        </div>
-
-            <button id="deploy-btn" class="mt-5 w-full rounded-md py-3 bg-emerald-500/90 hover:bg-emerald-400 text-slate-950 font-display tracking-[0.1em] font-bold uppercase transition-colors">
-                Deploy Swarm
-            </button>
-            <button id="restart-btn" class="mt-2 w-full rounded-md py-2.5 bg-amber-500/90 hover:bg-amber-400 text-slate-950 font-display tracking-[0.08em] font-bold uppercase transition-colors">
-                Restart Deployment
-            </button>
-            <button id="clear-all-btn" class="mt-2 w-full rounded-md py-2.5 bg-rose-600/90 hover:bg-rose-500 text-slate-50 font-display tracking-[0.08em] font-bold uppercase transition-colors">
-                Delete All
-            </button>
-
-            <p id="placement-hint" class="mt-3 text-xs text-slate-300">Click the tactical grid to place objects.</p>
         </aside>
 
-        <aside class="pointer-events-auto mx-4 mt-4 glass-panel rounded-xl p-4 md:absolute md:top-24 md:left-auto md:right-4 md:mt-0 md:w-[320px] md:max-w-[92vw] md:mx-0">
-            <h2 class="font-display text-sm uppercase tracking-[0.2em] text-cyan-300 mb-3">Drone Status</h2>
-            <ul id="drone-status-list" class="space-y-2 text-sm max-h-[52vh] overflow-y-auto pr-1 terminal-scroll"></ul>
+        <aside class="pointer-events-auto mx-4 mt-4 glass-panel rounded-xl p-4 md:absolute md:top-24 md:left-auto md:right-4 md:mt-0 md:w-[320px] md:max-w-[92vw] md:mx-0 flex flex-col max-h-[calc(100vh-8rem)] shadow-2xl shadow-cyan-900/20">
+            <div class="flex items-center gap-2 mb-4 shrink-0 border-b border-cyan-800/50 pb-3">
+                <div class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
+                <h2 class="font-display text-sm uppercase tracking-[0.2em] text-cyan-300">Swarm Telemetry</h2>
+            </div>
+            <ul id="drone-status-list" class="space-y-2.5 text-sm overflow-y-auto pr-2 terminal-scroll flex-1 min-h-0"></ul>
         </aside>
 
         <section id="dashboard-section" class="pointer-events-auto fixed left-4 right-4 bottom-3 z-30 glass-panel rounded-xl p-4 h-[350px] sm:h-[360px] md:bottom-4 md:h-[300px]">
-            <div class="mb-2 flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                    <h2 class="font-display text-sm uppercase tracking-[0.2em] text-cyan-300">Dashboard Panels</h2>
-                    <div class="flex rounded-md border border-cyan-900/60 bg-slate-950/70 p-1">
-                        <button id="dashboard-output-btn" class="hud-btn active rounded px-3 py-1.5 text-[10px] md:text-xs font-display uppercase tracking-[0.12em] text-cyan-100">Output</button>
-                        <button id="dashboard-tune-btn" class="hud-btn rounded px-3 py-1.5 text-[10px] md:text-xs font-display uppercase tracking-[0.12em] text-cyan-100">Tune</button>
-                        <button id="dashboard-debug-btn" class="hud-btn rounded px-3 py-1.5 text-[10px] md:text-xs font-display uppercase tracking-[0.12em] text-cyan-100">Debug</button>
+            <div class="mb-3 flex flex-col sm:flex-row sm:items-center justify-between border-b border-cyan-800/40 pb-3 gap-3">
+                <div class="flex flex-col sm:flex-row sm:items-center gap-3 md:gap-6">
+                    <div class="flex items-center gap-2">
+                        <svg class="w-4 h-4 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                        <h2 class="font-display text-sm md:text-base font-bold uppercase tracking-[0.2em] text-cyan-300">Dashboard</h2>
+                    </div>
+                    <div class="flex rounded-md bg-slate-900/80 p-1 border border-cyan-900/50 shadow-inner">
+                        <button id="dashboard-output-btn" class="hud-btn active rounded px-4 py-1.5 text-[11px] font-display uppercase tracking-[0.15em] text-cyan-200 transition-all">Output</button>
+                        <button id="dashboard-tune-btn" class="hud-btn rounded px-4 py-1.5 text-[11px] font-display uppercase tracking-[0.15em] text-cyan-200 transition-all">Tune</button>
+                        <button id="dashboard-debug-btn" class="hud-btn rounded px-4 py-1.5 text-[11px] font-display uppercase tracking-[0.15em] text-cyan-200 transition-all">Debug</button>
                     </div>
                 </div>
-                <button id="toggle-dashboard-btn" class="hud-btn rounded-md px-3 py-1.5 text-[10px] md:text-xs font-display uppercase tracking-[0.12em] text-cyan-100">Close Dashboard</button>
+                <button id="toggle-dashboard-btn" class="hud-btn rounded-md px-4 py-1.5 text-[11px] font-display uppercase tracking-[0.15em] text-cyan-300 border border-cyan-700/50 hover:bg-cyan-900/40 transition-all">Collapse ▽</button>
             </div>
             <div id="dashboard-panels" class="h-[calc(100%-2rem)]">
                 <div id="dashboard-output-view" class="grid h-full grid-cols-1 gap-3 auto-rows-fr sm:grid-cols-2 xl:grid-cols-4">
