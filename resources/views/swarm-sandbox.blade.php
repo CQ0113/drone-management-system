@@ -29,6 +29,14 @@
             }
         };
     </script>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.161.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.161.0/examples/jsm/"
+            }
+        }
+    </script>
 
     <style>
         html,
@@ -141,30 +149,30 @@
     <div class="fixed inset-0 z-10 pointer-events-none overflow-y-auto overscroll-contain md:overflow-hidden">
         <div class="relative min-h-[1040px] pb-4 pt-4 md:min-h-full md:pb-0 md:pt-0">
         <header class="pointer-events-auto mx-4 glass-panel rounded-xl px-5 py-3 flex flex-col gap-2 md:absolute md:top-4 md:left-4 md:right-4 md:mx-0 md:flex-row md:items-center md:justify-between">
-    <h1 id="hud-title" class="font-display text-xl md:text-2xl tracking-widest text-cyan-300">Swarm Command Center - Setup Mode</h1>
-    <div class="flex flex-wrap items-center gap-3">
-        <!-- Map selection dropdown -->
-        <select id="map-select" class="hud-btn rounded-md px-3 py-1.5 text-xs font-display uppercase tracking-[0.12em] text-cyan-100 bg-slate-900/80 border border-cyan-800/60">
-            <option value="">-- Select Default Map --</option>
-            <option value="map1">Map 1: Training Ground (3 survivors)</option>
-            <option value="map2">Map 2: Urban Ruins (5 survivors)</option>
-            <option value="map3">Map 3: Maze Challenge (4 survivors)</option>
-            <option value="map4">Map 4: Open Terrain (4 survivors)</option>
-            <option value="map5">Map 5: Night Search (6 survivors)</option>
-        </select>
-        <button id="load-map-btn" class="hud-btn rounded-md px-3 py-1.5 text-xs font-display uppercase tracking-[0.12em] text-emerald-100 border border-emerald-800/60">
-            Load Map
-        </button>
-        <span id="planner-source-badge" class="rounded-full border border-cyan-600/60 bg-cyan-500/10 px-3 py-1 text-[10px] md:text-xs uppercase tracking-[0.16em] text-cyan-200">Source: Idle</span>
-        <span class="text-xs md:text-sm uppercase tracking-[0.25em] text-slate-300">Decentralised Swarm Intelligence</span>
-    </div>
-</header>
+        <h1 id="hud-title" class="font-display text-xl md:text-2xl tracking-widest text-cyan-300">[V2] Swarm Command Center - Setup Mode</h1>
+        <div class="flex flex-wrap items-center gap-3">
+            <!-- Map selection dropdown -->
+            <select id="map-select" class="hud-btn rounded-md px-3 py-1.5 text-xs font-display uppercase tracking-[0.12em] text-cyan-100 bg-slate-900/80 border border-cyan-800/60">
+                <option value="">-- Select Default Map --</option>
+                <option value="map1">Map 1: Training Ground (3 survivors)</option>
+                <option value="map2">Map 2: Urban Ruins (5 survivors)</option>
+                <option value="map3">Map 3: Maze Challenge (4 survivors)</option>
+                <option value="map4">Map 4: Open Terrain (4 survivors)</option>
+                <option value="map5">Map 5: Night Search (6 survivors)</option>
+            </select>
+            <button id="load-map-btn" class="hud-btn rounded-md px-3 py-1.5 text-xs font-display uppercase tracking-[0.12em] text-emerald-100 border border-emerald-800/60">
+                Load Map
+            </button>
+            <span id="planner-source-badge" class="rounded-full border border-cyan-600/60 bg-cyan-500/10 px-3 py-1 text-[10px] md:text-xs uppercase tracking-[0.16em] text-cyan-200">Source: Idle</span>
+            <span class="text-xs md:text-sm uppercase tracking-[0.25em] text-slate-300">Decentralised Swarm Intelligence</span>
+        </div>
+        </header>
 
         <aside class="pointer-events-auto mx-4 mt-4 glass-panel rounded-xl p-4 md:absolute md:top-24 md:left-4 md:right-auto md:mt-0 md:w-[280px] md:max-w-[90vw] md:mx-0">
         <h2 class="font-display text-sm uppercase tracking-[0.2em] text-cyan-300 mb-3">Placement Controls</h2>
             <div class="space-y-2">
                 <button class="hud-btn active w-full rounded-md py-2 px-3 text-left font-medium" data-mode="base">Place Base (Max 1)</button>
-                <button class="hud-btn w-full rounded-md py-2 px-3 text-left font-medium" data-mode="survivor">Place Survivor</button>
+                <button id="btn-place-survivor" class="hud-btn w-full rounded-md py-2 px-3 text-left font-medium transition-colors duration-500" data-mode="survivor">Place Survivor</button>
                 <button class="hud-btn w-full rounded-md py-2 px-3 text-left font-medium" data-mode="obstacle">Place Obstacle</button>
                 
             <div class="border-t border-cyan-800/40 my-2"></div>
@@ -447,6 +455,9 @@
         let ground;
         let animationHandle;
         let survivorAlertTimer = null;
+        let controls;
+        let dragControls;
+        let labelRenderer;
 
         ensureThreeLoaded()
             .then(() => {
@@ -478,66 +489,20 @@
                 console.error(error);
             });
 
-        function ensureThreeLoaded() {
-            if (window.THREE) {
-                return Promise.resolve();
+        async function ensureThreeLoaded() {
+            if (window.THREE) return;
+            try {
+                window.THREE = await import('three');
+                const { OrbitControls } = await import('three/addons/controls/OrbitControls.js');
+                window.OrbitControls = OrbitControls;
+                const { DragControls } = await import('three/addons/controls/DragControls.js');
+                window.DragControls = DragControls;
+                const { CSS2DRenderer, CSS2DObject } = await import('three/addons/renderers/CSS2DRenderer.js');
+                window.CSS2DRenderer = CSS2DRenderer;
+                window.CSS2DObject = CSS2DObject;
+            } catch (err) {
+                throw new Error("Three.js or Addons failed to load: " + err.message);
             }
-
-            return new Promise((resolve, reject) => {
-                let index = 0;
-                const failedSources = [];
-
-                const tryNext = () => {
-                    if (window.THREE) {
-                        resolve();
-                        return;
-                    }
-
-                    if (index >= THREE_SOURCES.length) {
-                        reject(new Error(`Sources unavailable: ${failedSources.join(', ') || 'none'}`));
-                        return;
-                    }
-
-                    const source = THREE_SOURCES[index++];
-
-                    if (source.type === 'module') {
-                        import(source.src)
-                            .then((moduleNs) => {
-                                if (moduleNs) {
-                                    window.THREE = moduleNs;
-                                    resolve();
-                                } else {
-                                    failedSources.push(source.src);
-                                    tryNext();
-                                }
-                            })
-                            .catch(() => {
-                                failedSources.push(source.src);
-                                tryNext();
-                            });
-                        return;
-                    }
-
-                    const script = document.createElement('script');
-                    script.src = source.src;
-                    script.async = true;
-                    script.onload = () => {
-                        if (window.THREE) {
-                            resolve();
-                        } else {
-                            failedSources.push(source.src);
-                            tryNext();
-                        }
-                    };
-                    script.onerror = () => {
-                        failedSources.push(source.src);
-                        tryNext();
-                    };
-                    document.head.appendChild(script);
-                };
-
-                tryNext();
-            });
         }
 
         function initScene() {
@@ -558,6 +523,33 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.outputColorSpace = THREE.SRGBColorSpace;
             sceneContainer.appendChild(renderer.domElement);
+
+            labelRenderer = new window.CSS2DRenderer();
+            labelRenderer.setSize(window.innerWidth, window.innerHeight);
+            labelRenderer.domElement.style.position = 'absolute';
+            labelRenderer.domElement.style.top = '0px';
+            labelRenderer.domElement.style.pointerEvents = 'auto'; // Catch events for OrbitControls
+            sceneContainer.appendChild(labelRenderer.domElement);
+
+            controls = new window.OrbitControls(camera, labelRenderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.maxPolarAngle = Math.PI / 2 - 0.05;
+
+            dragControls = new window.DragControls(placementMeshes.obstacles, camera, labelRenderer.domElement);
+            dragControls.addEventListener('dragstart', function () {
+                controls.enabled = false;
+            });
+            dragControls.addEventListener('dragend', function (event) {
+                controls.enabled = true;
+                const index = placementMeshes.obstacles.indexOf(event.object);
+                if (index > -1 && state.obstacles[index]) {
+                    state.obstacles[index].x = snapCoord(event.object.position.x);
+                    state.obstacles[index].z = snapCoord(event.object.position.z);
+                    event.object.position.x = state.obstacles[index].x;
+                    event.object.position.z = state.obstacles[index].z;
+                }
+            });
 
             const ambient = new THREE.AmbientLight(0x88b2ff, 0.45);
             scene.add(ambient);
@@ -597,9 +589,17 @@
             raycaster = new THREE.Raycaster();
             pointer = new THREE.Vector2();
 
+            let pointerDownPos = new THREE.Vector2();
+            labelRenderer.domElement.addEventListener('pointerdown', (e) => {
+                pointerDownPos.set(e.clientX, e.clientY);
+            }, true);
+            labelRenderer.domElement.addEventListener('click', (e) => {
+                const dist = pointerDownPos.distanceTo(new THREE.Vector2(e.clientX, e.clientY));
+                if (dist > 5) return;
+                onCanvasClick(e);
+            }, true);
+
             window.addEventListener('resize', onResize);
-            // Capture clicks at the window level so placement still works even if HUD layers overlap the canvas.
-            window.addEventListener('click', onCanvasClick, true);
             window.addEventListener('mousemove', onMouseMove);
         }
 
@@ -1003,6 +1003,7 @@
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
+            if (labelRenderer) labelRenderer.setSize(window.innerWidth, window.innerHeight);
             renderBatteryChart();
         }
 
@@ -1118,6 +1119,14 @@
                 new THREE.MeshStandardMaterial({ color: 0x3ef98d, roughness: 0.4, metalness: 0.1 })
             );
             mesh.position.set(x, 1, z);
+
+            const survDiv = document.createElement('div');
+            survDiv.className = 'text-[11px] font-mono font-bold px-1.5 py-0.5 bg-slate-900/90 text-amber-300 rounded border border-amber-500/50 shadow-lg';
+            survDiv.textContent = 'S' + (state.survivors.length + 1);
+            const survLabel = new window.CSS2DObject(survDiv);
+            survLabel.position.set(0, 2.5, 0); // Raised slightly so it's visible over the sphere
+            mesh.add(survLabel);
+
             scene.add(mesh);
 
             placementMeshes.survivors.push(mesh);
@@ -1394,6 +1403,14 @@
                         new THREE.MeshStandardMaterial({ color: 0xff4a4a, roughness: 0.4, metalness: 0.2 })
                     );
                     mesh.rotation.x = Math.PI;
+
+                    const droneDiv = document.createElement('div');
+                    droneDiv.className = 'text-[11px] font-mono font-bold px-1.5 py-0.5 bg-slate-900/90 text-cyan-300 rounded border border-cyan-500/50 shadow-lg';
+                    droneDiv.textContent = id;
+                    const droneLabel = new window.CSS2DObject(droneDiv);
+                    droneLabel.position.set(0, -3.2, 0); // Pushed further away from base of flipped cone
+                    mesh.add(droneLabel);
+
                     scene.add(mesh);
 
                     const scanMesh = createScanRadiusMesh(DRONE_SCAN_RADIUS);
@@ -2447,6 +2464,15 @@
             renderFoundSurvivorRegistry();
             flashSurvivorAlert(msg);
             highlightFoundSurvivor(signal.survivor_index);
+
+            const survBtn = document.getElementById('btn-place-survivor');
+            if (survBtn) {
+                survBtn.style.setProperty('background-color', '#e11d48', 'important');
+                survBtn.style.setProperty('border-color', '#fb7185', 'important');
+                survBtn.style.setProperty('color', '#ffffff', 'important');
+                survBtn.style.setProperty('box-shadow', '0 0 15px rgba(225,29,72,0.8)', 'important');
+                survBtn.textContent = 'Survivor Found!';
+            }
         }
 
         function renderFoundSurvivorRegistry() {
@@ -2557,7 +2583,9 @@
                 }
             });
 
+            if (controls) controls.update();
             renderer.render(scene, camera);
+            if (labelRenderer) labelRenderer.render(scene, camera);
         }
 
         function randomStep() {
