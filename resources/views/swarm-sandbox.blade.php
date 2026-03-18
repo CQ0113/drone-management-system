@@ -167,7 +167,7 @@
         </div>
         </header>
 
-        <aside class="pointer-events-auto mx-4 mt-4 glass-panel rounded-xl p-4 md:absolute md:top-[115px] md:left-4 md:right-auto md:mt-0 md:w-[300px] md:max-w-[90vw] md:mx-0 flex flex-col max-h-[calc(100vh-360px)] shadow-2xl shadow-cyan-900/20 z-40">
+        <aside class="pointer-events-auto mx-4 mt-4 glass-panel rounded-xl p-4 md:absolute md:top-[115px] md:bottom-[330px] md:left-4 md:right-auto md:mt-0 md:w-[300px] md:max-w-[90vw] md:mx-0 flex flex-col shadow-2xl shadow-cyan-900/20">
             <div class="flex items-center gap-2 mb-4 shrink-0 border-b border-cyan-800/50 pb-3">
                 <div class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></div>
                 <h2 class="font-display text-sm uppercase tracking-[0.2em] text-cyan-300">Tactical Deploy</h2>
@@ -237,7 +237,7 @@
             </div>
         </aside>
 
-        <aside class="pointer-events-auto mx-4 mt-4 glass-panel rounded-xl p-4 md:absolute md:top-[115px] md:left-auto md:right-4 md:mt-0 md:w-[320px] md:max-w-[92vw] md:mx-0 flex flex-col max-h-[calc(100vh-360px)] shadow-2xl shadow-cyan-900/20 z-40">
+        <aside class="pointer-events-auto mx-4 mt-4 glass-panel rounded-xl p-4 md:absolute md:top-[115px] md:bottom-[330px] md:left-auto md:right-4 md:mt-0 md:w-[320px] md:max-w-[92vw] md:mx-0 flex flex-col shadow-2xl shadow-cyan-900/20">
             <div class="flex items-center gap-2 mb-4 shrink-0 border-b border-cyan-800/50 pb-3">
                 <div class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
                 <h2 class="font-display text-sm uppercase tracking-[0.2em] text-cyan-300">Swarm Telemetry</h2>
@@ -245,7 +245,7 @@
             <ul id="drone-status-list" class="space-y-2.5 text-sm overflow-y-scroll terminal-scroll flex-1 min-h-0 pr-2"></ul>
         </aside>
 
-        <section id="dashboard-section" class="pointer-events-auto fixed left-4 right-4 bottom-3 z-30 glass-panel rounded-xl p-4 h-[350px] sm:h-[360px] md:bottom-4 md:h-[300px] overflow-hidden">
+        <section id="dashboard-section" class="pointer-events-auto fixed left-4 right-4 bottom-3 z-30 glass-panel rounded-xl p-4 h-[350px] sm:h-[360px] md:bottom-4 md:h-[300px] overflow-y-scroll terminal-scroll">
             <div class="mb-3 flex flex-col sm:flex-row sm:items-center justify-between border-b border-cyan-800/40 pb-3 gap-3">
                 <div class="flex flex-col sm:flex-row sm:items-center gap-3 md:gap-6">
                     <div class="flex items-center gap-2">
