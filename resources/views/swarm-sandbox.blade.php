@@ -169,7 +169,7 @@
         </div>
         </header>
 
-        <aside class="pointer-events-auto mx-4 mt-4 glass-panel rounded-xl p-4 md:absolute md:top-24 md:left-4 md:right-auto md:mt-0 md:w-[300px] md:max-w-[90vw] md:mx-0 flex flex-col max-h-[calc(100vh-8rem)] shadow-2xl shadow-cyan-900/20 overflow-y-scroll terminal-scroll">
+        <aside class="pointer-events-auto mx-4 mt-4 glass-panel rounded-xl p-4 md:absolute md:top-[115px] md:left-4 md:right-auto md:mt-0 md:w-[300px] md:max-w-[90vw] md:mx-0 flex flex-col max-h-[calc(100vh-[115px]-1rem)] shadow-2xl shadow-cyan-900/20 overflow-y-scroll terminal-scroll">
             <div class="flex items-center gap-2 mb-4 shrink-0 border-b border-cyan-800/50 pb-3">
                 <div class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></div>
                 <h2 class="font-display text-sm uppercase tracking-[0.2em] text-cyan-300">Tactical Deploy</h2>
@@ -179,21 +179,21 @@
                 <!-- Primary Placement -->
                 <div class="space-y-2.5">
                     <button class="hud-btn active w-full rounded-md py-2.5 px-3 text-left font-medium text-sm flex items-center justify-between" data-mode="base">
-                        <span>🛰️ Place Base</span> <span class="text-[10px] text-cyan-500 bg-cyan-950/50 px-1.5 py-0.5 rounded">MAX 1</span>
+                        <span>Place Base</span> <span class="text-[10px] text-cyan-500 bg-cyan-950/50 px-1.5 py-0.5 rounded">MAX 1</span>
                     </button>
                     <button id="btn-place-survivor" class="hud-btn w-full rounded-md py-2.5 px-3 text-left font-medium text-sm flex items-center justify-between transition-colors duration-500" data-mode="survivor">
-                        <span>📍 Place Survivor</span>
+                        <span>Place Survivor</span>
                     </button>
                     <button class="hud-btn w-full rounded-md py-2.5 px-3 text-left font-medium text-sm flex items-center justify-between" data-mode="obstacle">
-                        <span>🧱 Place Obstacle</span>
+                        <span>Place Obstacle</span>
                     </button>
                 </div>
                 
                 <!-- Removal Tools -->
                 <div class="space-y-2.5 bg-rose-950/20 p-2 rounded-lg border border-rose-900/30">
                     <h3 class="text-[10px] uppercase tracking-widest text-rose-400 font-display mb-1 ml-1">Removal Tools</h3>
-                    <button class="hud-btn w-full rounded-md py-2 px-3 text-left text-xs font-medium text-rose-300 hover:text-rose-200 hover:border-rose-500/50 hover:bg-rose-900/20" data-mode="delete-survivor">🗑️ Delete Survivor</button>
-                    <button class="hud-btn w-full rounded-md py-2 px-3 text-left text-xs font-medium text-rose-300 hover:text-rose-200 hover:border-rose-500/50 hover:bg-rose-900/20" data-mode="delete-obstacle">🗑️ Delete Obstacle</button>
+                    <button class="hud-btn w-full rounded-md py-2 px-3 text-left text-xs font-medium text-rose-300 hover:text-rose-200 hover:border-rose-500/50 hover:bg-rose-900/20" data-mode="delete-survivor">Delete Survivor</button>
+                    <button class="hud-btn w-full rounded-md py-2 px-3 text-left text-xs font-medium text-rose-300 hover:text-rose-200 hover:border-rose-500/50 hover:bg-rose-900/20" data-mode="delete-obstacle">Delete Obstacle</button>
                 </div>
 
                 <!-- Obstacle Config -->
@@ -239,7 +239,7 @@
             </div>
         </aside>
 
-        <aside class="pointer-events-auto mx-4 mt-4 glass-panel rounded-xl p-4 md:absolute md:top-24 md:left-auto md:right-4 md:mt-0 md:w-[320px] md:max-w-[92vw] md:mx-0 flex flex-col max-h-[calc(100vh-8rem)] shadow-2xl shadow-cyan-900/20">
+        <aside class="pointer-events-auto mx-4 mt-4 glass-panel rounded-xl p-4 md:absolute md:top-[115px] md:left-auto md:right-4 md:mt-0 md:w-[320px] md:max-w-[92vw] md:mx-0 flex flex-col max-h-[calc(100vh-[115px]-1rem)] shadow-2xl shadow-cyan-900/20">
             <div class="flex items-center gap-2 mb-4 shrink-0 border-b border-cyan-800/50 pb-3">
                 <div class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
                 <h2 class="font-display text-sm uppercase tracking-[0.2em] text-cyan-300">Swarm Telemetry</h2>
