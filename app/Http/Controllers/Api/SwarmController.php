@@ -27,29 +27,64 @@ class SwarmController extends Controller
         private readonly SwarmRagMemoryService $ragMemory,
     ) {}
 
-    public function initSwarm(Request $request): JsonResponse
-    {
-        $validated = $request->validate([
-            'base' => ['required', 'array'],
-            'base.x' => ['required', 'numeric'],
-            'base.z' => ['required', 'numeric'],
-            'survivors' => ['nullable', 'array'],
-            'survivors.*.x' => ['required_with:survivors', 'numeric'],
-            'survivors.*.z' => ['required_with:survivors', 'numeric'],
-            'obstacles' => ['nullable', 'array'],
-            'obstacles.*.x' => ['required_with:obstacles', 'numeric'],
-            'obstacles.*.z' => ['required_with:obstacles', 'numeric'],
-        ]);
+   public function initSwarm(Request $request): JsonResponse
+{
+    $validated = $request->validate([
+        'base' => ['nullable', 'array'],
+        'base.x' => ['nullable', 'numeric'],
+        'base.z' => ['nullable', 'numeric'],
+        'survivors' => ['nullable', 'array'],
+        'survivors.*.x' => ['required_with:survivors', 'numeric'],
+        'survivors.*.z' => ['required_with:survivors', 'numeric'],
+        'survivors.*.name' => ['nullable', 'string'],
+        'obstacles' => ['nullable', 'array'],
+        'obstacles.*.x' => ['required_with:obstacles', 'numeric'],
+        'obstacles.*.z' => ['required_with:obstacles', 'numeric'],
+        'obstacles.*.height' => ['nullable', 'numeric'],
+        'use_default_map' => ['nullable', 'string', 'in:map1,map2,map3,map4,map5'],  
+    ]);
 
+    
+    if ($request->has('use_default_map')) {
+        $mapKey = $validated['use_default_map'];
+        $mapConfig = self::DEFAULT_MAPS[$mapKey] ?? self::DEFAULT_MAPS['map1'];
+        
         $state = [
             'base' => [
-                'x' => (float) $validated['base']['x'],
-                'z' => (float) $validated['base']['z'],
+                'x' => (float) $mapConfig['base']['x'],
+                'z' => (float) $mapConfig['base']['z'],
+            ],
+            'survivors' => collect($mapConfig['survivors'] ?? [])
+                ->map(fn (array $point): array => [
+                    'x' => (float) $point['x'],
+                    'z' => (float) $point['z'],
+                    'name' => $point['name'] ?? 'Unknown',
+                ])
+                ->values()
+                ->all(),
+            'obstacles' => collect($mapConfig['obstacles'] ?? [])
+                ->map(fn (array $point): array => [
+                    'x' => (float) $point['x'],
+                    'z' => (float) $point['z'],
+                    'height' => (float) ($point['height'] ?? 2.0),
+                ])
+                ->values()
+                ->all(),
+            'map_name' => $mapConfig['name'],
+            'map_description' => $mapConfig['description'],
+            'created_at' => now()->toIso8601String(),
+        ];
+    } else {
+        $state = [
+            'base' => [
+                'x' => (float) ($validated['base']['x'] ?? 0),
+                'z' => (float) ($validated['base']['z'] ?? 0),
             ],
             'survivors' => collect($validated['survivors'] ?? [])
                 ->map(fn (array $point): array => [
                     'x' => (float) $point['x'],
                     'z' => (float) $point['z'],
+                    'name' => $point['name'] ?? 'Unknown',
                 ])
                 ->values()
                 ->all(),
@@ -57,29 +92,49 @@ class SwarmController extends Controller
                 ->map(fn (array $point): array => [
                     'x' => (float) $point['x'],
                     'z' => (float) $point['z'],
+                    'height' => (float) ($point['height'] ?? 2.0),
                 ])
                 ->values()
                 ->all(),
             'created_at' => now()->toIso8601String(),
         ];
-
-        Cache::put('swarm:setup', $state, now()->addHours(6));
-        Cache::put('swarm:runtime', [], now()->addHours(6));
-        Cache::forget('swarm:mission_state');
-        $this->ragMemory->clear();
-        Cache::put('swarm:found_survivors', [], now()->addHours(6));
-        $survivorProfiles = $this->buildSurvivorProfiles($state);
-        Cache::put('swarm:survivor_profiles', $survivorProfiles, now()->addHours(6));
-        $operatorSettings = $this->resolveOperatorSettings();
-
-        return response()->json([
-            'ok' => true,
-            'message' => 'Swarm setup initialized.',
-            'state' => $state,
-            'survivor_profiles' => $survivorProfiles,
-            'settings' => $operatorSettings,
-        ]);
     }
+
+    Cache::put('swarm:setup', $state, now()->addHours(6));
+    Cache::put('swarm:runtime', [], now()->addHours(6));
+    Cache::forget('swarm:mission_state');
+    $this->ragMemory->clear();
+    Cache::put('swarm:found_survivors', [], now()->addHours(6));
+    $survivorProfiles = $this->buildSurvivorProfiles($state);
+    Cache::put('swarm:survivor_profiles', $survivorProfiles, now()->addHours(6));
+    $operatorSettings = $this->resolveOperatorSettings();
+
+    return response()->json([
+        'ok' => true,
+        'message' => $request->has('use_default_map') 
+            ? 'Swarm initialized with default map: ' . $state['map_name']
+            : 'Swarm setup initialized with custom configuration.',
+        'state' => $state,
+        'survivor_profiles' => $survivorProfiles,
+        'settings' => $operatorSettings,
+        'available_maps' => $this->getAvailableMapsList(),
+    ]);
+}
+
+private function getAvailableMapsList(): array
+{
+    $maps = [];
+    foreach (self::DEFAULT_MAPS as $key => $map) {
+        $maps[] = [
+            'id' => $key,
+            'name' => $map['name'],
+            'description' => $map['description'],
+            'survivor_count' => count($map['survivors']),
+            'obstacle_count' => count($map['obstacles']),
+        ];
+    }
+    return $maps;
+}
 
     public function getSettings(): JsonResponse
     {
@@ -328,6 +383,190 @@ class SwarmController extends Controller
             'generated_at' => now()->toIso8601String(),
         ]);
     }
+
+public function getDefaultMaps(): JsonResponse
+{
+    return response()->json([
+        'ok' => true,
+        'maps' => $this->getAvailableMapsList(),
+        'generated_at' => now()->toIso8601String(),
+    ]);
+}
+
+
+public function getDefaultMap(string $mapId): JsonResponse
+{
+    if (!isset(self::DEFAULT_MAPS[$mapId])) {
+        return response()->json([
+            'ok' => false,
+            'message' => 'Map not found',
+        ], 404);
+    }
+    
+    $map = self::DEFAULT_MAPS[$mapId];
+    
+    return response()->json([
+        'ok' => true,
+        'map' => [
+            'id' => $mapId,
+            'name' => $map['name'],
+            'description' => $map['description'],
+            'base' => $map['base'],
+            'survivors' => $map['survivors'],
+            'obstacles' => $map['obstacles'],
+        ],
+        'generated_at' => now()->toIso8601String(),
+    ]);
+}
+
+    private const DEFAULT_MAPS = [
+        'map1' => [
+            'name' => 'Basic Training Ground',
+            'description' => 'Simple map for beginners with 3 survivors and a few obstacles',
+            'base' => ['x' => 0, 'z' => 0],
+            'survivors' => [
+                ['x' => 15, 'z' => 10, 'name' => 'Survivor 1'],
+                ['x' => -20, 'z' => 25, 'name' => 'Survivor 2'],
+                ['x' => 30, 'z' => -15, 'name' => 'Survivor 3'],
+            ],
+            'obstacles' => [
+                ['x' => 10, 'z' => 5, 'height' => 2],
+                ['x' => -10, 'z' => -10, 'height' => 3],
+                ['x' => 20, 'z' => 20, 'height' => 2],
+                ['x' => -25, 'z' => 15, 'height' => 2.5],
+            ]
+        ],
+        'map2' => [
+            'name' => 'Complex Urban Ruins',
+            'description' => 'Dense obstacle map for advanced training scenarios',
+            'base' => ['x' => 0, 'z' => 0],
+            'survivors' => [
+                ['x' => 5, 'z' => 35, 'name' => 'Trapped Victim A'],
+                ['x' => -30, 'z' => -20, 'name' => 'Trapped Victim B'],
+                ['x' => 40, 'z' => -5, 'name' => 'Trapped Victim C'],
+                ['x' => -15, 'z' => 40, 'name' => 'Trapped Victim D'],
+                ['x' => 25, 'z' => -35, 'name' => 'Trapped Victim E'],
+            ],
+            'obstacles' => [
+                ['x' => 10, 'z' => 10, 'height' => 5],
+                ['x' => 15, 'z' => 15, 'height' => 4],
+                ['x' => -10, 'z' => 20, 'height' => 3],
+                ['x' => -15, 'z' => 25, 'height' => 3],
+                ['x' => 20, 'z' => -20, 'height' => 4],
+                ['x' => 25, 'z' => -25, 'height' => 4],
+                ['x' => -20, 'z' => -15, 'height' => 3],
+                ['x' => -25, 'z' => -10, 'height' => 3],
+ 
+                ['x' => 35, 'z' => 5, 'height' => 2],
+                ['x' => -35, 'z' => -5, 'height' => 2],
+                ['x' => 5, 'z' => -35, 'height' => 2],
+                ['x' => -5, 'z' => 35, 'height' => 2],
+            ]
+        ],
+        'map3' => [
+            'name' => 'Maze Challenge',
+            'description' => 'Maze-like layout testing path planning capabilities',
+            'base' => ['x' => 0, 'z' => 0],
+            'survivors' => [
+                ['x' => -40, 'z' => -40, 'name' => 'Maze Center A'],
+                ['x' => 40, 'z' => 40, 'name' => 'Maze Center B'],
+                ['x' => -40, 'z' => 40, 'name' => 'Maze Center C'],
+                ['x' => 40, 'z' => -40, 'name' => 'Maze Center D'],
+            ],
+            'obstacles' => [
+             
+                ['x' => -20, 'z' => -30, 'height' => 3],
+                ['x' => -20, 'z' => -20, 'height' => 3],
+                ['x' => -20, 'z' => -10, 'height' => 3],
+                ['x' => -20, 'z' => 0, 'height' => 3],
+                ['x' => -20, 'z' => 10, 'height' => 3],
+                ['x' => -20, 'z' => 20, 'height' => 3],
+                ['x' => -20, 'z' => 30, 'height' => 3],
+                
+                ['x' => 20, 'z' => -30, 'height' => 3],
+                ['x' => 20, 'z' => -20, 'height' => 3],
+                ['x' => 20, 'z' => -10, 'height' => 3],
+                ['x' => 20, 'z' => 0, 'height' => 3],
+                ['x' => 20, 'z' => 10, 'height' => 3],
+                ['x' => 20, 'z' => 20, 'height' => 3],
+                ['x' => 20, 'z' => 30, 'height' => 3],
+                
+                ['x' => -30, 'z' => -20, 'height' => 3],
+                ['x' => -20, 'z' => -20, 'height' => 3],
+                ['x' => -10, 'z' => -20, 'height' => 3],
+                ['x' => 0, 'z' => -20, 'height' => 3],
+                ['x' => 10, 'z' => -20, 'height' => 3],
+                ['x' => 20, 'z' => -20, 'height' => 3],
+                ['x' => 30, 'z' => -20, 'height' => 3],
+                
+                ['x' => -30, 'z' => 20, 'height' => 3],
+                ['x' => -20, 'z' => 20, 'height' => 3],
+                ['x' => -10, 'z' => 20, 'height' => 3],
+                ['x' => 0, 'z' => 20, 'height' => 3],
+                ['x' => 10, 'z' => 20, 'height' => 3],
+                ['x' => 20, 'z' => 20, 'height' => 3],
+                ['x' => 30, 'z' => 20, 'height' => 3],
+            ]
+        ],
+        'map4' => [
+            'name' => 'Open Terrain',
+            'description' => 'Open map with minimal obstacles, ideal for rapid search and rescue training',
+            'base' => ['x' => 0, 'z' => 0],
+            'survivors' => [
+                ['x' => 45, 'z' => 45, 'name' => 'Northeast Survivor'],
+                ['x' => -45, 'z' => 45, 'name' => 'Northwest Survivor'],
+                ['x' => 45, 'z' => -45, 'name' => 'Southeast Survivor'],
+                ['x' => -45, 'z' => -45, 'name' => 'Southwest Survivor'],
+            ],
+            'obstacles' => [
+                
+                ['x' => 20, 'z' => 0, 'height' => 2],
+                ['x' => -20, 'z' => 0, 'height' => 2],
+                ['x' => 0, 'z' => 20, 'height' => 2],
+                ['x' => 0, 'z' => -20, 'height' => 2],
+            ]
+        ],
+        'map5' => [
+            'name' => 'Night Search Challenge',
+            'description' => 'Survivors hidden behind obstacles, requiring thorough scanning of each area',
+            'base' => ['x' => 0, 'z' => 0],
+            'survivors' => [
+                ['x' => 12, 'z' => 8, 'name' => 'Behind Rock'],
+                ['x' => -18, 'z' => 22, 'name' => 'Inside Building'],
+                ['x' => 28, 'z' => -12, 'name' => 'In Bushes'],
+                ['x' => -32, 'z' => -28, 'name' => 'Under Rubble'],
+                ['x' => 8, 'z' => -38, 'name' => 'In Ravine'],
+                ['x' => -8, 'z' => 42, 'name' => 'On Hilltop'],
+            ],
+            'obstacles' => [
+              
+                ['x' => 10, 'z' => 5, 'height' => 4],
+                ['x' => 12, 'z' => 8, 'height' => 3],
+                ['x' => 15, 'z' => 10, 'height' => 4],
+                
+                ['x' => -20, 'z' => 20, 'height' => 5],
+                ['x' => -18, 'z' => 22, 'height' => 4],
+                ['x' => -15, 'z' => 25, 'height' => 5],
+                
+                ['x' => 25, 'z' => -10, 'height' => 3],
+                ['x' => 28, 'z' => -12, 'height' => 4],
+                ['x' => 30, 'z' => -15, 'height' => 3],
+                
+                ['x' => -35, 'z' => -30, 'height' => 5],
+                ['x' => -32, 'z' => -28, 'height' => 4],
+                ['x' => -30, 'z' => -25, 'height' => 5],
+                
+                ['x' => 5, 'z' => -40, 'height' => 3],
+                ['x' => 8, 'z' => -38, 'height' => 4],
+                ['x' => 10, 'z' => -35, 'height' => 3],
+                
+                ['x' => -10, 'z' => 40, 'height' => 4],
+                ['x' => -8, 'z' => 42, 'height' => 3],
+                ['x' => -5, 'z' => 45, 'height' => 4],
+            ]
+        ]
+    ];
+
 
     /**
      * @return array<string, mixed>

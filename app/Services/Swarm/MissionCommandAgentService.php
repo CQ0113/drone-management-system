@@ -255,7 +255,7 @@ class MissionCommandAgentService
         $phaseName = (string) ($phase['name'] ?? 'phase');
         $baseX = (float) data_get($state, 'base.x', 0.0);
         $baseZ = (float) data_get($state, 'base.z', 0.0);
-        $scanMinBaseRadius = 10.0;
+        $scanMinBaseRadius = 25.0;
         $waypointCount = max(1, count($waypoints));
         $obstacles = collect((array) data_get($state, 'obstacles', []))
             ->map(fn ($obs): array => [
@@ -339,14 +339,14 @@ class MissionCommandAgentService
     private function dynamicSweepWaypoints(string $quadrant, int $droneCount, int $iteration, float $depthFactor = 1.0): array
     {
         $droneCount = max(1, $droneCount);
-        $depthFactor = max(0.4, min(1.2, $depthFactor));
+        $depthFactor = max(0.8, min(2.0, $depthFactor));
         $xSign = str_contains($quadrant, 'east') ? 1.0 : -1.0;
         $zSign = str_contains($quadrant, 'north') ? 1.0 : -1.0;
 
-        $startX = 8.0 * $xSign;
-        $startZ = 6.0 * $zSign;
-        $laneStep = 32.0 / max(1, $droneCount - 1);
-        $depthStep = 10.0 + (2.0 * ($iteration % 3));
+        $startX = 15.0 * $xSign;
+        $startZ = 12.0 * $zSign;
+        $laneStep = 40.0 / max(1, $droneCount - 1);
+        $depthStep = 20.0 + (4.0 * ($iteration % 3));
 
         $points = [];
         for ($i = 0; $i < $droneCount; $i++) {
