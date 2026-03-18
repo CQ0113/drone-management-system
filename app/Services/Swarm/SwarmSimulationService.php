@@ -33,7 +33,14 @@ class SwarmSimulationService
         $signals = [];
         $movementUnitsSetting = data_get($state, 'operator_settings.battery.movement_units_per_percent', env('SWARM_BATTERY_MOVEMENT_UNITS_PER_PERCENT', 8.0));
         $scanDrainSetting = data_get($state, 'operator_settings.battery.scan_drain', env('SWARM_BATTERY_SCAN_DRAIN', 1.0));
-        $step = $this->clamp((float) env('SWARM_MOVE_STEP', 2.8), 1.0, 6.0);
+        $baseStep = $this->clamp((float) env('SWARM_MOVE_STEP', 2.8), 1.0, 6.0);
+        $nominalTickSeconds = $this->clamp((float) data_get($state, 'tick_nominal_seconds', 0.5), 0.05, 2.0);
+        $actualTickDelta = max(0.0, (float) data_get($state, 'tick_delta_seconds', $nominalTickSeconds));
+        $clampedTickDelta = min($actualTickDelta, 1.0);
+        $deltaScale = $nominalTickSeconds > 0
+            ? min(1.0, $clampedTickDelta / $nominalTickSeconds)
+            : 1.0;
+        $step = $this->clamp($baseStep * $deltaScale, 0.25, 6.0);
         $scanDetectionRadius = $this->clamp((float) env('SWARM_SCAN_DETECTION_RADIUS', 6.0), 1.0, 25.0);
         $scanOrbitRadius = $this->clamp((float) env('SWARM_SCAN_ORBIT_RADIUS', 2.4), 0.0, 8.0);
         $scanOrbitStep = $this->clamp((float) env('SWARM_SCAN_ORBIT_STEP', 0.55), 0.1, 2.2);

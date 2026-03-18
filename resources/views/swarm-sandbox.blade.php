@@ -1569,15 +1569,19 @@
         async function startLivePipeline(skipInit = false) {
             appendMissionLog(skipInit
                 ? 'Live mode resumed from existing backend runtime.'
-                : 'Live mode enabled. Sending setup state to backend API...');
+                : (FRONTEND_SHARED_STATE_MODE
+                    ? 'Live mode enabled. SSOT read-only mode active, waiting for CLI runner state.'
+                    : 'Live mode enabled. Sending setup state to backend API...'));
 
-            if (!skipInit) {
+            if (!skipInit && !FRONTEND_SHARED_STATE_MODE) {
                 try {
                     await sendInitSwarm();
                     appendMissionLog('Initialization payload sent to /api/init-swarm.');
                 } catch (error) {
                     appendMissionLog(`Init request failed: ${error.message}`);
                 }
+            } else if (!skipInit && FRONTEND_SHARED_STATE_MODE) {
+                appendMissionLog('SSOT mode: frontend init is disabled. Use swarm:run-ai --init-if-missing.');
             }
 
             if (runtime.liveTimer) {
@@ -1598,26 +1602,16 @@
 
                 runtime.tickInFlight = true;
                 runtime.tickCounter += 1;
-                const forceReplan = runtime.tickCounter % Math.max(1, runtime.modelCheckEveryTicks) === 0;
                 try {
-                    const tickResponse = FRONTEND_SHARED_STATE_MODE
-                        ? await fetchWithTimeout('/api/swarm/state', {
-                            method: 'GET',
-                            headers: {
-                                'Accept': 'application/json'
-                            }
-                        }, LIVE_TICK_REQUEST_TIMEOUT_MS)
-                        : await fetchWithTimeout('/api/swarm/tick', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Accept': 'application/json'
-                            },
-                            body: JSON.stringify({ objective: LIVE_OBJECTIVE, force_replan: forceReplan })
-                        }, LIVE_TICK_REQUEST_TIMEOUT_MS);
+                    const tickResponse = await fetchWithTimeout('/api/swarm/state', {
+                        method: 'GET',
+                        headers: {
+                            'Accept': 'application/json'
+                        }
+                    }, LIVE_TICK_REQUEST_TIMEOUT_MS);
 
                     const tick = await tickResponse.json();
-                    if (!Array.isArray(tick.telemetry) || (!FRONTEND_SHARED_STATE_MODE && !tick.ok)) {
+                    if (!Array.isArray(tick.telemetry)) {
                         appendMissionLog('Tick response unavailable.');
                         return;
                     }
@@ -1921,6 +1915,15 @@
         }
 
         async function saveBatterySettings() {
+            if (FRONTEND_SHARED_STATE_MODE) {
+                const msg = 'SSOT mode: battery tuning from UI is disabled. Change settings from backend/CLI only.';
+                if (batterySettingsStatusEl) {
+                    batterySettingsStatusEl.textContent = msg;
+                }
+                appendMissionLog(msg);
+                return;
+            }
+
             const movementUnitsPerPercent = clamp(Number(batteryMoveInput?.value) || operatorSettings.battery.movementUnitsPerPercent, 2, 20);
             const scanDrain = clamp(Number(batteryScanInput?.value) || operatorSettings.battery.scanDrain, 0, 10);
 
@@ -2132,6 +2135,11 @@
         }
 
         async function runBatteryBalanceTrial() {
+            if (FRONTEND_SHARED_STATE_MODE) {
+                appendMissionLog('Battery trial is disabled in SSOT mode. Use backend scripts against /api/swarm/tick instead.');
+                return;
+            }
+
             if (!state.base) {
                 appendMissionLog('Battery trial blocked: place one base first.');
                 return;

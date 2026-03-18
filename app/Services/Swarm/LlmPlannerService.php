@@ -41,8 +41,8 @@ class LlmPlannerService
         $leanDrones = array_map(static function (array $drone): array {
             return [
                 'id' => (string) data_get($drone, 'id', ''),
-                'x' => (float) data_get($drone, 'x', 0.0),
-                'z' => (float) data_get($drone, 'z', 0.0),
+                'x' => round((float) data_get($drone, 'x', 0.0), 2),
+                'z' => round((float) data_get($drone, 'z', 0.0), 2),
                 'battery' => (int) round((float) data_get($drone, 'battery', 100)),
             ];
         }, $plannerDrones);
@@ -50,10 +50,10 @@ class LlmPlannerService
         $promptState = [
             'objective'           => $objective,
             'available_drone_ids' => array_values(array_map(fn (array $drone): string => (string) data_get($drone, 'id', ''), $plannerDrones)),
-            'base'                => ['x' => $baseX, 'z' => $baseZ],
+            'base'                => ['x' => round($baseX, 2), 'z' => round($baseZ, 2)],
             'drones'              => $leanDrones,
-            'survivors'           => $state['survivors'] ?? [],
-            'obstacles'           => $state['obstacles'] ?? [],
+            'survivors'           => collect($state['survivors'] ?? [])->map(fn($s) => ['x' => round((float) $s['x'], 2), 'z' => round((float) $s['z'], 2)])->values()->all(),
+            'obstacles'           => collect($state['obstacles'] ?? [])->map(fn($o) => ['x' => round((float) $o['x'], 2), 'z' => round((float) $o['z'], 2)])->values()->all(),
             'bounds'              => [$mapMin, $mapMax],
             'max_step'            => $maxActionDistance,
             'battery_recall'      => 20,
@@ -64,24 +64,86 @@ class LlmPlannerService
             ],
         ];
 
-     $survivorsList = '';
+    $survivorsList = '';
+    $foundSurvivors = array_values(array_map('intval', (array) data_get($state, 'found_survivors', [])));
+    $foundSurvivorIndexMap = array_fill_keys(array_map('strval', $foundSurvivors), true);
+    $survivorCount = count($state['survivors'] ?? []);
+    $unfoundCount = max(0, $survivorCount - count($foundSurvivors));
+    
     if (!empty($state['survivors'])) {
         $survivorsText = [];
+        $unfoundText = [];
         foreach ($state['survivors'] as $index => $s) {
-            $survivorsText[] = "S" . ($index+1) . " at (" . round($s['x']) . "," . round($s['z']) . ")";
+            $label = "S" . ($index+1) . " at (" . round((float) $s['x'], 2) . "," . round((float) $s['z'], 2) . ")";
+            $survivorsText[] = $label;
+            // found_survivors is stored as survivor index list in simulation/cache.
+            $isSurvivorFound = isset($foundSurvivorIndexMap[(string) $index]);
+            if (!$isSurvivorFound) {
+                $unfoundText[] = $label;
+            }
         }
-        $survivorsList = "KNOWN SURVIVOR LOCATIONS: " . implode(', ', $survivorsText) . ". ";
+        $survivorsList = "KNOWN LOCATIONS: " . implode(', ', $survivorsText) . ". ";
+        $survivorsList .= "UNFOUND (" . $unfoundCount . "): " . (empty($unfoundText) ? "NONE - all located!" : implode(', ', $unfoundText)) . ". ";
     }
 
-    $system = 'Drone swarm planner. Return ONLY compact JSON: {"actions":[...]}. No markdown, no prose, no extra keys.'
-        .' Each action: {drone_id, type, target:{x,z}}. type ∈ {scan_sector, move_to, return_to_base}.'
-        .' One action per ID in available_drone_ids. Targets within bounds. Each target ≤ max_step units from drone current x,z.'
-        .' MISSION: Search and rescue. ' . $survivorsList
-        .' CRITICAL: Assign drones to SCAN NEAR SURVIVOR LOCATIONS first. Prioritize S1(5,35), S2(-30,-20), S3(40,-5), S4(-15,40), S5(25,-35).'
-        .' Use scan_sector at survivor coordinates to find them. Do NOT send drones to corners - send them to survivors.'
-        .' Spread drones across different survivor locations. battery≤battery_recall → prefer return_to_base. battery≤battery_critical → must return_to_base.'
-        .' Ex: '.json_encode(['actions' => [['drone_id' => 'D1', 'type' => 'scan_sector', 'target' => ['x' => 5, 'z' => 35]]]], JSON_UNESCAPED_SLASHES);
-        
+    $hasKnownSurvivors = $survivorCount > 0;
+    $missionScopeLine = $hasKnownSurvivors
+        ? 'MISSION SCOPE: Comprehensive search and rescue. Total survivors: ' . $survivorCount . '. Already FOUND: ' . ($survivorCount - $unfoundCount) . '. STILL UNFOUND: ' . $unfoundCount . '.'
+        : 'MISSION SCOPE: No survivor coordinates are known yet. Run exploration search to discover survivors.';
+    $priorityLine = $hasKnownSurvivors
+        ? 'PRIORITY: Focus all search effort on the ' . $unfoundCount . ' UNFOUND survivors. DO NOT send drones to already-found locations.'
+        : 'PRIORITY: Spread drones to different sectors and scan to discover survivors. Avoid clustering or idling.';
+    $rule3Line = $hasKnownSurvivors
+        ? 'RULE 3: MISSION FOCUS. ' . $survivorsList . 'Prioritize UNFOUND survivors (' . $unfoundCount . ' remaining). Assign drones to scan unfound locations first.'
+        : 'RULE 3: MISSION FOCUS. No known survivor coordinates. Use exploration pattern: send each drone to a different area and scan.';
+    $rule4Line = $hasKnownSurvivors
+        ? 'RULE 4: STRATEGIC SPREAD. Deploy drones to DIFFERENT UNFOUND survivor locations. Spread drones across all ' . $unfoundCount . ' unfound targets. DO NOT revisit found locations.'
+        : 'RULE 4: STRATEGIC SPREAD. Deploy drones to DIFFERENT map sectors. Use distinct x,z targets to maximize coverage.';
+    $rule5HighBatteryLine = $hasKnownSurvivors
+        ? '  • battery > 20: SCAN or MOVE toward unfound survivors. Actively search for remaining targets.'
+        : '  • battery > 20: SCAN or MOVE toward unexplored sectors. Keep active discovery coverage.';
+    $rule5MidBatteryLine = $hasKnownSurvivors
+        ? '  • 12 < battery ≤ 20: Continue toward next unfound survivor or CONSIDER return_to_base if far. Preserve battery.'
+        : '  • 12 < battery ≤ 20: Continue nearby exploration or CONSIDER return_to_base if far. Preserve battery.';
+    $rule5BaseDeployLine = $hasKnownSurvivors
+        ? '  • At base with battery > 50: DEPLOY immediately toward next UNFOUND survivor from the ' . $unfoundCount . ' remaining targets.'
+        : '  • At base with battery > 50: DEPLOY immediately to a new unexplored sector.';
+    $rule6Line = $hasKnownSurvivors
+        ? 'RULE 6: COVERAGE STRATEGY. Assign each drone to scan a DIFFERENT UNFOUND survivor. Spread drones across all ' . $unfoundCount . ' unfound locations. Comprehensive coverage of unfound targets > rapid re-scanning.'
+        : 'RULE 6: COVERAGE STRATEGY. Assign each drone to a different lane (north/south/east/west quadrants) and rotate scan targets each tick.';
+
+    $system = 'DRONE SWARM SEARCH & RESCUE PLANNER'."\n"
+        .'═════════════════════════════════════'."\n\n"
+        .$missionScopeLine."\n"
+        .$priorityLine."\n\n"
+        .'OUTPUT FORMAT (STRICT):'."\n"
+        .'Return ONLY a single JSON object containing EXACTLY ONE root key named "actions".'."\n"
+        .'Each action MUST have: drone_id (string), type (string), target with x and z (floats).'."\n\n"
+        .'ACTION TYPES:'."\n"
+        .'• scan_sector: Local area search at target coords. Uses ' . env('SWARM_BATTERY_SCAN_DRAIN', 1.0) . ' battery. Find nearby survivors.'."\n"
+        .'• move_to: Travel toward target coordinates. System automatically breaks long moves into steps. Uses battery based on distance.'."\n"
+        .'• return_to_base: Return to base at (' . round((float) data_get($state, 'base.x', 0), 2) . ',' . round((float) data_get($state, 'base.z', 0), 2) . '). Use when battery low or all drones must recharge.'."\n\n"
+        .'MANDATORY RULES (MUST FOLLOW ALL):'."\n"
+        .'RULE 1: ONE ACTION PER DRONE. Every drone in available_drone_ids MUST have exactly one action. No drones can be idle or missing.'."\n"
+        .'RULE 2: VALID TARGETS ONLY. All target coordinates MUST be within bounds [' . $mapMin . ', ' . $mapMax . ']. The system handles movement stepping and range management automatically.'."\n"
+        .$rule3Line."\n"
+        .$rule4Line."\n"
+        .'RULE 5: BATTERY-AWARE DECISIONS.'."\n"
+        .$rule5HighBatteryLine."\n"
+        .$rule5MidBatteryLine."\n"
+        .'  • battery ≤ 12: MUST return_to_base immediately. No scouting when critical.'."\n"
+        .$rule5BaseDeployLine."\n"
+        .$rule6Line."\n\n"
+        .'EXAMPLE (3 drones, multiple survivors):'."\n"
+        .json_encode(['actions' => [
+            ['drone_id' => 'D1', 'type' => 'scan_sector', 'target' => ['x' => 5, 'z' => 35]],
+            ['drone_id' => 'D2', 'type' => 'move_to', 'target' => ['x' => -30, 'z' => -20]],
+            ['drone_id' => 'D3', 'type' => 'scan_sector', 'target' => ['x' => 40, 'z' => -5]]
+        ]], JSON_UNESCAPED_SLASHES)."\n\n"
+        .'DRONE STATUS: '.json_encode(array_map(fn($d) => $d['id'].' (bat:'.$d['battery'].'% at '.$d['x'].','.$d['z'].')', $leanDrones), JSON_UNESCAPED_SLASHES)."\n"
+        .'Bounds: ['.$mapMin.', '.$mapMax.']';
+
+
         try {
             $response = Http::timeout($timeout)
                 ->acceptJson()
@@ -90,6 +152,7 @@ class LlmPlannerService
                     'model' => $model,
                     'format' => 'json',
                     'stream' => false,
+                    'keep_alive' => -1,
                     'options' => [
                         'temperature' => $temperature,
                         'top_p' => $topP,
@@ -110,6 +173,15 @@ class LlmPlannerService
             $decoded = $this->decodeModelJson($raw);
 
             if (!$decoded || !$this->isUsablePlanPayload($decoded)) {
+                $decoded = $this->retryFormatRepair($baseUrl, $model, $timeout, $temperature, $topP, $raw);
+                if (is_array($decoded) && $this->isUsablePlanPayload($decoded)) {
+                    $plan = $this->sanitizePlan($decoded, $state, $objective, 'ollama-format-repair', $plannerDrones, $maxActionDistance);
+                    $plan['raw_model_output'] = $raw;
+                    $plan['parse_error'] = false;
+
+                    return $plan;
+                }
+
                 $fallback = $this->mockPlan($state, $objective, 'ollama-parse-fallback');
                 $fallback['raw_model_output'] = $raw;
                 $fallback['parse_error'] = true;
@@ -117,7 +189,7 @@ class LlmPlannerService
                 return $fallback;
             }
 
-            $plan = $this->sanitizePlan($decoded, $state, $objective, 'ollama', $plannerDrones);
+            $plan = $this->sanitizePlan($decoded, $state, $objective, 'ollama', $plannerDrones, $maxActionDistance);
             $plan['raw_model_output'] = $raw;
             $plan['parse_error'] = false;
 
@@ -132,7 +204,7 @@ class LlmPlannerService
      * @param array<string, mixed> $state
      * @return array<string, mixed>
      */
-    private function sanitizePlan(array $decoded, array $state, string $objective, string $source, array $plannerDrones = []): array
+    private function sanitizePlan(array $decoded, array $state, string $objective, string $source, array $plannerDrones = [], float $maxActionDistance = 5.0): array
     {
          $allowedIds = collect($plannerDrones)
         ->map(fn (array $drone): string => (string) data_get($drone, 'id', ''))
@@ -193,7 +265,7 @@ class LlmPlannerService
             $currentDrone = (array) ($plannerDroneLookup->get($id) ?? []);
             $currentDroneX = (float) data_get($currentDrone, 'x', $baseX);
             $currentDroneZ = (float) data_get($currentDrone, 'z', $baseZ);
-            ['x' => $targetX, 'z' => $targetZ] = $this->clampTargetDistanceFromPoint($targetX, $targetZ, $currentDroneX, $currentDroneZ, 15.0);
+            ['x' => $targetX, 'z' => $targetZ] = $this->clampTargetDistanceFromPoint($targetX, $targetZ, $currentDroneX, $currentDroneZ, $maxActionDistance);
             ['x' => $targetX, 'z' => $targetZ] = $this->clampTargetDistanceFromBase($targetX, $targetZ, $baseX, $baseZ, $maxDistanceFromBase);
             $priority = (int) data_get($action, 'priority', 5);
 
@@ -346,16 +418,62 @@ class LlmPlannerService
             return $decoded;
         }
 
-        $start = strpos($trimmed, '{');
-        $end = strrpos($trimmed, '}');
-        if ($start === false || $end === false || $end <= $start) {
-            return null;
+        // Extract the first balanced JSON object in noisy model output.
+        if (preg_match('/\{(?:[^{}]|(?R))*\}/s', $trimmed, $matches)) {
+            $decoded = json_decode($matches[0], true);
+
+            return is_array($decoded) ? $decoded : null;
         }
 
-        $slice = substr($trimmed, $start, $end - $start + 1);
-        $decoded = json_decode($slice, true);
+        return null;
+    }
 
-        return is_array($decoded) ? $decoded : null;
+    /**
+     * One short repair prompt to recover invalid model format without regenerating full reasoning.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function retryFormatRepair(string $baseUrl, string $model, int $timeout, float $temperature, float $topP, string $raw): ?array
+    {
+        try {
+            $repairInput = trim((string) $raw);
+            if ($repairInput === '') {
+                return null;
+            }
+            if (strlen($repairInput) > 1800) {
+                $repairInput = substr($repairInput, 0, 1800);
+            }
+
+            $repairResponse = Http::timeout(max(6, min($timeout, 20)))
+                ->acceptJson()
+                ->asJson()
+                ->post($baseUrl.'/api/chat', [
+                    'model' => $model,
+                    'format' => 'json',
+                    'stream' => false,
+                    'keep_alive' => -1,
+                    'options' => [
+                        'temperature' => 0.0,
+                        'top_p' => 0.2,
+                        'num_predict' => 140,
+                        'num_ctx' => 768,
+                    ],
+                    'messages' => [
+                        ['role' => 'system', 'content' => 'Previous response format was wrong. Return ONLY valid JSON: {"actions":[...]} with no extra text.'],
+                        ['role' => 'user', 'content' => $repairInput],
+                    ],
+                ]);
+
+            if (!$repairResponse->successful()) {
+                return null;
+            }
+
+            $repairRaw = (string) data_get($repairResponse->json(), 'message.content', '');
+
+            return $this->decodeModelJson($repairRaw);
+        } catch (Throwable) {
+            return null;
+        }
     }
 
     private function clamp(float $value, float $min, float $max): float

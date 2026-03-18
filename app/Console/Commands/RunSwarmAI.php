@@ -25,7 +25,11 @@ class RunSwarmAI extends Command
         $maxTicks = max(0, (int) $this->option('max-ticks'));
         $endpoint = $this->resolveTickEndpoint();
         $requestTimeout = $this->resolveRequestTimeout();
-        $sleepMicros = $this->resolveSleepMicros();
+        $configuredSleepMicros = $this->resolveSleepMicros();
+        $sleepMicros = max(500000, $configuredSleepMicros);
+        $lastLoopEndedAt = null;
+        $lastTickStartedAt = null;
+        $nominalTickSeconds = round($sleepMicros / 1000000, 3);
 
         $this->line(sprintf('Using endpoint=%s timeout=%ds sleep=%dms', $endpoint, $requestTimeout, (int) ($sleepMicros / 1000)));
 
@@ -39,7 +43,19 @@ class RunSwarmAI extends Command
 
         while ($this->shouldContinueLoop($tickCount, $maxTicks)) {
             $tickCount++;
+            $loopStartedAt = microtime(true);
+            $loopDelayMs = $lastLoopEndedAt === null
+                ? null
+                : round(max(0.0, ($loopStartedAt - $lastLoopEndedAt) * 1000), 2);
+            $tickDeltaSeconds = $lastTickStartedAt === null
+                ? $nominalTickSeconds
+                : max(0.0, $loopStartedAt - $lastTickStartedAt);
+            $lastTickStartedAt = $loopStartedAt;
             $forceReplan = ($tickCount % 4) === 0;
+
+            // Explicitly cast and clamp values to ensure they pass validation
+            $tickDeltaSecondsForRequest = (float) min(5.0, round($tickDeltaSeconds, 3));
+            $tickNominalSecondsForRequest = (float) max(0.05, min(2.0, $nominalTickSeconds));
 
             try {
                 $response = Http::connectTimeout(4)
@@ -47,72 +63,72 @@ class RunSwarmAI extends Command
                     ->retry(1, 400)
                     ->acceptJson()
                     ->asJson()
+                    ->withHeaders([
+                        'X-Swarm-Runner' => 'cli-ssot',
+                    ])
                     ->post($endpoint, [
                         'objective' => $objective,
-                        'force_replan' => $forceReplan,
+                        'force_replan' => (bool) $forceReplan,
+                        'tick_delta_seconds' => $tickDeltaSecondsForRequest,
+                        'tick_nominal_seconds' => $tickNominalSecondsForRequest,
                     ]);
 
                 if (!$response->successful()) {
                     $this->error('Tick request failed with HTTP '.$response->status());
-                    usleep(max(100000, $sleepMicros));
+                    $this->error('Response body: '.$response->body());
+                } else {
+                    $payload = $response->json();
+                    if (!is_array($payload) || !($payload['ok'] ?? false)) {
+                        $this->warn('Tick response invalid or not ok.');
+                    } else {
+                        $sharedState = is_array($payload) ? $payload : [];
+                        $sharedState['ok'] = (bool) ($payload['ok'] ?? true);
+                        $sharedState['source'] = (string) ($payload['source'] ?? 'unknown');
+                        $sharedState['telemetry'] = (array) ($payload['telemetry'] ?? []);
+                        $sharedState['actions'] = (array) ($payload['actions'] ?? []);
+                        $sharedState['logs'] = (array) ($payload['logs'] ?? []);
+                        $sharedState['timings'] = (array) ($payload['timings'] ?? []);
+                        $sharedState['warnings'] = (array) ($payload['warnings'] ?? []);
+                        $sharedState['signals'] = (array) ($payload['signals'] ?? []);
+                        $sharedState['model'] = [
+                            'raw_output' => (string) data_get($payload, 'model.raw_output', ''),
+                            'parse_error' => (bool) data_get($payload, 'model.parse_error', false),
+                        ];
+                        $sharedState['debug'] = [
+                            'planner_actions' => (array) data_get($payload, 'debug.planner_actions', []),
+                            'post_mcp_actions' => (array) data_get($payload, 'debug.post_mcp_actions', []),
+                            'validated_actions' => (array) data_get($payload, 'debug.validated_actions', []),
+                        ];
+                        $sharedState['mcp'] = [
+                            'ok' => (bool) data_get($payload, 'mcp.ok', false),
+                            'source' => (string) data_get($payload, 'mcp.source', 'mcp-unknown'),
+                            'error' => data_get($payload, 'mcp.error'),
+                            'discovered_drones' => (array) data_get($payload, 'mcp.discovered_drones', []),
+                            'tool_trace' => (array) data_get($payload, 'mcp.tool_trace', []),
+                        ];
+                        $sharedState['settings'] = (array) ($payload['settings'] ?? []);
+                        $sharedState['updated_at'] = now()->toIso8601String();
 
-                    continue;
+                        Cache::put('swarm_state', $sharedState, now()->addHours(6));
+
+                        $loopDelayLabel = $loopDelayMs === null ? 'n/a' : number_format($loopDelayMs, 2, '.', '');
+                        $this->line(sprintf(
+                            '[tick %d] source=%s total_ms=%s loop_delay_ms=%s',
+                            $tickCount,
+                            (string) ($payload['source'] ?? 'unknown'),
+                            (string) data_get($payload, 'timings.total_ms', 'n/a'),
+                            $loopDelayLabel
+                        ));
+                    }
                 }
-
-                $payload = $response->json();
-                if (!is_array($payload) || !($payload['ok'] ?? false)) {
-                    $this->warn('Tick response invalid or not ok.');
-                    usleep(max(100000, $sleepMicros));
-
-                    continue;
-                }
-
-                $sharedState = is_array($payload) ? $payload : [];
-                $sharedState['ok'] = (bool) ($payload['ok'] ?? true);
-                $sharedState['source'] = (string) ($payload['source'] ?? 'unknown');
-                $sharedState['telemetry'] = (array) ($payload['telemetry'] ?? []);
-                $sharedState['actions'] = (array) ($payload['actions'] ?? []);
-                $sharedState['logs'] = (array) ($payload['logs'] ?? []);
-                $sharedState['timings'] = (array) ($payload['timings'] ?? []);
-                $sharedState['warnings'] = (array) ($payload['warnings'] ?? []);
-                $sharedState['signals'] = (array) ($payload['signals'] ?? []);
-                $sharedState['model'] = [
-                    'raw_output' => (string) data_get($payload, 'model.raw_output', ''),
-                    'parse_error' => (bool) data_get($payload, 'model.parse_error', false),
-                ];
-                $sharedState['debug'] = [
-                    'planner_actions' => (array) data_get($payload, 'debug.planner_actions', []),
-                    'post_mcp_actions' => (array) data_get($payload, 'debug.post_mcp_actions', []),
-                    'validated_actions' => (array) data_get($payload, 'debug.validated_actions', []),
-                ];
-                $sharedState['mcp'] = [
-                    'ok' => (bool) data_get($payload, 'mcp.ok', false),
-                    'source' => (string) data_get($payload, 'mcp.source', 'mcp-unknown'),
-                    'error' => data_get($payload, 'mcp.error'),
-                    'discovered_drones' => (array) data_get($payload, 'mcp.discovered_drones', []),
-                    'tool_trace' => (array) data_get($payload, 'mcp.tool_trace', []),
-                ];
-                $sharedState['settings'] = (array) ($payload['settings'] ?? []);
-                $sharedState['updated_at'] = now()->toIso8601String();
-
-                Cache::put('swarm_state', $sharedState, now()->addHours(6));
-
-                $this->line(sprintf(
-                    '[tick %d] source=%s total_ms=%s',
-                    $tickCount,
-                    (string) ($payload['source'] ?? 'unknown'),
-                    (string) data_get($payload, 'timings.total_ms', 'n/a')
-                ));
             } catch (ConnectionException $e) {
                 $this->error(sprintf('[tick %d] Request timeout/connection error: %s', $tickCount, $e->getMessage()));
-                usleep(max(200000, $sleepMicros));
             } catch (\Throwable $e) {
                 $this->error('Loop error: '.$e->getMessage());
             }
 
-            if ($sleepMicros > 0) {
-                usleep($sleepMicros);
-            }
+            $lastLoopEndedAt = microtime(true);
+            usleep($sleepMicros);
         }
 
         if ($maxTicks > 0) {

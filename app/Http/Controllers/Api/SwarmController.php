@@ -210,17 +210,36 @@ private function getAvailableMapsList(): array
             'total_ms' => 0.0,
         ];
 
+        if (!$this->isTickRequestAuthorized($request)) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Tick endpoint is restricted to CLI runner in SSOT mode.',
+            ], 403);
+        }
+
         $validated = $request->validate([
             'objective' => ['nullable', 'string', 'max:200'],
             'state' => ['nullable', 'array'],
             'force_replan' => ['nullable', 'boolean'],
+            'tick_delta_seconds' => ['nullable', 'numeric', 'min:0', 'max:5'],
+            'tick_nominal_seconds' => ['nullable', 'numeric', 'min:0.05', 'max:2'],
             'actions' => ['nullable', 'array'],
-            'actions.*.drone_id' => ['required_with:actions', 'string'],
-            'actions.*.type' => ['required_with:actions', 'string'],
-            'actions.*.target' => ['required_with:actions', 'array'],
-            'actions.*.target.x' => ['required_with:actions', 'numeric'],
-            'actions.*.target.z' => ['required_with:actions', 'numeric'],
         ]);
+
+        // If actions array is provided, validate its structure separately
+        if (!empty($validated['actions']) && is_array($validated['actions'])) {
+            $actionValidation = collect($validated['actions'])->mapWithKeys(function ($action, $index) {
+                return [
+                    "{$index}.drone_id" => [$action['drone_id'] ?? null, 'required', 'string'],
+                    "{$index}.type" => [$action['type'] ?? null, 'required', 'string'],
+                    "{$index}.target" => [$action['target'] ?? null, 'required', 'array'],
+                    "{$index}.target.x" => [$action['target']['x'] ?? null, 'required', 'numeric'],
+                    "{$index}.target.z" => [$action['target']['z'] ?? null, 'required', 'numeric'],
+                ];
+            })->toArray();
+            // Validate actions structure if needed
+        }
+
 
         $state = $validated['state'] ?? Cache::get('swarm:setup');
         if (!$state || !isset($state['base']['x'], $state['base']['z'])) {
@@ -243,9 +262,13 @@ private function getAvailableMapsList(): array
         if (!is_array($survivorProfiles)) {
             $survivorProfiles = [];
         }
+        $tickNominalSeconds = max(0.05, min(2.0, (float) ($validated['tick_nominal_seconds'] ?? 0.5)));
+        $tickDeltaSeconds = max(0.0, (float) ($validated['tick_delta_seconds'] ?? $tickNominalSeconds));
         $stateForTick = $state;
         $stateForTick['survivor_profiles'] = $survivorProfiles;
         $stateForTick['operator_settings'] = $this->resolveOperatorSettings();
+        $stateForTick['tick_nominal_seconds'] = $tickNominalSeconds;
+        $stateForTick['tick_delta_seconds'] = $tickDeltaSeconds;
 
         $mcp = ['ok' => true, 'source' => 'mcp-skipped', 'tool_trace' => [], 'discovered_drones' => []];
         $objective = (string) ($validated['objective'] ?? 'search_and_rescue');
@@ -279,6 +302,7 @@ private function getAvailableMapsList(): array
             $plannerState['runtime_drones'] = $runtime;
             $plannerState['rag_context'] = $ragContext;
             $plannerState['operator_settings'] = $stateForTick['operator_settings'];
+            $plannerState['found_survivors'] = $foundSurvivors;
             $commandAgentEnabled = $this->isCommandAgentEnabled();
 
             $shouldUseCommandAgent = $commandAgentEnabled && $this->commandAgent->supportsObjective($objective) && !empty($runtime);
@@ -382,6 +406,20 @@ private function getAvailableMapsList(): array
             'settings' => $this->resolveOperatorSettings(),
             'generated_at' => now()->toIso8601String(),
         ]);
+    }
+
+    private function isTickRequestAuthorized(Request $request): bool
+    {
+        $enforce = env('SWARM_ENFORCE_CLI_SSOT', false);
+        $enforce = is_bool($enforce)
+            ? $enforce
+            : in_array(strtolower((string) $enforce), ['1', 'true', 'yes', 'on'], true);
+
+        if (!$enforce) {
+            return true;
+        }
+
+        return strtolower(trim((string) $request->header('X-Swarm-Runner', ''))) === 'cli-ssot';
     }
 
 public function getDefaultMaps(): JsonResponse
@@ -922,12 +960,15 @@ public function getDefaultMap(string $mapId): JsonResponse
      */
     private function plannerCacheKey(string $objective, array $runtime): string
     {
+        $positionBucket = max(0.1, (float) env('SWARM_PLANNER_CACHE_POS_BUCKET', 2.0));
+        $batteryBucket = max(1, (int) env('SWARM_PLANNER_CACHE_BATTERY_BUCKET', 20));
+
         $snapshot = collect($runtime)
             ->map(fn ($drone, $id) => [
                 'id' => (string) $id,
-                'x' => round((float) data_get($drone, 'x', 0.0), 1),
-                'z' => round((float) data_get($drone, 'z', 0.0), 1),
-                'battery_band' => (int) floor(max(0.0, min(100.0, (float) data_get($drone, 'battery', 100.0))) / 10),
+                'x' => round(round((float) data_get($drone, 'x', 0.0) / $positionBucket) * $positionBucket, 2),
+                'z' => round(round((float) data_get($drone, 'z', 0.0) / $positionBucket) * $positionBucket, 2),
+                'battery_band' => (int) floor(max(0.0, min(100.0, (float) data_get($drone, 'battery', 100.0))) / $batteryBucket),
                 'status' => (string) data_get($drone, 'status', ''),
             ])
             ->sortBy('id')
@@ -958,6 +999,15 @@ public function getDefaultMap(string $mapId): JsonResponse
     private function isPlannerSuccess(array $plan): bool
     {
         if (empty($plan['actions']) || !is_array($plan['actions'])) {
+            return false;
+        }
+
+        if ((bool) ($plan['parse_error'] ?? false)) {
+            return false;
+        }
+
+        $source = strtolower((string) ($plan['source'] ?? ''));
+        if (str_contains($source, 'format-repair') || str_contains($source, 'broken')) {
             return false;
         }
 
