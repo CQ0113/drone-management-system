@@ -108,32 +108,30 @@
         .survivor-alert {
             animation: survivorPulse 0.9s ease-in-out infinite alternate;
         }
-
         .terminal-scroll {
-            overflow-y: auto;
+            overflow-y: scroll !important;
             overflow-x: hidden;
             overscroll-behavior: contain;
             scrollbar-width: thin;
-            scrollbar-color: rgba(34, 211, 238, 0.4) transparent;
+            scrollbar-color: rgba(34, 211, 238, 0.4) rgba(8, 18, 30, 0.4);
         }
 
         .terminal-scroll::-webkit-scrollbar {
-            width: 6px;
+            width: 8px;
         }
 
         .terminal-scroll::-webkit-scrollbar-track {
-            background: transparent;
+            background: rgba(8, 18, 30, 0.5);
+            border-radius: 4px;
         }
 
         .terminal-scroll::-webkit-scrollbar-thumb {
-            background: rgba(34, 211, 238, 0.3);
-            border-radius: 999px;
-            border: 1px solid transparent;
-            background-clip: content-box;
+            background: rgba(34, 211, 238, 0.4);
+            border-radius: 4px;
         }
 
         .terminal-scroll::-webkit-scrollbar-thumb:hover {
-            background-color: rgba(34, 211, 238, 0.6);
+            background-color: rgba(34, 211, 238, 0.7);
         }
 
         @keyframes survivorPulse {
@@ -169,13 +167,13 @@
         </div>
         </header>
 
-        <aside class="pointer-events-auto mx-4 mt-4 glass-panel rounded-xl p-4 md:absolute md:top-[115px] md:left-4 md:right-auto md:mt-0 md:w-[300px] md:max-w-[90vw] md:mx-0 flex flex-col max-h-[calc(100vh-[115px]-1rem)] shadow-2xl shadow-cyan-900/20 overflow-y-scroll terminal-scroll">
+        <aside class="pointer-events-auto mx-4 mt-4 glass-panel rounded-xl p-4 md:absolute md:top-[115px] md:left-4 md:right-auto md:mt-0 md:w-[300px] md:max-w-[90vw] md:mx-0 flex flex-col max-h-[calc(100vh-360px)] shadow-2xl shadow-cyan-900/20 z-40">
             <div class="flex items-center gap-2 mb-4 shrink-0 border-b border-cyan-800/50 pb-3">
                 <div class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></div>
                 <h2 class="font-display text-sm uppercase tracking-[0.2em] text-cyan-300">Tactical Deploy</h2>
             </div>
             
-            <div class="flex-1 space-y-5">
+            <div class="flex-1 min-h-0 overflow-y-scroll terminal-scroll pr-2 space-y-5">
                 <!-- Primary Placement -->
                 <div class="space-y-2.5">
                     <button class="hud-btn active w-full rounded-md py-2.5 px-3 text-left font-medium text-sm flex items-center justify-between" data-mode="base">
@@ -239,15 +237,15 @@
             </div>
         </aside>
 
-        <aside class="pointer-events-auto mx-4 mt-4 glass-panel rounded-xl p-4 md:absolute md:top-[115px] md:left-auto md:right-4 md:mt-0 md:w-[320px] md:max-w-[92vw] md:mx-0 flex flex-col max-h-[calc(100vh-[115px]-1rem)] shadow-2xl shadow-cyan-900/20">
+        <aside class="pointer-events-auto mx-4 mt-4 glass-panel rounded-xl p-4 md:absolute md:top-[115px] md:left-auto md:right-4 md:mt-0 md:w-[320px] md:max-w-[92vw] md:mx-0 flex flex-col max-h-[calc(100vh-360px)] shadow-2xl shadow-cyan-900/20 z-40">
             <div class="flex items-center gap-2 mb-4 shrink-0 border-b border-cyan-800/50 pb-3">
                 <div class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
                 <h2 class="font-display text-sm uppercase tracking-[0.2em] text-cyan-300">Swarm Telemetry</h2>
             </div>
-            <ul id="drone-status-list" class="space-y-2.5 text-sm overflow-y-auto pr-2 terminal-scroll flex-1 min-h-0"></ul>
+            <ul id="drone-status-list" class="space-y-2.5 text-sm overflow-y-scroll terminal-scroll flex-1 min-h-0 pr-2"></ul>
         </aside>
 
-        <section id="dashboard-section" class="pointer-events-auto fixed left-4 right-4 bottom-3 z-30 glass-panel rounded-xl p-4 h-[350px] sm:h-[360px] md:bottom-4 md:h-[300px]">
+        <section id="dashboard-section" class="pointer-events-auto fixed left-4 right-4 bottom-3 z-30 glass-panel rounded-xl p-4 h-[350px] sm:h-[360px] md:bottom-4 md:h-[300px] overflow-hidden">
             <div class="mb-3 flex flex-col sm:flex-row sm:items-center justify-between border-b border-cyan-800/40 pb-3 gap-3">
                 <div class="flex flex-col sm:flex-row sm:items-center gap-3 md:gap-6">
                     <div class="flex items-center gap-2">
