@@ -1250,6 +1250,44 @@
             }
         }
 
+        function deploySwarm() {
+            if (!state.base) {
+                appendMissionLog('Deployment blocked: place one base first.');
+                return;
+            }
+
+            runtime.setupLocked = true;
+            runtime.activeMode = null;
+            if (titleEl) {
+                titleEl.textContent = 'Simulation Active';
+            }
+            if (placementHintEl) {
+                placementHintEl.textContent = 'Grid editing disabled while simulation is running.';
+            }
+            
+            if (deployBtn) {
+                deployBtn.disabled = true;
+                deployBtn.classList.add('opacity-60', 'cursor-not-allowed');
+            }
+
+            modeButtons.forEach((btn) => {
+                btn.disabled = true;
+                btn.classList.remove('active');
+                btn.classList.add('opacity-50', 'cursor-not-allowed');
+            });
+
+            appendMissionLog('Commencing swarm deployment phase...');
+            
+            // Generate drones based on UI state or use defaults
+            ensureDroneMeshes(runtime.droneIds);
+
+            if (USE_MOCK_DATA) {
+                startMockSimulation();
+            } else {
+                startLivePipeline();
+            }
+        }
+
         function restartDeployment() {
             if (!state.base) {
                 appendMissionLog('Restart blocked: place one base before deployment restart.');
