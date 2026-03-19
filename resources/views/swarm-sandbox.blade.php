@@ -50,6 +50,14 @@
             font-family: 'Exo 2', sans-serif;
         }
 
+        :root {
+            --swarm-accent: #22d3ee;
+            --swarm-warning: #f59e0b;
+            --swarm-success: #22c55e;
+            --swarm-danger: #ff2d2d;
+            --swarm-ink: #0b1220;
+        }
+
         #scene-container {
             position: fixed;
             inset: 0;
@@ -144,6 +152,7 @@
     <div id="scene-container"></div>
     <div class="scanline-overlay"></div>
     <div id="survivor-alert" class="hidden fixed top-20 left-1/2 -translate-x-1/2 z-20 pointer-events-none rounded-lg border border-amber-300/70 bg-amber-500/20 px-5 py-3 text-amber-100 font-display tracking-wide text-sm md:text-base"></div>
+    <div id="sprite-status" class="hidden fixed top-4 right-4 z-20 pointer-events-none rounded-lg border border-cyan-500/40 bg-slate-950/60 px-4 py-2 text-cyan-100 font-mono text-xs shadow-lg"></div>
 
     <div class="fixed inset-0 z-10 pointer-events-none overflow-y-auto overscroll-contain md:overflow-hidden">
         <div class="relative min-h-[1040px] pb-4 pt-4 md:min-h-full md:pb-0 md:pt-0">
@@ -378,6 +387,28 @@
         const SWARM_WS_URL = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws/swarm`;
         const DASHBOARD_VIEW_STORAGE_KEY = 'swarm.dashboard.view';
 
+        function readCssHexVar(name, fallback) {
+            const raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+            return raw || fallback;
+        }
+
+        function cssHexToNumber(hex) {
+            const cleaned = String(hex || '').trim().replace('#', '');
+            if (!cleaned) return 0;
+            return parseInt(cleaned.length === 3
+                ? cleaned.split('').map((c) => c + c).join('')
+                : cleaned
+            , 16);
+        }
+
+        const UI_THEME = Object.freeze({
+            accent: cssHexToNumber(readCssHexVar('--swarm-accent', '#22d3ee')),
+            warning: cssHexToNumber(readCssHexVar('--swarm-warning', '#f59e0b')),
+            success: cssHexToNumber(readCssHexVar('--swarm-success', '#22c55e')),
+            danger: cssHexToNumber(readCssHexVar('--swarm-danger', '#ff2d2d')),
+            ink: cssHexToNumber(readCssHexVar('--swarm-ink', '#0b1220')),
+        });
+
         const state = {
             base: null,
             survivors: [],
@@ -451,6 +482,7 @@
         const dashboardTuneViewEl = document.getElementById('dashboard-tune-view');
         const dashboardDebugViewEl = document.getElementById('dashboard-debug-view');
         const placementHintEl = document.getElementById('placement-hint');
+        const spriteStatusEl = document.getElementById('sprite-status');
         const deployBtn = document.getElementById('deploy-btn');
         const restartBtn = document.getElementById('restart-btn');
         const clearAllBtn = document.getElementById('clear-all-btn');
@@ -479,6 +511,9 @@
         let raycaster;
         let pointer;
         let ground;
+        let droneTexture = null;
+        let survivorTexture = null;
+        let baseTexture = null;
         let animationHandle;
         let survivorAlertTimer = null;
         let controls;
@@ -561,6 +596,10 @@
             controls.enableDamping = true;
             controls.dampingFactor = 0.05;
             controls.maxPolarAngle = Math.PI / 2 - 0.05;
+
+            loadSpriteSheetTexture().then(() => {
+                upgradePlacedObjectsToSprites();
+            });
 
             dragControls = new window.DragControls(placementMeshes.obstacles, camera, labelRenderer.domElement);
             dragControls.addEventListener('dragstart', function () {
@@ -659,7 +698,7 @@
                 objectsToCheck = placementMeshes.obstacles;
             }
 
-            const intersects = raycaster.intersectObjects(objectsToCheck);
+            const intersects = raycaster.intersectObjects(objectsToCheck, true);
 
             
             if (hoveredObject) {
@@ -1059,14 +1098,15 @@
                     ? placementMeshes.survivors 
                     : placementMeshes.obstacles;
                 
-                const hits = raycaster.intersectObjects(objectsToCheck);
+                const hits = raycaster.intersectObjects(objectsToCheck, true);
                 
                 if (hits.length > 0) {
                     const hitObject = hits[0].object;
-                    const index = objectsToCheck.indexOf(hitObject);
+                    const rootObject = (hitObject && hitObject.userData && hitObject.userData.root) ? hitObject.userData.root : hitObject;
+                    const index = objectsToCheck.indexOf(rootObject);
                     
                     if (index !== -1) {
-                        scene.remove(hitObject);
+                        scene.remove(rootObject);
                         
                         if (runtime.activeMode === 'delete-survivor') {
                             placementMeshes.survivors.splice(index, 1);
@@ -1079,7 +1119,7 @@
                             appendMissionLog(`Obstacle ${index + 1} deleted`);
                         }
                         
-                        if (hoveredObject === hitObject) {
+                        if (hoveredObject === hitObject || hoveredObject === rootObject) {
                             hoveredObject = null;
                         }
                     }
@@ -1120,17 +1160,394 @@
             return Math.max(-49, Math.min(49, Math.round(value)));
         }
 
+        function loadSpriteSheetTexture() {
+            return Promise.all([
+                loadTexture('/images/Drone.webp'),
+                loadTexture('/images/survivorfinal.webp'),
+                loadTexture('/images/basefinal.webp')
+            ]).then(([dT, sT, bT]) => {
+                droneTexture = dT;
+                survivorTexture = sT;
+                baseTexture = bT;
+                appendMissionLog('High-res individual sprites loaded.');
+                if (spriteStatusEl) {
+                    spriteStatusEl.textContent = 'Sprites: loaded';
+                    spriteStatusEl.classList.remove('hidden');
+                    setTimeout(() => spriteStatusEl.classList.add('hidden'), 3000);
+                }
+            }).catch(e => {
+                console.error('Sprite load error:', e);
+                appendMissionLog('Sprite load failed: ' + e + ' (fallback to 3D).');
+                if (spriteStatusEl) {
+                    spriteStatusEl.textContent = 'Sprites: FAILED (fallback)';
+                    spriteStatusEl.classList.remove('hidden');
+                }
+            });
+        }
+
+        function loadTexture(url) {
+            return new Promise((resolve, reject) => {
+                const loader = new THREE.TextureLoader();
+                loader.load(url + '?v=' + Date.now(), tex => {
+                    tex.colorSpace = THREE.SRGBColorSpace;
+                    tex.wrapS = THREE.ClampToEdgeWrapping;
+                    tex.wrapT = THREE.ClampToEdgeWrapping;
+                    tex.minFilter = THREE.LinearMipmapLinearFilter;
+                    tex.magFilter = THREE.LinearFilter;
+                    resolve(tex);
+                }, undefined, reject);
+            });
+        }
+
+        function createCutoutSpritePlane({ texture, u0, v0, u1, v1, width, height, alphaKey = 0.02, billboard = true, rotateX = 0, yOffset = null, dropBlack = false }) {
+            const group = new THREE.Group();
+            group.userData.kind = 'sprite';
+
+            if (!texture) {
+                return group;
+            }
+
+            const geom = new THREE.PlaneGeometry(width, height);
+
+            const mat = new THREE.ShaderMaterial({
+                transparent: true,
+                side: THREE.DoubleSide,
+                depthWrite: true, // Crucial for correct overlapping in 3D
+                uniforms: {
+                    map: { value: texture },
+                    uvOffset: { value: new THREE.Vector2(u0, v0) },
+                    uvScale: { value: new THREE.Vector2(u1 - u0, v1 - v0) },
+                    alphaKey: { value: alphaKey },
+                    dropBlack: { value: dropBlack }
+                },
+                vertexShader: `
+                    varying vec2 vUv;
+                    uniform vec2 uvOffset;
+                    uniform vec2 uvScale;
+                    void main() {
+                        vUv = uvOffset + (uv * uvScale);
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    }
+                `,
+                fragmentShader: `
+                    uniform sampler2D map;
+                    uniform float alphaKey;
+                    uniform bool dropBlack;
+                    varying vec2 vUv;
+                    void main() {
+                        vec4 c = texture2D(map, vUv);
+                        
+                        if (dropBlack) {
+                            float luma = dot(c.rgb, vec3(0.2126, 0.7152, 0.0722));
+                            float a = smoothstep(alphaKey, alphaKey + 0.08, luma);
+                            if (a < 0.01) discard;
+                            c.a = min(c.a, a);
+                        }
+                        
+                        // Use native alpha channel from the WebP/PNG
+                        if (c.a < 0.05) {
+                            discard;
+                        }
+                        
+                        gl_FragColor = c;
+                    }
+                `
+            });
+
+            const plane = new THREE.Mesh(geom, mat);
+            plane.userData.root = group;
+            
+            plane.rotation.x = rotateX;
+            plane.position.y = yOffset !== null ? yOffset : height / 2;
+            group.add(plane);
+
+            if (billboard) {
+                group.userData.billboard = true;
+            }
+
+            return group;
+        }
+
+        function tickBillboards() {
+            if (!scene || !camera) return;
+            scene.traverse((obj) => {
+                if (obj && obj.userData && obj.userData.billboard) {
+                    obj.lookAt(camera.position);
+                }
+            });
+        }
+
+        function isSpriteObject(obj) {
+            return Boolean(obj && obj.userData && obj.userData.billboard);
+        }
+
+        function upgradePlacedObjectsToSprites() {
+            if (!droneTexture || !survivorTexture || !baseTexture || !scene) {
+                return;
+            }
+
+            // Base
+            if (placementMeshes.base && !isSpriteObject(placementMeshes.base)) {
+                const { x, z } = placementMeshes.base.position || { x: 0, z: 0 };
+                scene.remove(placementMeshes.base);
+                placementMeshes.base = null;
+                state.base = null;
+                placeBase(snapCoord(x), snapCoord(z));
+            }
+
+            // Survivors
+            if (Array.isArray(placementMeshes.survivors) && placementMeshes.survivors.length) {
+                const survivors = [...placementMeshes.survivors].map((mesh, idx) => ({
+                    mesh,
+                    state: state.survivors[idx]
+                }));
+
+                const toRecreate = survivors.filter(({ mesh }) => mesh && !isSpriteObject(mesh));
+                if (toRecreate.length) {
+                    // Clear and re-place from state to keep indices stable.
+                    placementMeshes.survivors.forEach((mesh) => mesh && scene.remove(mesh));
+                    placementMeshes.survivors = [];
+                    const prev = [...state.survivors];
+                    state.survivors = [];
+                    prev.forEach((s) => placeSurvivor(s.x, s.z));
+                }
+            }
+
+            // Drones (only if already created)
+            if (runtime && runtime.drones) {
+                Object.values(runtime.drones).forEach((drone) => {
+                    if (!drone || !drone.mesh || isSpriteObject(drone.mesh)) return;
+                    const id = drone.id;
+                    const pos = drone.mesh.position.clone();
+                    scene.remove(drone.mesh);
+
+                    const mesh = createDroneMesh();
+                    const droneDiv = document.createElement('div');
+                    droneDiv.className = 'text-[11px] font-mono font-bold px-1.5 py-0.5 bg-slate-900/90 text-cyan-300 rounded border border-cyan-500/50 shadow-lg';
+                    droneDiv.textContent = id;
+                    const droneLabel = new window.CSS2DObject(droneDiv);
+                    droneLabel.position.set(0, 6.0, 0); // Position cleanly above drone
+                    mesh.add(droneLabel);
+
+                    mesh.position.copy(pos);
+                    scene.add(mesh);
+                    drone.mesh = mesh;
+                });
+            }
+        }
+
+        function createDroneMesh() {
+            const group = new THREE.Group();
+            group.userData.kind = 'drone';
+
+            // Prefer sprite look when available.
+            if (droneTexture) {
+                return createCutoutSpritePlane({
+                    texture: droneTexture,
+                    u0: 0.000, v0: 0.00,
+                    u1: 1.000, v1: 1.00,
+                    width: 5.5, height: 5.5, // Increased size to match scale
+                    alphaKey: 0.05,
+                    billboard: true, // Face camera
+                    rotateX: 0, 
+                    yOffset: 2.0 // Lowered due to image padding
+                });
+            }
+
+            const bodyMat = new THREE.MeshStandardMaterial({
+                color: UI_THEME.ink,
+                roughness: 0.55,
+                metalness: 0.35
+            });
+            const accentMat = new THREE.MeshStandardMaterial({
+                color: UI_THEME.danger,
+                roughness: 0.35,
+                metalness: 0.2,
+                emissive: new THREE.Color(UI_THEME.danger),
+                emissiveIntensity: 0.35
+            });
+
+            const body = new THREE.Mesh(new THREE.BoxGeometry(1.35, 0.35, 1.35), bodyMat);
+            body.position.y = 0.85;
+            body.userData.root = group;
+            group.add(body);
+
+            const core = new THREE.Mesh(new THREE.CylinderGeometry(0.23, 0.23, 0.55, 18), accentMat);
+            core.rotation.x = Math.PI / 2;
+            core.position.y = 1.03;
+            core.userData.root = group;
+            group.add(core);
+
+            const armGeo = new THREE.BoxGeometry(1.25, 0.12, 0.18);
+            const arm1 = new THREE.Mesh(armGeo, bodyMat);
+            arm1.position.set(0, 0.92, 0);
+            arm1.userData.root = group;
+            group.add(arm1);
+
+            const arm2 = new THREE.Mesh(armGeo, bodyMat);
+            arm2.rotation.y = Math.PI / 2;
+            arm2.position.set(0, 0.92, 0);
+            arm2.userData.root = group;
+            group.add(arm2);
+
+            const rotorMat = new THREE.MeshStandardMaterial({
+                color: 0x1f2937,
+                roughness: 0.7,
+                metalness: 0.15
+            });
+            const rotorGeo = new THREE.CylinderGeometry(0.22, 0.22, 0.12, 16);
+            const capGeo = new THREE.CylinderGeometry(0.08, 0.08, 0.16, 12);
+
+            const rotorPositions = [
+                [0.72, 0.95, 0.72],
+                [-0.72, 0.95, 0.72],
+                [0.72, 0.95, -0.72],
+                [-0.72, 0.95, -0.72],
+            ];
+
+            rotorPositions.forEach(([x, y, z], idx) => {
+                const rotor = new THREE.Mesh(rotorGeo, rotorMat);
+                rotor.position.set(x, y, z);
+                rotor.userData.root = group;
+                group.add(rotor);
+
+                const cap = new THREE.Mesh(capGeo, idx % 2 === 0 ? accentMat : bodyMat);
+                cap.position.set(x, y + 0.12, z);
+                cap.userData.root = group;
+                group.add(cap);
+            });
+
+            group.traverse((obj) => {
+                if (obj && obj.isMesh) {
+                    obj.castShadow = true;
+                }
+            });
+
+            return group;
+        }
+
+        function createBaseMesh() {
+            const group = new THREE.Group();
+            group.userData.kind = 'base';
+
+            if (baseTexture) {
+                return createCutoutSpritePlane({
+                    texture: baseTexture,
+                    u0: 0.000, v0: 0.00,
+                    u1: 1.000, v1: 1.00,
+                    width: 7.0, height: 7.0, // Larger landing pad
+                    alphaKey: 0.015,
+                    billboard: true, // Must face camera so perspective artwork isn't squashed
+                    rotateX: 0,
+                    yOffset: 1.5 // Lift center enough so the artwork precisely touches the grid without floating
+                });
+            }
+
+            const baseMat = new THREE.MeshStandardMaterial({
+                color: UI_THEME.ink,
+                roughness: 0.65,
+                metalness: 0.35
+            });
+            const ringMat = new THREE.MeshStandardMaterial({
+                color: UI_THEME.accent,
+                roughness: 0.35,
+                metalness: 0.15,
+                emissive: new THREE.Color(UI_THEME.accent),
+                emissiveIntensity: 0.55
+            });
+
+            const pad = new THREE.Mesh(new THREE.CylinderGeometry(1.55, 1.75, 0.45, 36), baseMat);
+            pad.position.y = 0.23;
+            pad.userData.root = group;
+            group.add(pad);
+
+            const ring = new THREE.Mesh(new THREE.TorusGeometry(1.18, 0.09, 16, 52), ringMat);
+            ring.rotation.x = Math.PI / 2;
+            ring.position.y = 0.47;
+            ring.userData.root = group;
+            group.add(ring);
+
+            const beacon = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.65, 14), ringMat);
+            beacon.position.y = 0.85;
+            beacon.userData.root = group;
+            group.add(beacon);
+
+            group.traverse((obj) => {
+                if (obj && obj.isMesh) {
+                    obj.castShadow = true;
+                    obj.receiveShadow = true;
+                }
+            });
+
+            return group;
+        }
+
+        function createSurvivorMesh() {
+            const group = new THREE.Group();
+            group.userData.kind = 'survivor';
+
+            if (survivorTexture) {
+                return createCutoutSpritePlane({
+                    texture: survivorTexture,
+                    u0: 0.000, v0: 0.00,
+                    u1: 1.000, v1: 1.00,
+                    width: 8.5, height: 8.5, // Robust visible character
+                    alphaKey: 0.05,
+                    billboard: true, // Keep survivor standing and facing camera
+                    yOffset: 2.0 // Push feet to the floor accounting for image padding
+                });
+            }
+
+            const hoodieMat = new THREE.MeshStandardMaterial({
+                color: UI_THEME.ink,
+                roughness: 0.7,
+                metalness: 0.05
+            });
+            const skinMat = new THREE.MeshStandardMaterial({
+                color: 0xe7c4a5,
+                roughness: 0.85,
+                metalness: 0.02
+            });
+            const visorMat = new THREE.MeshStandardMaterial({
+                color: UI_THEME.warning,
+                roughness: 0.25,
+                metalness: 0.1,
+                emissive: new THREE.Color(UI_THEME.warning),
+                emissiveIntensity: 0.25
+            });
+
+            const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.45, 0.75, 6, 14), hoodieMat);
+            body.position.y = 0.85;
+            body.userData.root = group;
+            group.add(body);
+
+            const head = new THREE.Mesh(new THREE.SphereGeometry(0.28, 16, 16), skinMat);
+            head.position.y = 1.55;
+            head.userData.root = group;
+            group.add(head);
+
+            const visor = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.12, 0.12), visorMat);
+            visor.position.set(0, 1.53, 0.24);
+            visor.userData.root = group;
+            group.add(visor);
+
+            group.traverse((obj) => {
+                if (obj && obj.isMesh) {
+                    obj.castShadow = true;
+                }
+            });
+
+            return group;
+        }
+
         function placeBase(x, z) {
             if (state.base) {
                 appendMissionLog('Base placement blocked: base already set.');
                 return;
             }
 
-            const mesh = new THREE.Mesh(
-                new THREE.BoxGeometry(2.6, 2.6, 2.6),
-                new THREE.MeshStandardMaterial({ color: 0x2f8cff, metalness: 0.35, roughness: 0.5 })
-            );
-            mesh.position.set(x, 1.3, z);
+            const mesh = createBaseMesh();
+            mesh.position.set(x, 0, z);
             scene.add(mesh);
 
             placementMeshes.base = mesh;
@@ -1140,17 +1557,14 @@
         }
 
         function placeSurvivor(x, z) {
-            const mesh = new THREE.Mesh(
-                new THREE.SphereGeometry(1, 20, 20),
-                new THREE.MeshStandardMaterial({ color: 0x3ef98d, roughness: 0.4, metalness: 0.1 })
-            );
-            mesh.position.set(x, 1, z);
+            const mesh = createSurvivorMesh();
+            mesh.position.set(x, 0, z);
 
             const survDiv = document.createElement('div');
             survDiv.className = 'text-[11px] font-mono font-bold px-1.5 py-0.5 bg-slate-900/90 text-amber-300 rounded border border-amber-500/50 shadow-lg';
             survDiv.textContent = 'S' + (state.survivors.length + 1);
             const survLabel = new window.CSS2DObject(survDiv);
-            survLabel.position.set(0, 2.5, 0); // Raised slightly so it's visible over the sphere
+            survLabel.position.set(0, 5.0, 0); // Position clearly over survivor's head
             mesh.add(survLabel);
 
             scene.add(mesh);
@@ -1425,17 +1839,13 @@
 
             orderedIds.forEach((id, index) => {
                 if (!runtime.drones[id]) {
-                    const mesh = new THREE.Mesh(
-                        new THREE.ConeGeometry(0.8, 2.1, 12),
-                        new THREE.MeshStandardMaterial({ color: 0xff4a4a, roughness: 0.4, metalness: 0.2 })
-                    );
-                    mesh.rotation.x = Math.PI;
+                    const mesh = createDroneMesh();
 
                     const droneDiv = document.createElement('div');
                     droneDiv.className = 'text-[11px] font-mono font-bold px-1.5 py-0.5 bg-slate-900/90 text-cyan-300 rounded border border-cyan-500/50 shadow-lg';
                     droneDiv.textContent = id;
                     const droneLabel = new window.CSS2DObject(droneDiv);
-                    droneLabel.position.set(0, -3.2, 0); // Pushed further away from base of flipped cone
+                    droneLabel.position.set(0, 6.0, 0); // Position cleanly above drone
                     mesh.add(droneLabel);
 
                     scene.add(mesh);
@@ -1461,7 +1871,7 @@
                 drone.scanActive = false;
                 drone.targetX = state.base.x + offsets[index].x;
                 drone.targetZ = state.base.z + offsets[index].z;
-                drone.mesh.position.set(drone.targetX, 1.45, drone.targetZ);
+                drone.mesh.position.set(drone.targetX, 0, drone.targetZ);
                 if (drone.scanMesh) {
                     drone.scanMesh.position.set(drone.targetX, 0.08, drone.targetZ);
                     drone.scanMesh.visible = false;
@@ -2395,7 +2805,7 @@
             const mesh = new THREE.Mesh(
                 new THREE.RingGeometry(radius - 0.18, radius, 48),
                 new THREE.MeshBasicMaterial({
-                    color: 0x36f5c7,
+                    color: UI_THEME.accent,
                     transparent: true,
                     opacity: 0.45,
                     side: THREE.DoubleSide,
@@ -2591,7 +3001,9 @@
                     drone.targetX - drone.mesh.position.x,
                     drone.targetZ - drone.mesh.position.z
                 );
-                drone.mesh.rotation.y = yaw;
+                if (!(drone.mesh.userData && drone.mesh.userData.billboard)) {
+                    drone.mesh.rotation.y = yaw;
+                }
 
                 if (drone.scanMesh) {
                     drone.scanMesh.position.x = drone.mesh.position.x;
@@ -2610,6 +3022,7 @@
                 }
             });
 
+            tickBillboards();
             if (controls) controls.update();
             renderer.render(scene, camera);
             if (labelRenderer) labelRenderer.render(scene, camera);
