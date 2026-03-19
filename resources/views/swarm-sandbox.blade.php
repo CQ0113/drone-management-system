@@ -2925,7 +2925,7 @@
                     ? `Temp ${info.temperature_c}C | HR ${info.heart_rate_bpm} | SpO2 ${info.blood_oxygen_spo2}% | ${info.condition}`
                     : 'No vitals available';
                 return `<div class="mb-2 rounded border border-amber-700/50 bg-amber-500/10 p-2">
-                    <div class="font-semibold">S${entry.index} found by ${entry.droneId}</div>
+                    <div class="font-semibold">S${entry.index + 1} found by ${entry.droneId}</div>
                     <div class="text-[11px] text-amber-200">${infoLine}</div>
                     <div class="text-[11px] text-slate-300">X:${Math.round(entry.x)} Z:${Math.round(entry.z)} at ${entry.foundAt}</div>
                 </div>`;
