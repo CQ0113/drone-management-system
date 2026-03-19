@@ -1,59 +1,222 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Drone Management System
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+A Laravel-based drone swarm simulation and command center for search-and-rescue scenarios.
 
-## About Laravel
+This project provides:
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+- A 3D swarm sandbox UI at `/swarm-sandbox`
+- API endpoints to initialize maps and run simulation ticks
+- Local LLM planning with Ollama
+- A CLI background runner for single-source-of-truth tick execution
+- Runtime cache/state tracking (setup, drones, found survivors, planner cache)
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Core Features
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+- Interactive map setup with base, survivors, and obstacles
+- Prebuilt default maps (`map1` to `map5`)
+- AI planner that outputs per-drone actions (`scan_sector`, `move_to`, `return_to_base`)
+- Battery-aware simulation, scan detection, and survivor discovery
+- CLI-driven simulation loop (`swarm:run-ai`) with timing metrics
+- Read-only state polling endpoint for frontend (`/api/swarm/state`)
 
-## Learning Laravel
+## Tech Stack
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+- Backend: PHP 8.2+, Laravel 12
+- Frontend: Blade, Vite, Tailwind CSS, Three.js
+- AI: Ollama local model endpoint
+- Storage: SQLite (default), Laravel database cache store
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+## Requirements
 
-## Laravel Sponsors
+- PHP 8.2+
+- Composer
+- Node.js 18+ and npm
+- SQLite
+- Ollama installed and running
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+## Installation
 
-### Premium Partners
+1. Clone repository
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+```bash
+git clone <your-repo-url>
+cd drone-management-system
+```
 
-## Contributing
+2. Install PHP dependencies
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+```bash
+composer install
+```
 
-## Code of Conduct
+3. Create environment file
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+```bash
+cp .env.example .env
+```
 
-## Security Vulnerabilities
+On Windows PowerShell:
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+```powershell
+Copy-Item .env.example .env
+```
+
+4. Generate app key
+
+```bash
+php artisan key:generate
+```
+
+5. Create SQLite database file (if missing)
+
+```bash
+mkdir -p database
+touch database/database.sqlite
+```
+
+On Windows PowerShell:
+
+```powershell
+if (!(Test-Path database\database.sqlite)) { New-Item -ItemType File database\database.sqlite | Out-Null }
+```
+
+6. Run migrations
+
+```bash
+php artisan migrate
+```
+
+7. Install frontend dependencies
+
+```bash
+npm install
+```
+
+8. Build frontend assets
+
+```bash
+npm run build
+```
+
+9. Pull and run Ollama model
+
+```bash
+ollama pull qwen2.5:0.5b
+ollama serve
+```
+
+You can use another model by changing `OLLAMA_MODEL` in `.env`.
+
+## Environment Configuration
+
+Important `.env` values:
+
+- `APP_URL=http://localhost:8000`
+- `CACHE_STORE=database`
+- `LLM_PROVIDER=ollama`
+- `OLLAMA_BASE_URL=http://127.0.0.1:11434`
+- `OLLAMA_MODEL=qwen2.5:0.5b` (or your preferred model)
+- `SWARM_FRONTEND_TICK_MODE=state_poll`
+- `SWARM_ENFORCE_CLI_SSOT=true`
+
+If you get `No application encryption key has been specified`, run:
+
+```bash
+php artisan key:generate
+php artisan config:clear
+```
+
+## Run the Project
+
+Use separate terminals.
+
+1. Start Laravel server
+
+```bash
+php artisan serve --host=127.0.0.1 --port=8000
+```
+
+2. Start CLI swarm runner
+
+```bash
+php artisan swarm:run-ai --init-if-missing
+```
+
+3. Open UI
+
+`http://127.0.0.1:8000/swarm-sandbox`
+
+## Initialize a Map Quickly
+
+Initialize with default map 1:
+
+```powershell
+Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/init-swarm" -Method Post -ContentType "application/json" -Body '{"use_default_map":"map1"}'
+```
+
+Or list available maps:
+
+```bash
+curl http://127.0.0.1:8000/api/swarm/maps
+```
+
+## Useful Commands
+
+- Run tests:
+
+```bash
+php artisan test
+```
+
+- Clear caches:
+
+```bash
+php artisan config:clear
+php artisan cache:clear
+php artisan optimize:clear
+```
+
+- List swarm cache keys:
+
+```powershell
+php artisan tinker --execute="DB::table('cache')->where('key','like','%swarm%')->get(['key','expiration'])->each(function(`$r){echo `$r->key.' | '.`$r->expiration.PHP_EOL;});"
+```
+
+- Watch found survivors in cache:
+
+```powershell
+while ($true) { php artisan tinker --execute="echo now()->format('H:i:s').' | '.json_encode(Cache::get('swarm:found_survivors', []), JSON_UNESCAPED_SLASHES).PHP_EOL;"; Start-Sleep -Seconds 1 }
+```
+
+## API Overview
+
+- `POST /api/init-swarm`
+- `POST /api/llm/plan`
+- `POST /api/swarm/tick`
+- `GET /api/swarm/state`
+- `GET /api/swarm/settings`
+- `POST /api/swarm/settings`
+- `GET /api/swarm/maps`
+- `GET /api/swarm/maps/{mapId}`
+
+## Troubleshooting
+
+### 500 on `/swarm-sandbox`
+
+- Ensure `APP_KEY` is set in `.env`
+- Run cache clear commands
+- Check `storage/logs/laravel.log`
+
+### `sqlite3` command not found on Windows
+
+- Use `php artisan tinker` queries instead of sqlite CLI
+
+### Runner timeouts or stale-cache spikes
+
+- Confirm Ollama server is running
+- Verify `OLLAMA_BASE_URL` and model name
+- Tune `OLLAMA_TIMEOUT`, planner cache, and stale fallback env values
 
 ## License
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+MIT
