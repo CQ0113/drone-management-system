@@ -191,9 +191,23 @@
                     <button id="btn-place-survivor" class="hud-btn w-full rounded-md py-2.5 px-3 text-left font-medium text-sm flex items-center justify-between transition-colors duration-500" data-mode="survivor">
                         <span>Place Survivor</span>
                     </button>
-                    <button class="hud-btn w-full rounded-md py-2.5 px-3 text-left font-medium text-sm flex items-center justify-between" data-mode="obstacle">
+                  <button class="hud-btn w-full rounded-md py-2.5 px-3 text-left font-medium text-sm flex items-center justify-between" data-mode="obstacle">
                         <span>Place Obstacle</span>
                     </button>
+                    <!-- CV Webcam Scanner -->
+                    <div class="space-y-2 mt-3 bg-cyan-950/20 p-2 rounded-lg border border-cyan-900/30">
+                        <h3 class="text-[10px] uppercase tracking-widest text-cyan-400 font-display mb-1 ml-1">
+                            CV Detection
+                        </h3>
+                        <button id="btn-cv-scan"
+                            onclick="triggerCVScan()"
+                            class="hud-btn w-full rounded-md py-2.5 px-3 text-left font-medium text-sm flex items-center justify-between">
+                            <span>📷 Scan for Survivors</span>
+                        </button>
+                        <div id="cv-scan-status" class="text-[10px] text-cyan-400 ml-1 hidden"></div>
+                    </div>
+```
+
                 </div>
                 
                 <!-- Removal Tools -->
@@ -3085,6 +3099,60 @@
                 cancelAnimationFrame(animationHandle);
             }
         });
+        // ── CV Webcam Scanner ─────────────────────────────────────
+async function triggerCVScan() {
+    const btn    = document.getElementById('btn-cv-scan');
+    const status = document.getElementById('cv-scan-status');
+
+    // Show scanning state
+    btn.disabled         = true;
+    btn.innerHTML        = '<span>📷 Scanning... (5s)</span>';
+    status.classList.remove('hidden');
+    status.textContent   = '⏳ Webcam active, scanning...';
+    status.style.color   = '#67e8f9';
+
+    try {
+        // Trigger scan via Laravel
+        const response = await fetch('/api/cv/trigger-scan', {
+            method: 'POST',
+            headers: {
+                'Content-Type':  'application/json',
+                'Accept':        'application/json',
+                'X-CSRF-TOKEN':  document.querySelector('meta[name="csrf-token"]')?.content || ''
+            }
+        });
+
+        const data = await response.json();
+
+        if (data.found > 0) {
+            status.textContent = `✅ Found ${data.found} survivor(s)!`;
+            status.style.color = '#4ade80';
+
+            // Place each detected survivor on the map
+            data.survivors.forEach(survivor => {
+                addCVSurvivor(survivor);
+            });
+
+        } else {
+            status.textContent = '❌ No survivors detected';
+            status.style.color = '#f87171';
+        }
+
+    } catch (e) {
+        status.textContent = '⚠️ Scanner error: ' + e.message;
+        status.style.color = '#fb923c';
+    }
+
+    // Reset button
+    btn.disabled      = false;
+    btn.innerHTML     = '<span>📷 Scan for Survivors</span>';
+}
+
+function addCVSurvivor(survivor) {
+    // Use the existing placeSurvivor function directly!
+    placeSurvivor(survivor.x, survivor.z);
+    console.log(`✅ CV Survivor placed at (${survivor.x}, ${survivor.z}) confidence=${survivor.confidence}%`);
+}
     </script>
 </body>
 </html>

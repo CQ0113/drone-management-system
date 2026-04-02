@@ -27,3 +27,9 @@ Route::prefix('swarm')->group(function () {
     Route::get('maps', [SwarmController::class, 'getDefaultMaps']);
     Route::get('maps/{mapId}', [SwarmController::class, 'getDefaultMap']);
 });
+use App\Http\Controllers\CvDetectionController;
+
+Route::post('/cv/survivors-detected', [CvDetectionController::class, 'survivorsDetected']);
+Route::get('/cv/detections',          [CvDetectionController::class, 'getDetections']);
+Route::post('/cv/trigger-scan',       [CvDetectionController::class, 'triggerScan']);
+Route::get('/cv/scan-status',         [CvDetectionController::class, 'scanStatus']);
