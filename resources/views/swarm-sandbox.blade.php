@@ -251,7 +251,27 @@
                 <div class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
                 <h2 class="font-display text-sm uppercase tracking-[0.2em] text-cyan-300">Swarm Telemetry</h2>
             </div>
-            <ul id="drone-status-list" class="space-y-2.5 text-sm overflow-y-scroll terminal-scroll flex-1 min-h-0 pr-2"></ul>
+            <div class="mb-3 flex rounded-md bg-slate-900/80 p-1 border border-cyan-900/50 shadow-inner">
+                <button id="telemetry-status-btn" class="hud-btn active rounded px-3 py-1.5 text-[11px] font-display uppercase tracking-[0.15em] text-cyan-200 transition-all">Status</button>
+                <button id="telemetry-radar-btn" class="hud-btn rounded px-3 py-1.5 text-[11px] font-display uppercase tracking-[0.15em] text-cyan-200 transition-all">Radar</button>
+            </div>
+            <div id="telemetry-status-view" class="flex-1 min-h-0">
+                <ul id="drone-status-list" class="space-y-2.5 text-sm overflow-y-scroll terminal-scroll flex-1 min-h-0 pr-2"></ul>
+            </div>
+            <div id="telemetry-radar-view" class="hidden flex-1 min-h-0 flex flex-col gap-2 overflow-y-auto terminal-scroll pr-1">
+                <div class="flex items-center justify-between">
+                    <h3 class="font-display text-xs uppercase tracking-[0.2em] text-emerald-300">AI Radar Diagnostics</h3>
+                    <span class="text-[10px] uppercase tracking-[0.15em] text-slate-400">Live</span>
+                </div>
+                <div class="rounded-md border border-emerald-900/60 bg-slate-950/70 p-2">
+                    <div class="text-[10px] uppercase tracking-[0.15em] text-emerald-200">Radar Ping</div>
+                    <pre id="ai-radar-ping" class="terminal-scroll mt-1 max-h-[110px] whitespace-pre-wrap break-words text-[11px] leading-relaxed text-emerald-100 font-mono">Awaiting radar ping...</pre>
+                </div>
+                <div class="rounded-md border border-cyan-900/60 bg-slate-950/70 p-2">
+                    <div class="text-[10px] uppercase tracking-[0.15em] text-cyan-200">Vector Commands</div>
+                    <pre id="ai-vector-commands" class="terminal-scroll mt-1 max-h-[110px] whitespace-pre-wrap break-words text-[11px] leading-relaxed text-cyan-100 font-mono">Awaiting vector commands...</pre>
+                </div>
+            </div>
         </aside>
 
         <section id="dashboard-section" class="pointer-events-auto fixed left-4 right-4 bottom-3 z-30 glass-panel rounded-xl p-4 h-[350px] sm:h-[360px] md:bottom-4 md:h-[300px] overflow-y-scroll terminal-scroll">
@@ -386,6 +406,9 @@
         const SWARM_WS_ENABLED = false;
         const SWARM_WS_URL = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws/swarm`;
         const DASHBOARD_VIEW_STORAGE_KEY = 'swarm.dashboard.view';
+        const SCANNED_TILE_SIZE = 1;
+        const SCANNED_TILE_Y = 0.01;
+        const SCANNED_TILE_OPACITY = 0.28;
 
         function readCssHexVar(name, fallback) {
             const raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -493,6 +516,12 @@
         const debugRawActionsLogEl = document.getElementById('debug-raw-actions-log');
         const debugPostMcpLogEl = document.getElementById('debug-post-mcp-log');
         const debugValidatedLogEl = document.getElementById('debug-validated-log');
+        const telemetryStatusBtn = document.getElementById('telemetry-status-btn');
+        const telemetryRadarBtn = document.getElementById('telemetry-radar-btn');
+        const telemetryStatusViewEl = document.getElementById('telemetry-status-view');
+        const telemetryRadarViewEl = document.getElementById('telemetry-radar-view');
+        const radarPingEl = document.getElementById('ai-radar-ping');
+        const vectorCommandsEl = document.getElementById('ai-vector-commands');
         const modelCheckEveryInput = document.getElementById('model-check-every');
         const modelCheckHintEl = document.getElementById('model-check-hint');
         const batteryMoveInput = document.getElementById('battery-move-input');
@@ -519,6 +548,10 @@
         let controls;
         let dragControls;
         let labelRenderer;
+        let scannedTilesGroup;
+        let scannedTileGeometry;
+        let scannedTileMaterial;
+        const scannedTilesSeen = new Set();
 
         ensureThreeLoaded()
             .then(() => {
@@ -650,6 +683,8 @@
             border.rotation.x = -Math.PI / 2;
             border.position.y = 0.02;
             scene.add(border);
+
+            initScannedTilesLayer();
 
             raycaster = new THREE.Raycaster();
             pointer = new THREE.Vector2();
@@ -984,6 +1019,31 @@
             }
             if (dashboardDebugBtn) {
                 dashboardDebugBtn.addEventListener('click', () => setDashboardView('debug'));
+            }
+            if (telemetryStatusBtn) {
+                telemetryStatusBtn.addEventListener('click', () => setTelemetryView('status'));
+            }
+            if (telemetryRadarBtn) {
+                telemetryRadarBtn.addEventListener('click', () => setTelemetryView('radar'));
+            }
+
+            setTelemetryView('status');
+        }
+
+        function setTelemetryView(view) {
+            const nextView = view === 'radar' ? 'radar' : 'status';
+
+            if (telemetryStatusViewEl) {
+                telemetryStatusViewEl.classList.toggle('hidden', nextView !== 'status');
+            }
+            if (telemetryRadarViewEl) {
+                telemetryRadarViewEl.classList.toggle('hidden', nextView !== 'radar');
+            }
+            if (telemetryStatusBtn) {
+                telemetryStatusBtn.classList.toggle('active', nextView === 'status');
+            }
+            if (telemetryRadarBtn) {
+                telemetryRadarBtn.classList.toggle('active', nextView === 'radar');
             }
         }
 
@@ -1643,6 +1703,8 @@
             foundSurvivorSignals.clear();
             foundSurvivorRegistry.clear();
             renderFoundSurvivorRegistry();
+            clearScannedTiles();
+            clearRadarDiagnostics();
             titleEl.textContent = 'Simulation Active';
             placementHintEl.textContent = 'Grid editing disabled while simulation is running.';
             deployBtn.disabled = true;
@@ -1704,6 +1766,8 @@
             foundSurvivorSignals.clear();
             foundSurvivorRegistry.clear();
             renderFoundSurvivorRegistry();
+            clearScannedTiles();
+            clearRadarDiagnostics();
             resetBatteryAnalytics();
 
             appendMissionLog('Deployment restart requested. Reinitializing swarm runtime...');
@@ -1744,6 +1808,9 @@
             placementMeshes.obstacles.forEach((mesh) => scene.remove(mesh));
             placementMeshes.survivors = [];
             placementMeshes.obstacles = [];
+
+            clearScannedTiles();
+            clearRadarDiagnostics();
 
             state.base = null;
             state.survivors = [];
@@ -2074,6 +2141,12 @@
                     if (!Array.isArray(tick.telemetry) || (!FRONTEND_SHARED_STATE_MODE && !tick.ok)) {
                         appendMissionLog('Tick response unavailable.');
                         return;
+                    }
+
+                    updateRadarDiagnostics(tick);
+
+                    if (Array.isArray(tick.scanned_cells)) {
+                        renderScannedCells(tick.scanned_cells);
                     }
 
                     if (tick.mcp && Array.isArray(tick.mcp.discovered_drones) && tick.mcp.discovered_drones.length) {
@@ -2629,6 +2702,12 @@
                         throw new Error(`Trial tick ${tickIndex} returned invalid telemetry.`);
                     }
 
+                    updateRadarDiagnostics(tick);
+
+                    if (Array.isArray(tick.scanned_cells)) {
+                        renderScannedCells(tick.scanned_cells);
+                    }
+
                     if (tick.mcp && Array.isArray(tick.mcp.discovered_drones) && tick.mcp.discovered_drones.length) {
                         const discoveredIds = tick.mcp.discovered_drones
                             .map((entry) => entry && entry.id)
@@ -2818,6 +2897,112 @@
             return mesh;
         }
 
+        function updateRadarDiagnostics(tick) {
+            if (!radarPingEl && !vectorCommandsEl) {
+                return;
+            }
+
+            const radarPing = tick && tick.debug && typeof tick.debug.radar_ping === 'string'
+                ? tick.debug.radar_ping.trim()
+                : '';
+            const vectorText = tick && tick.debug && typeof tick.debug.vector_commands_text === 'string'
+                ? tick.debug.vector_commands_text.trim()
+                : '';
+
+            if (radarPingEl) {
+                radarPingEl.textContent = radarPing.length ? radarPing : '(radar ping unavailable)';
+            }
+            if (vectorCommandsEl) {
+                vectorCommandsEl.textContent = vectorText.length ? vectorText : '(vector commands unavailable)';
+            }
+        }
+
+        function clearRadarDiagnostics() {
+            if (radarPingEl) {
+                radarPingEl.textContent = 'Awaiting radar ping...';
+            }
+            if (vectorCommandsEl) {
+                vectorCommandsEl.textContent = 'Awaiting vector commands...';
+            }
+        }
+
+        function initScannedTilesLayer() {
+            if (!scene) {
+                return;
+            }
+
+            scannedTilesGroup = new THREE.Group();
+            scannedTilesGroup.name = 'scanned-tiles';
+            scannedTilesGroup.renderOrder = 1;
+
+            scannedTileGeometry = new THREE.PlaneGeometry(SCANNED_TILE_SIZE, SCANNED_TILE_SIZE);
+            scannedTileMaterial = new THREE.MeshBasicMaterial({
+                color: UI_THEME.success,
+                transparent: true,
+                opacity: SCANNED_TILE_OPACITY,
+                depthWrite: false
+            });
+
+            scene.add(scannedTilesGroup);
+        }
+
+        function clearScannedTiles() {
+            scannedTilesSeen.clear();
+            if (scannedTilesGroup) {
+                scannedTilesGroup.clear();
+            }
+        }
+
+        function normalizeScannedCell(cell) {
+            if (!cell || typeof cell !== 'object') {
+                return null;
+            }
+
+            const x = Number(cell.x);
+            const z = Number(cell.y ?? cell.z);
+            if (!Number.isFinite(x) || !Number.isFinite(z)) {
+                return null;
+            }
+
+            return {
+                x: Math.round(x),
+                z: Math.round(z)
+            };
+        }
+
+        function addScannedTile(x, z) {
+            if (!scannedTilesGroup || !scannedTileGeometry || !scannedTileMaterial) {
+                return;
+            }
+
+            const clampedX = clamp(x, -49, 49);
+            const clampedZ = clamp(z, -49, 49);
+            const key = `${clampedX},${clampedZ}`;
+            if (scannedTilesSeen.has(key)) {
+                return;
+            }
+
+            scannedTilesSeen.add(key);
+            const tile = new THREE.Mesh(scannedTileGeometry, scannedTileMaterial);
+            tile.rotation.x = -Math.PI / 2;
+            tile.position.set(clampedX, SCANNED_TILE_Y, clampedZ);
+            scannedTilesGroup.add(tile);
+        }
+
+        function renderScannedCells(cells) {
+            if (!Array.isArray(cells)) {
+                return;
+            }
+
+            cells.forEach((cell) => {
+                const normalized = normalizeScannedCell(cell);
+                if (!normalized) {
+                    return;
+                }
+                addScannedTile(normalized.x, normalized.z);
+            });
+        }
+
         function isScanningStatus(status) {
             const text = String(status || '').toLowerCase();
             return text.includes('scan') || text.includes('thermal sweep');
@@ -2870,7 +3055,8 @@
             }
 
             const survivorIndex = Number(signal.survivor_index);
-            if (Number.isFinite(survivorIndex) && foundSurvivorRegistry.has(survivorIndex)) {
+            const existing = Number.isFinite(survivorIndex) ? foundSurvivorRegistry.get(survivorIndex) : null;
+            if (existing && (sourcePrefix !== 'live' || existing.droneId === signal.drone_id)) {
                 return;
             }
 
@@ -3072,6 +3258,11 @@
                     if (titleEl && data.state.map_name) {
                         titleEl.textContent = `Swarm Command Center - ${data.state.map_name}`;
                     }
+                }
+
+                if (Array.isArray(data.scanned_cells)) {
+                    clearScannedTiles();
+                    renderScannedCells(data.scanned_cells);
                 }
             }
         } catch (error) {

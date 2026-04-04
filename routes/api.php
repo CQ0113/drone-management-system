@@ -13,7 +13,14 @@ Route::post('/swarm/tick', [SwarmController::class, 'tick']);
 
 // Lightweight endpoint for reading shared state produced by background runner.
 Route::get('/swarm/state', function () {
-    return response()->json(Cache::get('swarm_state', []));
+    $state = Cache::get('swarm_state', []);
+    if (!is_array($state)) {
+        $state = [];
+    }
+    $scannedCells = Cache::get('swarm:scanned_cells', []);
+    $state['scanned_cells'] = array_values(is_array($scannedCells) ? $scannedCells : []);
+
+    return response()->json($state);
 });
 
 Route::prefix('swarm')->group(function () {

@@ -3,12 +3,60 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
+function resolveApiBaseUrl() {
+  const raw =
+    process.env.MCP_DRONE_API_BASE_URL ||
+    process.env.MCP_DRONE_API_URL ||
+    "http://127.0.0.1:8000";
+  return raw.replace(/\/+$/, "");
+}
+
+async function apiPost(path, payload) {
+  if (typeof fetch !== "function") {
+    throw new Error("fetch is not available; use Node 18+ for MCP HTTP calls");
+  }
+
+  const response = await fetch(`${resolveApiBaseUrl()}${path}`, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload ?? {}),
+  });
+
+  const text = await response.text();
+  if (!text) {
+    return { ok: response.ok, status: response.status };
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { ok: response.ok, status: response.status, raw: text };
+  }
+}
+
 function parseInput(stdinText) {
   const trimmed = (stdinText || "").trim();
   if (!trimmed) {
     return { objective: "search_and_rescue", actions: [], state: {} };
   }
   return JSON.parse(trimmed);
+}
+
+function resolveVectorText(input) {
+  if (!input || typeof input !== "object") {
+    return "";
+  }
+
+  const raw =
+    (typeof input.vector_commands_text === "string" && input.vector_commands_text) ||
+    (typeof input.commands_text === "string" && input.commands_text) ||
+    (typeof input.commands === "string" && input.commands) ||
+    "";
+
+  return raw.trim();
 }
 
 function parseToolTextResult(result) {
@@ -58,6 +106,36 @@ async function run() {
   }
 
   const input = parseInput(Buffer.concat(chunks).toString("utf8"));
+  const vectorText = resolveVectorText(input);
+
+  if (vectorText) {
+    try {
+      const payload = await apiPost("/api/swarm/tick", {
+        objective: input.objective || "search_and_rescue",
+        vector_commands_text: vectorText,
+        force_replan: Boolean(input.force_replan),
+        state: input.state ?? undefined,
+      });
+
+      const output =
+        payload && typeof payload === "object"
+          ? { source: "mcp-pass-through", ...payload }
+          : { ok: false, source: "mcp-pass-through", error: "Invalid response" };
+
+      process.stdout.write(JSON.stringify(output));
+      return;
+    } catch (error) {
+      process.stdout.write(
+        JSON.stringify({
+          ok: false,
+          source: "mcp-pass-through",
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      );
+      process.exitCode = 1;
+      return;
+    }
+  }
   const cwd = dirname(fileURLToPath(import.meta.url));
 
   const client = new Client({ name: "swarm-mcp-bridge", version: "0.1.0" });

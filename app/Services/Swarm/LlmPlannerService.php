@@ -7,6 +7,10 @@ use Throwable;
 
 class LlmPlannerService
 {
+    public function __construct(
+        private readonly SwarmSimulationService $simulation,
+    ) {}
+
     /**
      * @param array<string, mixed> $state
      * @return array<string, mixed>
@@ -35,52 +39,27 @@ class LlmPlannerService
         $timeout = (int) config('services.ollama.timeout', 30);
         $temperature = max(0.0, min(2.0, (float) config('services.ollama.temperature', 0.45)));
         $topP = max(0.0, min(1.0, (float) config('services.ollama.top_p', 0.9)));
-        $maxActionDistance = 5.0;
-        $movementUnitsPerPercent = round(max(2.0, min(20.0, (float) data_get($state, 'operator_settings.battery.movement_units_per_percent', env('SWARM_BATTERY_MOVEMENT_UNITS_PER_PERCENT', 8.0)))), 2);
-        $scanDrain = round(max(0.0, min(10.0, (float) data_get($state, 'operator_settings.battery.scan_drain', env('SWARM_BATTERY_SCAN_DRAIN', 1.0)))), 2);
-        $leanDrones = array_map(static function (array $drone): array {
-            return [
-                'id' => (string) data_get($drone, 'id', ''),
-                'x' => (float) data_get($drone, 'x', 0.0),
-                'z' => (float) data_get($drone, 'z', 0.0),
-                'battery' => (int) round((float) data_get($drone, 'battery', 100)),
-            ];
-        }, $plannerDrones);
+        $vectorMaxDistance = (int) env('SWARM_VECTOR_MAX_DISTANCE', 5);
+        $vectorMaxDistance = max(1, $vectorMaxDistance);
+        $ragContext = $this->normalizeRagContext((array) data_get($state, 'rag_context', []), 3, 220);
+        $briefingState = $state;
+        $briefingState['rag_context'] = $ragContext;
+        $briefing = $this->simulation->buildTacticalBriefing($briefingState);
 
-        $promptState = [
-            'objective'           => $objective,
-            'available_drone_ids' => array_values(array_map(fn (array $drone): string => (string) data_get($drone, 'id', ''), $plannerDrones)),
-            'base'                => ['x' => $baseX, 'z' => $baseZ],
-            'drones'              => $leanDrones,
-            'survivors'           => $state['survivors'] ?? [],
-            'obstacles'           => $state['obstacles'] ?? [],
-            'bounds'              => [$mapMin, $mapMax],
-            'max_step'            => $maxActionDistance,
-            'battery_recall'      => 20,
-            'battery_critical'    => 12,
-            'battery_costs'       => [
-                'movement_units_per_percent' => $movementUnitsPerPercent,
-                'scan_drain'                 => $scanDrain,
-            ],
-        ];
-
-     $survivorsList = '';
-    if (!empty($state['survivors'])) {
-        $survivorsText = [];
-        foreach ($state['survivors'] as $index => $s) {
-            $survivorsText[] = "S" . ($index+1) . " at (" . round($s['x']) . "," . round($s['z']) . ")";
-        }
-        $survivorsList = "KNOWN SURVIVOR LOCATIONS: " . implode(', ', $survivorsText) . ". ";
-    }
-
-    $system = 'Drone swarm planner. Return ONLY compact JSON: {"actions":[...]}. No markdown, no prose, no extra keys.'
-        .' Each action: {drone_id, type, target:{x,z}}. type ∈ {scan_sector, move_to, return_to_base}.'
-        .' One action per ID in available_drone_ids. Targets within bounds. Each target ≤ max_step units from drone current x,z.'
-        .' MISSION: Search and rescue. ' . $survivorsList
-        .' CRITICAL: Assign drones to SCAN NEAR SURVIVOR LOCATIONS first. Prioritize S1(5,35), S2(-30,-20), S3(40,-5), S4(-15,40), S5(25,-35).'
-        .' Use scan_sector at survivor coordinates to find them. Do NOT send drones to corners - send them to survivors.'
-        .' Spread drones across different survivor locations. battery≤battery_recall → prefer return_to_base. battery≤battery_critical → must return_to_base.'
-        .' Ex: '.json_encode(['actions' => [['drone_id' => 'D1', 'type' => 'scan_sector', 'target' => ['x' => 5, 'z' => 35]]]], JSON_UNESCAPED_SLASHES);
+        $system = 'You are the drone swarm planner. Output ONLY plain text commands, one per line.'
+            .' Format: DRONE_ID(ACTION,DIRECTION,DISTANCE) or DRONE_ID(DIRECTION,DISTANCE) (defaults to MOVE).'
+            .' Valid actions: MOVE, SCAN.'
+            .' Valid directions: U, UR, R, RD, D, LD, L, LU.'
+            .' Distance must be an integer from 1 to '.$vectorMaxDistance.'.'
+            .' Use only the drone IDs listed in SWARM STATUS. No JSON, no markdown, no explanations.'
+            .' MISSION: '.$objective.'.'
+            .' Use the mission history section to avoid repeating recent failures and to continue successful patterns.'
+            .' You are receiving a text-based tactical briefing. If a drone has a Target listed (e.g., Target: S1 is [UR]), prioritize moving in that direction unless the Radar shows it is a [WALL].'
+            .' Use the Tactical Radar section to move toward [UNSCANNED] areas, avoid [SCANNED] areas, and NEVER move into [WALL] areas.'
+            .' Only issue SCAN when the target area is [UNSCANNED]; do NOT scan areas already marked [SCANNED].'
+            .' Always give command to 3 Drones D1,D2,D3.'
+            .' Example output:'
+            ."\nD1(SCAN,U,3)\nD2(MOVE,RD,1)\nD3(MOVE,L,2)";
         
         try {
             $response = Http::timeout($timeout)
@@ -88,7 +67,6 @@ class LlmPlannerService
                 ->asJson()
                 ->post($baseUrl.'/api/chat', [
                     'model' => $model,
-                    'format' => 'json',
                     'stream' => false,
                     'options' => [
                         'temperature' => $temperature,
@@ -98,7 +76,7 @@ class LlmPlannerService
                     ],
                     'messages' => [
                         ['role' => 'system', 'content' => $system],
-                        ['role' => 'user', 'content' => json_encode($promptState, JSON_UNESCAPED_SLASHES)],
+                        ['role' => 'user', 'content' => $briefing],
                     ],
                 ]);
 
@@ -107,9 +85,9 @@ class LlmPlannerService
             }
 
             $raw = (string) data_get($response->json(), 'message.content', '');
-            $decoded = $this->decodeModelJson($raw);
+            $vectorCommands = $this->parseVectorCommands($raw, $plannerDrones, $vectorMaxDistance);
 
-            if (!$decoded || !$this->isUsablePlanPayload($decoded)) {
+            if (empty($vectorCommands)) {
                 $fallback = $this->mockPlan($state, $objective, 'ollama-parse-fallback');
                 $fallback['raw_model_output'] = $raw;
                 $fallback['parse_error'] = true;
@@ -117,9 +95,11 @@ class LlmPlannerService
                 return $fallback;
             }
 
-            $plan = $this->sanitizePlan($decoded, $state, $objective, 'ollama', $plannerDrones);
+            $plan = $this->mockPlan($state, $objective, 'ollama-vector-staged');
             $plan['raw_model_output'] = $raw;
             $plan['parse_error'] = false;
+            $plan['vector_commands'] = $vectorCommands;
+            $plan['reasoning'] = 'Vector commands parsed; translation to absolute targets pending.';
 
             return $plan;
         } catch (Throwable) {
@@ -329,6 +309,125 @@ class LlmPlannerService
         }
 
         return $targets;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $docs
+     * @return array<int, array<string, string>>
+     */
+    private function normalizeRagContext(array $docs, int $limit = 3, int $maxSummaryLen = 220): array
+    {
+        $normalized = [];
+
+        foreach (array_slice($docs, 0, max(1, $limit)) as $doc) {
+            if (!is_array($doc)) {
+                continue;
+            }
+
+            $summary = trim((string) data_get($doc, 'summary', ''));
+            if ($summary === '') {
+                continue;
+            }
+
+            if (strlen($summary) > $maxSummaryLen) {
+                $summary = substr($summary, 0, $maxSummaryLen).'...';
+            }
+
+            $normalized[] = [
+                'phase' => (string) data_get($doc, 'phase', ''),
+                'summary' => $summary,
+                'created_at' => (string) data_get($doc, 'created_at', ''),
+            ];
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param array<string, mixed> $state
+     * @param array<string, array<string, mixed>> $runtime
+     * @return array<int, array{drone_id: string, action: string, direction: string, distance: int}>
+     */
+    public function parseVectorCommandsText(string $raw, array $state, array $runtime, int $maxDistance = 5): array
+    {
+        $plannerState = $state;
+        $plannerState['runtime_drones'] = $runtime;
+        $plannerDrones = $this->resolvePlannerDrones($plannerState);
+
+        return $this->parseVectorCommands($raw, $plannerDrones, $maxDistance);
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $plannerDrones
+     * @return array<int, array{drone_id: string, action: string, direction: string, distance: int}>
+     */
+    private function parseVectorCommands(string $raw, array $plannerDrones, int $maxDistance): array
+    {
+        $maxDistance = max(1, $maxDistance);
+        $allowedIds = collect($plannerDrones)
+            ->map(fn (array $drone): string => strtoupper((string) data_get($drone, 'id', '')))
+            ->filter(fn (string $id): bool => $id !== '')
+            ->values()
+            ->all();
+
+        if ($raw === '' || empty($allowedIds)) {
+            return [];
+        }
+
+        $allowedLookup = array_fill_keys($allowedIds, true);
+        $pattern = '/\b([A-Za-z0-9_-]+)\s*\(\s*(?:(SCAN|MOVE)\s*,\s*)?(UR|RD|LD|LU|U|R|D|L)\s*,\s*([0-9]+(?:\.[0-9]+)?)\s*\)/i';
+        $matches = [];
+        preg_match_all($pattern, $raw, $matches, PREG_SET_ORDER);
+
+        if (empty($matches)) {
+            return [];
+        }
+
+        $byId = [];
+        $sequence = 0;
+        foreach ($matches as $match) {
+            $id = strtoupper((string) $match[1]);
+            if (!isset($allowedLookup[$id])) {
+                continue;
+            }
+
+            $actionToken = strtoupper((string) ($match[2] ?? ''));
+            $direction = strtoupper((string) ($match[3] ?? ''));
+            $distanceRaw = (float) ($match[4] ?? 0);
+            if ($distanceRaw <= 0) {
+                continue;
+            }
+
+            $distance = (int) round($distanceRaw);
+            if ($distance < 1) {
+                continue;
+            }
+            $distance = min($maxDistance, $distance);
+            $action = in_array($actionToken, ['SCAN', 'MOVE'], true) ? $actionToken : 'MOVE';
+
+            $byId[$id] = [
+                'drone_id' => $id,
+                'action' => $action,
+                'direction' => $direction,
+                'distance' => $distance,
+                'sequence' => $sequence,
+            ];
+            $sequence++;
+        }
+
+        if (empty($byId)) {
+            return [];
+        }
+
+        $commands = array_values($byId);
+        usort($commands, fn (array $a, array $b): int => ($a['sequence'] ?? 0) <=> ($b['sequence'] ?? 0));
+
+        return array_map(static fn (array $cmd): array => [
+            'drone_id' => (string) ($cmd['drone_id'] ?? ''),
+            'action' => (string) ($cmd['action'] ?? 'MOVE'),
+            'direction' => (string) ($cmd['direction'] ?? ''),
+            'distance' => (int) ($cmd['distance'] ?? 0),
+        ], $commands);
     }
 
     /**
