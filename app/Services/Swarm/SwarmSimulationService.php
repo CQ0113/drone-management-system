@@ -145,11 +145,6 @@ class SwarmSimulationService
         sort($ids);
 
         $lines = [];
-        if ($override !== '') {
-            $lines[] = '=== COMMANDER OVERRIDE (CRITICAL PRIORITY) ===';
-            $lines[] = $override;
-            $lines[] = '';
-        }
         $lines[] = '=== SWARM STATUS ===';
         if (empty($ids)) {
             $lines[] = 'NONE';
@@ -176,7 +171,7 @@ class SwarmSimulationService
                 $lower = strtolower((string) $id);
                 $radar = $radarById[$lower] ?? [
                     'area' => 'UNKNOWN',
-                    'radar' => 'U[?], UR[?], R[?], RD[?], D[?], LD[?], L[?], LU[?]',
+                    'radar' => 'NORTH[?], NORTHEAST[?], EAST[?], SOUTHEAST[?], SOUTH[?], SOUTHWEST[?], WEST[?], NORTHWEST[?]',
                 ];
                 $target = $this->closestSurvivorInfo((array) ($runtime[$id] ?? []), $survivors);
                 $targetText = $target
@@ -209,6 +204,12 @@ class SwarmSimulationService
         }
         if ($ragLines === 0) {
             $lines[] = 'Previous Tick: NONE.';
+        }
+
+        if ($override !== '') {
+            $lines[] = '';
+            $lines[] = '=== COMMANDER OVERRIDE (CRITICAL PRIORITY) ===';
+            $lines[] = $override;
         }
 
         return implode("\n", $lines);
@@ -535,28 +536,28 @@ class SwarmSimulationService
         $deg = fmod((rad2deg($angle) + 360.0), 360.0);
 
         if ($deg >= 337.5 || $deg < 22.5) {
-            return 'R';
+            return 'EAST';
         }
         if ($deg < 67.5) {
-            return 'UR';
+            return 'NORTHEAST';
         }
         if ($deg < 112.5) {
-            return 'U';
+            return 'NORTH';
         }
         if ($deg < 157.5) {
-            return 'LU';
+            return 'NORTHWEST';
         }
         if ($deg < 202.5) {
-            return 'L';
+            return 'WEST';
         }
         if ($deg < 247.5) {
-            return 'LD';
+            return 'SOUTHWEST';
         }
         if ($deg < 292.5) {
-            return 'D';
+            return 'SOUTH';
         }
 
-        return 'RD';
+        return 'SOUTHEAST';
     }
 
     /**
@@ -566,6 +567,19 @@ class SwarmSimulationService
     {
         $offsets = $this->directionDeltaMap();
         $direction = strtoupper($direction);
+        $cardinalMap = [
+            'NORTH' => 'U',
+            'NORTHEAST' => 'UR',
+            'EAST' => 'R',
+            'SOUTHEAST' => 'RD',
+            'SOUTH' => 'D',
+            'SOUTHWEST' => 'LD',
+            'WEST' => 'L',
+            'NORTHWEST' => 'LU',
+        ];
+        if (isset($cardinalMap[$direction])) {
+            $direction = $cardinalMap[$direction];
+        }
         if (!isset($offsets[$direction])) {
             return false;
         }

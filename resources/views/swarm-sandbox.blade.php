@@ -357,14 +357,14 @@
         <div class="compass-shell">
             <div class="compass-title">Map Compass</div>
             <div class="compass-dial">
-                <span class="compass-letter n">U</span>
-                <span class="compass-letter e">R</span>
-                <span class="compass-letter s">D</span>
-                <span class="compass-letter w">L</span>
+                <span class="compass-letter n">N</span>
+                <span class="compass-letter e">E</span>
+                <span class="compass-letter s">S</span>
+                <span class="compass-letter w">W</span>
                 <div id="compass-needle" class="compass-needle"></div>
                 <div class="compass-center"></div>
             </div>
-            <div id="compass-readout" class="compass-readout">View: U (0 deg)</div>
+            <div id="compass-readout" class="compass-readout">View: N (0 deg)</div>
         </div>
     </div>
 
@@ -789,6 +789,7 @@
         let scannedTileGeometry;
         let scannedTileMaterial;
         const scannedTilesSeen = new Set();
+        let compassNeedleAngle = null;
 
         ensureThreeLoaded()
             .then(() => {
@@ -3257,28 +3258,28 @@
         function compassLabelFromDegrees(deg) {
             const normalized = ((deg % 360) + 360) % 360;
             if (normalized >= 337.5 || normalized < 22.5) {
-                return 'U';
+                return 'N';
             }
             if (normalized < 67.5) {
-                return 'UR';
+                return 'NE';
             }
             if (normalized < 112.5) {
-                return 'R';
+                return 'E';
             }
             if (normalized < 157.5) {
-                return 'DR';
+                return 'SE';
             }
             if (normalized < 202.5) {
-                return 'D';
+                return 'S';
             }
             if (normalized < 247.5) {
-                return 'DL';
+                return 'SW';
             }
             if (normalized < 292.5) {
-                return 'L';
+                return 'W';
             }
 
-            return 'UL';
+            return 'NW';
         }
 
         function updateCompass() {
@@ -3296,8 +3297,14 @@
 
             const yawRad = Math.atan2(forward.x, forward.z);
             const yawDeg = (yawRad * 180 / Math.PI + 360) % 360;
-            const needleDeg = -yawDeg;
-            compassNeedleEl.style.transform = `translate(-50%, -100%) rotate(${needleDeg}deg)`;
+            const needleTarget = -yawDeg;
+            if (compassNeedleAngle === null) {
+                compassNeedleAngle = needleTarget;
+            } else {
+                const delta = ((needleTarget - compassNeedleAngle + 540) % 360) - 180;
+                compassNeedleAngle += delta;
+            }
+            compassNeedleEl.style.transform = `translate(-50%, -100%) rotate(${compassNeedleAngle}deg)`;
 
             if (compassReadoutEl) {
                 const label = compassLabelFromDegrees(yawDeg);

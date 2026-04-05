@@ -3,6 +3,8 @@
 namespace App\Services\Swarm;
 
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Throwable;
 
 class LlmPlannerService
@@ -37,7 +39,7 @@ class LlmPlannerService
         $baseUrl = rtrim((string) config('services.ollama.base_url', 'http://127.0.0.1:11434'), '/');
         $model = (string) config('services.ollama.model', 'qwen2.5:7b-instruct');
         $timeout = (int) config('services.ollama.timeout', 30);
-        $temperature = max(0.0, min(2.0, (float) config('services.ollama.temperature', 0.45)));
+        $temperature = max(0.15, min(2.0, (float) config('services.ollama.temperature', 0.45)));
         $topP = max(0.0, min(1.0, (float) config('services.ollama.top_p', 0.9)));
         $vectorMaxDistance = (int) env('SWARM_VECTOR_MAX_DISTANCE', 5);
         $vectorMaxDistance = max(1, $vectorMaxDistance);
@@ -45,22 +47,31 @@ class LlmPlannerService
         $briefingState = $state;
         $briefingState['rag_context'] = $ragContext;
         $briefing = $this->simulation->buildTacticalBriefing($briefingState);
+        $override = Cache::get('swarm:commander_override');
 
         $system = 'You are the drone swarm planner. Output ONLY plain text commands, one per line.'
             .' Format: DRONE_ID(ACTION,DIRECTION,DISTANCE) or DRONE_ID(DIRECTION,DISTANCE) (defaults to MOVE).'
             .' Valid actions: MOVE, SCAN.'
-            .' Valid directions: U, UR, R, RD, D, LD, L, LU.'
+            .' Valid directions: NORTH, NORTHEAST, EAST, SOUTHEAST, SOUTH, SOUTHWEST, WEST, NORTHWEST.'
             .' Distance must be an integer from 1 to '.$vectorMaxDistance.'.'
             .' Use only the drone IDs listed in SWARM STATUS. No JSON, no markdown, no explanations.'
             .' MISSION: '.$objective.'.'
             .' Use the mission history section to avoid repeating recent failures and to continue successful patterns.'
             .' You must obey all rules listed in the STANDING ORDERS section. These are permanent mission facts.'
-            .' You are receiving a text-based tactical briefing. If a drone has a Target listed (e.g., Target: S1 is [UR]), prioritize moving in that direction unless the Radar shows it is a [WALL].'
+            .' You are receiving a text-based tactical briefing. If a drone has a Target listed (e.g., Target: S1 is [NORTHEAST]), prioritize moving in that direction unless the Radar shows it is a [WALL].'
             .' Use the Tactical Radar section to move toward [UNSCANNED] areas, avoid [SCANNED] areas, and NEVER move into [WALL] areas.'
             .' Only issue SCAN when the target area is [UNSCANNED]; do NOT scan areas already marked [SCANNED].'
             .' Always give command to 3 Drones D1,D2,D3.'
-            .' Example output:'
-            ."\nD1(SCAN,U,3)\nD2(MOVE,RD,1)\nD3(MOVE,L,2)";
+            .' CRITICAL SYNTAX RULE: You must output exactly three lines, following this exact template:'
+            ."\nD1(ACTION,DIRECTION,DISTANCE)"
+            ."\nD2(ACTION,DIRECTION,DISTANCE)"
+            ."\nD3(ACTION,DIRECTION,DISTANCE)"
+            .' Example: D1(MOVE,NORTH,3).'
+            .' Replace ACTION with MOVE or SCAN. Replace DIRECTION with NORTH, NORTHEAST, EAST, SOUTHEAST, SOUTH, SOUTHWEST, WEST, NORTHWEST. Replace DISTANCE with a number from 1 to '.$vectorMaxDistance.'. No other text or explanation is allowed.';
+
+        if (is_string($override) && trim($override) !== '') {
+            $system .= ' CRITICAL HUMAN OVERRIDE ACTIVE: '.trim($override).' - YOU MUST OBEY THIS RULE ABOVE ALL OTHERS.';
+        }
         
         try {
             $response = Http::timeout($timeout)
@@ -86,7 +97,9 @@ class LlmPlannerService
             }
 
             $raw = (string) data_get($response->json(), 'message.content', '');
+            Log::info("OLLAMA RAW OUTPUT: \n".$raw);
             $vectorCommands = $this->parseVectorCommands($raw, $plannerDrones, $vectorMaxDistance);
+            Log::info("PARSED COMMANDS: \n".json_encode($vectorCommands));
 
             if (empty($vectorCommands)) {
                 $fallback = $this->mockPlan($state, $objective, 'ollama-parse-fallback');
@@ -376,7 +389,7 @@ class LlmPlannerService
         }
 
         $allowedLookup = array_fill_keys($allowedIds, true);
-        $pattern = '/\b([A-Za-z0-9_-]+)\s*\(\s*(?:(SCAN|MOVE)\s*,\s*)?(UR|RD|LD|LU|U|R|D|L)\s*,\s*([0-9]+(?:\.[0-9]+)?)\s*\)/i';
+        $pattern = '/\b([A-Za-z0-9_-]+)\s*\(\s*(?:(SCAN|MOVE)\s*,\s*)?(NORTHEAST|NORTHWEST|SOUTHEAST|SOUTHWEST|NORTH|SOUTH|EAST|WEST)\s*,\s*([0-9]+(?:\.[0-9]+)?)\s*\)/i';
         $matches = [];
         preg_match_all($pattern, $raw, $matches, PREG_SET_ORDER);
 
@@ -386,6 +399,17 @@ class LlmPlannerService
 
         $byId = [];
         $sequence = 0;
+        $directionMap = [
+            'NORTH' => 'U',
+            'NORTHEAST' => 'UR',
+            'EAST' => 'R',
+            'SOUTHEAST' => 'RD',
+            'SOUTH' => 'D',
+            'SOUTHWEST' => 'LD',
+            'WEST' => 'L',
+            'NORTHWEST' => 'LU',
+        ];
+
         foreach ($matches as $match) {
             $id = strtoupper((string) $match[1]);
             if (!isset($allowedLookup[$id])) {
@@ -393,7 +417,11 @@ class LlmPlannerService
             }
 
             $actionToken = strtoupper((string) ($match[2] ?? ''));
-            $direction = strtoupper((string) ($match[3] ?? ''));
+            $directionRaw = strtoupper((string) ($match[3] ?? ''));
+            $direction = $directionMap[$directionRaw] ?? '';
+            if ($direction === '') {
+                continue;
+            }
             $distanceRaw = (float) ($match[4] ?? 0);
             if ($distanceRaw <= 0) {
                 continue;

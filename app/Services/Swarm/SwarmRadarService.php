@@ -63,14 +63,14 @@ class SwarmRadarService
         $currentStatus = $this->getAreaScanStatus($areaX, $areaY, $scannedCells, $areaSize);
 
         $offsets = [
-            'U' => [0, 1],
-            'UR' => [1, 1],
-            'R' => [1, 0],
-            'RD' => [1, -1],
-            'D' => [0, -1],
-            'LD' => [-1, -1],
-            'L' => [-1, 0],
-            'LU' => [-1, 1],
+            'NORTH' => [0, 1],
+            'NORTHEAST' => [1, 1],
+            'EAST' => [1, 0],
+            'SOUTHEAST' => [1, -1],
+            'SOUTH' => [0, -1],
+            'SOUTHWEST' => [-1, -1],
+            'WEST' => [-1, 0],
+            'NORTHWEST' => [-1, 1],
         ];
 
         $radar = [];
@@ -105,7 +105,7 @@ class SwarmRadarService
         $ids = array_keys($runtime);
         sort($ids);
 
-        $directions = ['U', 'UR', 'R', 'RD', 'D', 'LD', 'L', 'LU'];
+        $directions = ['NORTH', 'NORTHEAST', 'EAST', 'SOUTHEAST', 'SOUTH', 'SOUTHWEST', 'WEST', 'NORTHWEST'];
         foreach ($ids as $id) {
             if (!isset($runtime[$id]) || !is_array($runtime[$id])) {
                 continue;
