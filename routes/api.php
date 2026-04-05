@@ -33,3 +33,4 @@ Route::post('/cv/survivors-detected', [CvDetectionController::class, 'survivorsD
 Route::get('/cv/detections',          [CvDetectionController::class, 'getDetections']);
 Route::post('/cv/trigger-scan',       [CvDetectionController::class, 'triggerScan']);
 Route::get('/cv/scan-status',         [CvDetectionController::class, 'scanStatus']);
+Route::post('/cv/stop-scan', [CvDetectionController::class, 'stopScan']);

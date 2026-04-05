@@ -64,4 +64,13 @@ class CvDetectionController extends Controller
             return response()->json(['scanning' => false, 'error' => 'bridge offline']);
         }
     }
+    public function stopScan()
+{
+    try {
+        $response = Http::timeout(3)->post('http://127.0.0.1:8001/cv/stop');
+        return response()->json($response->json());
+    } catch (\Exception $e) {
+        return response()->json(['error' => 'bridge offline']);
+    }
+}
 }

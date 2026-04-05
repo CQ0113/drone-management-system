@@ -272,3 +272,10 @@ def clear_cv_survivors():
     global detected_survivors
     detected_survivors = []
     return {"status": "cleared"}
+
+@app.post("/cv/stop")
+def cv_stop():
+    """Stop the current webcam scan"""
+    global cv_scanning
+    cv_scanning = False
+    return {"status": "stopped"}

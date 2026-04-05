@@ -194,19 +194,16 @@
                   <button class="hud-btn w-full rounded-md py-2.5 px-3 text-left font-medium text-sm flex items-center justify-between" data-mode="obstacle">
                         <span>Place Obstacle</span>
                     </button>
-                    <!-- CV Webcam Scanner -->
-                    <div class="space-y-2 mt-3 bg-cyan-950/20 p-2 rounded-lg border border-cyan-900/30">
-                        <h3 class="text-[10px] uppercase tracking-widest text-cyan-400 font-display mb-1 ml-1">
-                            CV Detection
-                        </h3>
-                        <button id="btn-cv-scan"
-                            onclick="triggerCVScan()"
-                            class="hud-btn w-full rounded-md py-2.5 px-3 text-left font-medium text-sm flex items-center justify-between">
-                            <span>📷 Scan for Survivors</span>
-                        </button>
-                        <div id="cv-scan-status" class="text-[10px] text-cyan-400 ml-1 hidden"></div>
-                    </div>
-```
+                 
+                    <!-- CV Detection Info -->
+<div class="space-y-2 mt-3 bg-cyan-950/20 p-2 rounded-lg border border-cyan-900/30">
+    <h3 class="text-[10px] uppercase tracking-widest text-cyan-400 font-display mb-1 ml-1">
+        CV Detection
+    </h3>
+    <p class="text-[10px] text-slate-400 ml-1">
+        Deploy swarm first, then click a drone in the telemetry panel to open its camera.
+    </p>
+</div>
 
                 </div>
                 
@@ -2716,14 +2713,24 @@
                 const batteryClass = item.battery > 60 ? 'text-emerald-300' : (item.battery > 25 ? 'text-amber-300' : 'text-rose-300');
                 const dotColor = item.battery > 25 ? '#22c55e' : '#f43f5e';
 
-                return `
-                    <li class="rounded-md border border-cyan-900/60 bg-slate-900/80 p-3">
+              return `
+                    <li class="rounded-md border border-cyan-900/60 bg-slate-900/80 p-3 cursor-pointer hover:border-cyan-400/60 transition-colors"
+                        onclick="openDroneCamera('${id}')">
                         <div class="flex justify-between items-center">
                             <span class="font-display tracking-wide">${id}</span>
                             <span class="${batteryClass} font-semibold">${item.battery}%</span>
                         </div>
                         <div class="text-xs text-slate-300 mt-1">
                             <span class="status-dot" style="background:${dotColor}"></span>${item.status}
+                        </div>
+                        <div class="mt-2">
+                           <button class="text-[10px] uppercase tracking-widest ${
+    item.scanning
+        ? 'text-rose-400 border-rose-800/60 hover:bg-rose-900/30'
+        : 'text-cyan-400 border-cyan-800/60 hover:bg-cyan-900/30'
+} border rounded px-2 py-1">
+    ${item.scanning ? '🛑 Stop Scan' : '📷 Open Camera'}
+</button>
                         </div>
                     </li>
                 `;
@@ -3152,6 +3159,97 @@ function addCVSurvivor(survivor) {
     // Use the existing placeSurvivor function directly!
     placeSurvivor(survivor.x, survivor.z);
     console.log(`✅ CV Survivor placed at (${survivor.x}, ${survivor.z}) confidence=${survivor.confidence}%`);
+}
+let activeScanDroneId = null;
+
+async function openDroneCamera(droneId) {
+    // Check swarm is deployed
+    if (!runtime.setupLocked) {
+        appendMissionLog('⚠️ Deploy swarm first before opening drone camera!');
+        return;
+    }
+
+    // If already scanning this drone — STOP it
+    if (activeScanDroneId === droneId) {
+        await stopDroneCamera(droneId);
+        return;
+    }
+
+    // Get drone current position
+    const drone = runtime.drones[droneId];
+    if (!drone) {
+        appendMissionLog(`⚠️ Drone ${droneId} not found!`);
+        return;
+    }
+
+    activeScanDroneId = droneId;
+    const droneX = drone.mesh.position.x;
+    const droneZ = drone.mesh.position.z;
+
+    appendMissionLog(`📷 ${droneId}: Camera activated at (${droneX.toFixed(1)}, ${droneZ.toFixed(1)})`);
+
+    // Show STOP button on drone panel
+    dronePanelState[droneId].status    = '📷 Camera scanning...';
+    dronePanelState[droneId].scanning  = true;
+    renderDroneStatus();
+
+    try {
+        const response = await fetch('/api/cv/trigger-scan', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept':       'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || ''
+            }
+        });
+
+        const data = await response.json();
+
+        if (data.found > 0) {
+            appendMissionLog(`✅ ${droneId}: Detected ${data.found} survivor(s)!`);
+
+            data.survivors.forEach(survivor => {
+                const survivorX = droneX + survivor.x * 0.3;
+                const survivorZ = droneZ + survivor.z * 0.3;
+                placeSurvivor(survivorX, survivorZ);
+                appendMissionLog(`🧍 Survivor placed near ${droneId} at (${survivorX.toFixed(1)}, ${survivorZ.toFixed(1)}) confidence: ${survivor.confidence}%`);
+            });
+
+        } else {
+            appendMissionLog(`❌ ${droneId}: No survivors detected`);
+        }
+
+    } catch (e) {
+        appendMissionLog(`⚠️ ${droneId}: Camera error - ${e.message}`);
+    }
+
+    // Reset after scan completes
+    activeScanDroneId              = null;
+    dronePanelState[droneId].scanning = false;
+    dronePanelState[droneId].status   = 'Active';
+    renderDroneStatus();
+}
+
+async function stopDroneCamera(droneId) {
+    appendMissionLog(`🛑 ${droneId}: Camera scan stopped`);
+
+    try {
+        await fetch('/api/cv/stop-scan', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept':       'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || ''
+            }
+        });
+    } catch (e) {
+        console.warn('Stop scan error:', e);
+    }
+
+    activeScanDroneId                 = null;
+    dronePanelState[droneId].scanning = false;
+    dronePanelState[droneId].status   = 'Active';
+    renderDroneStatus();
 }
     </script>
 </body>
