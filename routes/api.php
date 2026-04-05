@@ -26,6 +26,7 @@ Route::get('/swarm/state', function () {
 Route::prefix('swarm')->group(function () {
     Route::post('init', [SwarmController::class, 'initSwarm']);
     Route::post('tick', [SwarmController::class, 'tick']);
+    Route::post('override', [SwarmController::class, 'setCommanderOverride']);
     Route::post('mock-plan', [SwarmController::class, 'mockPlan']);
     Route::get('settings', [SwarmController::class, 'getSettings']);
     Route::post('settings', [SwarmController::class, 'updateSettings']);

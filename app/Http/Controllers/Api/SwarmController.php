@@ -109,7 +109,9 @@ class SwarmController extends Controller
         Cache::put('swarm:runtime', $runtime, $ttl);
         Cache::put('swarm:found_survivors', [], $ttl);
         Cache::put('swarm:scanned_cells', [], $ttl);
+        Cache::put('swarm:mission_learnings', [], $ttl);
         Cache::put('swarm:survivor_profiles', $survivorProfiles, $ttl);
+        Cache::forget('swarm:drone_pos_history');
         Cache::forget('swarm:mission_state');
         Cache::forget('swarm_state');
         $this->ragMemory->clear();
@@ -172,6 +174,35 @@ private function getAvailableMapsList(): array
             'message' => 'Runtime battery settings updated.',
             'settings' => $this->resolveOperatorSettings(),
             'generated_at' => now()->toIso8601String(),
+        ]);
+    }
+
+    public function setCommanderOverride(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'message' => ['nullable', 'string', 'max:500'],
+            'clear' => ['nullable', 'boolean'],
+        ]);
+
+        $message = trim((string) ($validated['message'] ?? ''));
+        $clear = (bool) ($validated['clear'] ?? false);
+
+        if ($clear || $message === '') {
+            Cache::forget('swarm:commander_override');
+
+            return response()->json([
+                'ok' => true,
+                'message' => 'Commander override cleared.',
+                'override' => null,
+            ]);
+        }
+
+        Cache::put('swarm:commander_override', $message, now()->addHours(6));
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'Commander override broadcast to swarm.',
+            'override' => $message,
         ]);
     }
 

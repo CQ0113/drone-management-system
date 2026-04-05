@@ -54,6 +54,7 @@ class LlmPlannerService
             .' Use only the drone IDs listed in SWARM STATUS. No JSON, no markdown, no explanations.'
             .' MISSION: '.$objective.'.'
             .' Use the mission history section to avoid repeating recent failures and to continue successful patterns.'
+            .' You must obey all rules listed in the STANDING ORDERS section. These are permanent mission facts.'
             .' You are receiving a text-based tactical briefing. If a drone has a Target listed (e.g., Target: S1 is [UR]), prioritize moving in that direction unless the Radar shows it is a [WALL].'
             .' Use the Tactical Radar section to move toward [UNSCANNED] areas, avoid [SCANNED] areas, and NEVER move into [WALL] areas.'
             .' Only issue SCAN when the target area is [UNSCANNED]; do NOT scan areas already marked [SCANNED].'
