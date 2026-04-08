@@ -82,6 +82,30 @@ class LlmPlannerService
         .' Spread drones across different survivor locations. battery≤battery_recall → prefer return_to_base. battery≤battery_critical → must return_to_base.'
         .' Ex: '.json_encode(['actions' => [['drone_id' => 'D1', 'type' => 'scan_sector', 'target' => ['x' => 5, 'z' => 35]]]], JSON_UNESCAPED_SLASHES);
         
+        $inputHash = md5(json_encode($promptState));
+        $cacheGuardKey = 'swarm:llm_input_hash_guard';
+        $timeLockKey = 'swarm:llm_time_lock';
+        $lastPlanKey = 'swarm:llm_last_plan';
+        
+        $lastInput = \Illuminate\Support\Facades\Cache::get($cacheGuardKey);
+        $lastPlan = \Illuminate\Support\Facades\Cache::get($lastPlanKey);
+        $lastCallTime = \Illuminate\Support\Facades\Cache::get($timeLockKey, 0);
+        
+        if ((time() - $lastCallTime) < 4) {
+            if (is_array($lastPlan)) {
+                $lastPlan['source'] = 'ollama-rate-limited';
+                return $lastPlan;
+            }
+        }
+        
+        if ($lastInput === $inputHash && is_array($lastPlan)) {
+            $lastPlan['source'] = 'ollama-input-cached';
+            return $lastPlan;
+        }
+
+        \Illuminate\Support\Facades\Cache::put($timeLockKey, time(), now()->addMinutes(10));
+        \Illuminate\Support\Facades\Cache::put($cacheGuardKey, $inputHash, now()->addMinutes(10));
+
         try {
             $response = Http::timeout($timeout)
                 ->acceptJson()
@@ -120,6 +144,8 @@ class LlmPlannerService
             $plan = $this->sanitizePlan($decoded, $state, $objective, 'ollama', $plannerDrones);
             $plan['raw_model_output'] = $raw;
             $plan['parse_error'] = false;
+
+            \Illuminate\Support\Facades\Cache::put($lastPlanKey, $plan, now()->addMinutes(10));
 
             return $plan;
         } catch (Throwable) {

@@ -51,7 +51,8 @@ class SwarmSimulationService
             $foundMap[(string) ((int) $index)] = true;
         }
         $blocked = $this->buildBlockedMap((array) data_get($state, 'obstacles', []));
-
+        $lastDroneStats = \Illuminate\Support\Facades\Cache::get('swarm:last_drone_status', []);
+        
         foreach ($actions as $action) {
             $id = (string) data_get($action, 'drone_id');
             if (!isset($runtime[$id])) {
@@ -66,9 +67,13 @@ class SwarmSimulationService
             if ($atBase && $currentBattery < $baseChargeUntil) {
                 $runtime[$id]['battery'] = min(100.0, $currentBattery + $chargeRate);
                 $runtime[$id]['status'] = 'Charging at base';
+                $runtime[$id]['drone_state'] = 'charging';
                 $runtime[$id]['goal'] = sprintf('%.2f,%.2f', $baseX, $baseZ);
                 $runtime[$id]['path'] = [];
-                $logs[] = sprintf('%s: Charging at base.', $id);
+                if (($lastDroneStats[$id] ?? '') !== 'Charging at base') {
+                    $logs[] = sprintf('%s: Charging at base.', $id);
+                    $lastDroneStats[$id] = 'Charging at base';
+                }
                 $this->captureSurvivorSignal($id, (float) $runtime[$id]['x'], (float) $runtime[$id]['z'], $survivors, $foundMap, $signals, $logs, $runtime, $survivorProfiles, false, $scanDetectionRadius);
                 continue;
             }
@@ -76,17 +81,83 @@ class SwarmSimulationService
             if ($currentBattery <= 0.0) {
                 $runtime[$id]['battery'] = 0.0;
                 $runtime[$id]['status'] = 'Power depleted - stopped';
+                $runtime[$id]['drone_state'] = 'depleted';
                 $runtime[$id]['path'] = [];
-                $logs[] = sprintf('%s: Power depleted - stopped.', $id);
+                if (($lastDroneStats[$id] ?? '') !== 'Power depleted - stopped') {
+                    $logs[] = sprintf('%s: Power depleted - stopped.', $id);
+                    $lastDroneStats[$id] = 'Power depleted - stopped';
+                }
                 $this->captureSurvivorSignal($id, (float) $runtime[$id]['x'], (float) $runtime[$id]['z'], $survivors, $foundMap, $signals, $logs, $runtime, $survivorProfiles, false, $scanDetectionRadius);
                 continue;
             }
 
             $runtime[$id]['path'] = is_array(data_get($runtime[$id], 'path')) ? $runtime[$id]['path'] : [];
 
-            $actionType = (string) data_get($action, 'type', 'move_to');
-            $targetX = (float) data_get($action, 'target.x', $runtime[$id]['x']);
-            $targetZ = (float) data_get($action, 'target.z', $runtime[$id]['z']);
+            $incomingType = (string) data_get($action, 'type', 'move_to');
+            $incomingTargetX = (float) data_get($action, 'target.x', $runtime[$id]['x']);
+            $incomingTargetZ = (float) data_get($action, 'target.z', $runtime[$id]['z']);
+
+            // ── State machine: determine whether to accept the incoming command ──────
+            $droneState   = (string) ($runtime[$id]['drone_state'] ?? 'idle');
+            $lockedType   = (string) ($runtime[$id]['locked_action_type'] ?? '');
+            $lockedGoalX  = (float)  ($runtime[$id]['locked_target_x'] ?? $incomingTargetX);
+            $lockedGoalZ  = (float)  ($runtime[$id]['locked_target_z'] ?? $incomingTargetZ);
+
+            $taskComplete = false;
+            switch ($droneState) {
+                case 'moving':
+                case 'returning':
+                    $taskComplete = $this->isClose($currentX, $currentZ, $lockedGoalX, $lockedGoalZ, 0.40);
+                    break;
+                case 'scanning':
+                    // Scanning completes after a full orbit (we track orbit ticks).
+                    $orbitTicks = (int) ($runtime[$id]['scan_orbit_ticks'] ?? 0);
+                    $taskComplete = $orbitTicks >= 12; // ~one full orbit
+                    if (!$taskComplete) {
+                        $runtime[$id]['scan_orbit_ticks'] = $orbitTicks + 1;
+                    } else {
+                        $runtime[$id]['scan_orbit_ticks'] = 0;
+                    }
+                    break;
+                case 'charging':
+                case 'depleted':
+                    $taskComplete = false; // handled above via continue
+                    break;
+                default: // idle
+                    $taskComplete = true;
+                    break;
+            }
+
+            // Accept new command only when: idle, task complete, or it's an override
+            // (low-battery return_to_base always overrides).
+            $lowBattery = $currentBattery <= 20;
+            $isReturnOverride = ($incomingType === 'return_to_base') && $lowBattery;
+
+            if (!$taskComplete && !$isReturnOverride) {
+                // Continue executing the locked task instead.
+                $actionType = $lockedType ?: $incomingType;
+                $targetX    = $lockedGoalX;
+                $targetZ    = $lockedGoalZ;
+            } else {
+                // Accept the incoming command and lock it in.
+                $actionType = $incomingType;
+                $targetX    = $incomingTargetX;
+                $targetZ    = $incomingTargetZ;
+                $runtime[$id]['locked_action_type'] = $actionType;
+                $runtime[$id]['locked_target_x']    = $targetX;
+                $runtime[$id]['locked_target_z']    = $targetZ;
+                // Reset scan orbit counter when switching to a scan.
+                if ($actionType === 'scan_sector') {
+                    $runtime[$id]['scan_orbit_ticks'] = 0;
+                }
+                // Assign new drone_state.
+                $runtime[$id]['drone_state'] = match ($actionType) {
+                    'scan_sector'    => 'scanning',
+                    'return_to_base' => 'returning',
+                    default          => 'moving',
+                };
+            }
+            // ────────────────────────────────────────────────────────────────────────
 
             if ($actionType === 'scan_sector' && $scanOrbitRadius > 0.0 && $this->isClose($currentX, $currentZ, $targetX, $targetZ, 0.9)) {
                 $angle = (float) data_get($runtime[$id], 'scan_angle', (($this->stableHash01($id) * 2.0 * M_PI)));
@@ -134,6 +205,7 @@ class SwarmSimulationService
             if ($nextBattery <= 0.0) {
                 $runtime[$id]['battery'] = 0.0;
                 $runtime[$id]['status'] = 'Power depleted - stopped';
+                $runtime[$id]['drone_state'] = 'depleted';
                 $runtime[$id]['path'] = [];
                 $logs[] = sprintf('%s: Power depleted - stopped.', $id);
                 $this->captureSurvivorSignal($id, (float) $runtime[$id]['x'], (float) $runtime[$id]['z'], $survivors, $foundMap, $signals, $logs, $runtime, $survivorProfiles, false, $scanDetectionRadius);
@@ -151,10 +223,11 @@ class SwarmSimulationService
             $runtime[$id]['battery'] = $nextBattery;
 
             $atCommandTarget = $this->isClose((float) $runtime[$id]['x'], (float) $runtime[$id]['z'], $targetX, $targetZ, 0.20);
-            if ($nextBattery <= 20) {
+            if ($lowBattery) {
                 $status = 'Low battery - return protocol';
             } elseif ($atCommandTarget && in_array($actionType, ['move_to', 'return_to_base'], true)) {
                 $status = $actionType === 'return_to_base' ? 'Holding at base' : 'Holding position';
+                $runtime[$id]['drone_state'] = 'idle'; // task complete, free for new commands
             } else {
                 $status = $this->statusFromAction($actionType);
             }
@@ -163,21 +236,52 @@ class SwarmSimulationService
                 $status = 'Obstacle block - holding';
                 $runtime[$id]['path'] = [];
                 $runtime[$id]['goal'] = null;
+                $runtime[$id]['drone_state'] = 'idle'; // free up so next tick can reroute
                 $logs[] = sprintf('%s: movement blocked by obstacle footprint.', $id);
             }
 
             $runtime[$id]['status'] = $status;
-            $logs[] = sprintf('%s: %s.', $id, $status);
+            $lastStatus = $lastDroneStats[$id] ?? '';
+            if ($status !== $lastStatus) {
+                $logs[] = sprintf('%s: %s.', $id, $status);
+                $lastDroneStats[$id] = $status;
+            }
             $isScanAction = $actionType === 'scan_sector';
             $this->captureSurvivorSignal($id, (float) $runtime[$id]['x'], (float) $runtime[$id]['z'], $survivors, $foundMap, $signals, $logs, $runtime, $survivorProfiles, $isScanAction, $scanDetectionRadius);
         }
 
         $telemetry = [];
         $ids = array_keys($runtime);
+        \Illuminate\Support\Facades\Cache::put('swarm:last_drone_status', $lastDroneStats, now()->addHours(6));
         sort($ids);
+        
+        $metrics = $runtime['_metrics'] ?? [
+            'time_steps' => 0,
+            'explored_cells' => [],
+        ];
+        $metrics['time_steps']++;
+        $activeDronesCount = 0;
+
         foreach ($ids as $id) {
+            if ($id === '_metrics') {
+                continue;
+            }
             if (!isset($runtime[$id])) {
                 continue;
+            }
+
+            if ((float) $runtime[$id]['battery'] > 0) {
+                $activeDronesCount++;
+            }
+
+            $cx = (int) round((float) $runtime[$id]['x']);
+            $cz = (int) round((float) $runtime[$id]['z']);
+            for ($dx = -3; $dx <= 3; $dx++) {
+                for ($dz = -3; $dz <= 3; $dz++) {
+                    $px = max(-49, min(49, $cx + $dx));
+                    $pz = max(-49, min(49, $cz + $dz));
+                    $metrics['explored_cells'][$px . ',' . $pz] = true;
+                }
             }
 
             $telemetry[] = [
@@ -189,10 +293,24 @@ class SwarmSimulationService
             ];
         }
 
+        $totalCells = 100 * 100;
+        $coverage = (count($metrics['explored_cells']) / $totalCells) * 100;
+        
+        $metrics['mission_time_seconds'] = $metrics['time_steps'] * 15;
+        $metrics['active_drones'] = $activeDronesCount;
+        $metrics['coverage_percent'] = round($coverage, 1);
+        $metrics['survivors_found'] = count($foundMap);
+        
+        $runtime['_metrics'] = $metrics;
+
+        $frontendMetrics = $metrics;
+        unset($frontendMetrics['explored_cells']);
+
         return [
             'runtime' => $runtime,
             'telemetry' => $telemetry,
             'logs' => $logs,
+            'metrics' => $frontendMetrics,
             'signals' => $signals,
             'found_survivors' => array_map('intval', array_keys($foundMap)),
         ];

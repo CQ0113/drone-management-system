@@ -367,6 +367,8 @@ private function getAvailableMapsList(): array
             ],
             'telemetry' => $step['telemetry'],
             'logs' => $step['logs'],
+            'metrics' => $step['metrics'] ?? null,
+            'llm_called' => in_array((string) ($plan['source'] ?? ''), ['ollama-refresh', 'ollama', 'ollama-fallback'], true),
             'signals' => $step['signals'] ?? [],
             'found_survivors' => $step['found_survivors'] ?? [],
             'timings' => $timings,
@@ -923,12 +925,15 @@ public function getDefaultMap(string $mapId): JsonResponse
     private function plannerCacheKey(string $objective, array $runtime): string
     {
         $snapshot = collect($runtime)
+            ->filter(fn ($d) => is_array($d) && isset($d['x']))
             ->map(fn ($drone, $id) => [
-                'id' => (string) $id,
-                'x' => round((float) data_get($drone, 'x', 0.0), 1),
-                'z' => round((float) data_get($drone, 'z', 0.0), 1),
-                'battery_band' => (int) floor(max(0.0, min(100.0, (float) data_get($drone, 'battery', 100.0))) / 10),
-                'status' => (string) data_get($drone, 'status', ''),
+                'id'           => (string) $id,
+                // Bucket positions into 5-unit grid zones — small movements don't bust the cache.
+                'zone_x'       => (int) floor((float) data_get($drone, 'x', 0.0) / 5),
+                'zone_z'       => (int) floor((float) data_get($drone, 'z', 0.0) / 5),
+                'battery_band' => (int) floor(max(0.0, min(100.0, (float) data_get($drone, 'battery', 100.0))) / 20),
+                // Use drone_state (idle/moving/scanning/returning) not the verbose status string.
+                'state'        => (string) data_get($drone, 'drone_state', 'idle'),
             ])
             ->sortBy('id')
             ->values()
