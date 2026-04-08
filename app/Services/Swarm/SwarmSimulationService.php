@@ -2,6 +2,8 @@
 
 namespace App\Services\Swarm;
 
+use Illuminate\Support\Facades\Cache;
+
 class SwarmSimulationService
 {
     /**
@@ -18,6 +20,199 @@ class SwarmSimulationService
             'D2' => ['x' => $baseX + 1.4, 'z' => $baseZ, 'battery' => 100.0, 'status' => 'Deploying', 'goal' => null, 'path' => []],
             'D3' => ['x' => $baseX, 'z' => $baseZ + 1.4, 'battery' => 100.0, 'status' => 'Deploying', 'goal' => null, 'path' => []],
         ];
+    }
+
+    /**
+     * @param array<int, array{drone_id: string, action: string, direction: string, distance: int}> $vectorCommands
+     * @param array<string, array<string, mixed>> $runtime
+     * @param array<string, mixed> $state
+     * @param string $actionType
+     * @return array{actions: array<int, array<string, mixed>>, warnings: array<int, string>}
+     */
+    public function translateVectorCommandsToActions(
+        array $vectorCommands,
+        array $runtime,
+        array $state,
+        int $maxDistance = 5,
+        string $actionType = 'move_to'
+    ): array {
+        $actions = [];
+        $warnings = [];
+        $maxDistance = max(1, $maxDistance);
+        $actionType = in_array($actionType, ['move_to', 'scan_sector'], true) ? $actionType : 'move_to';
+        $mapMin = -49.0;
+        $mapMax = 49.0;
+        $blocked = $this->buildBlockedMap((array) data_get($state, 'obstacles', []));
+        $directionMap = $this->directionDeltaMap();
+
+        foreach ($vectorCommands as $command) {
+            $id = strtoupper((string) data_get($command, 'drone_id', ''));
+            if ($id === '' || !isset($runtime[$id])) {
+                $warnings[] = 'Skipped vector command for unknown drone_id.';
+                continue;
+            }
+
+            $direction = strtoupper((string) data_get($command, 'direction', ''));
+            if (!isset($directionMap[$direction])) {
+                $warnings[] = "{$id}: unknown direction '{$direction}', command ignored.";
+                continue;
+            }
+
+            $distance = (int) data_get($command, 'distance', 0);
+            if ($distance <= 0) {
+                $warnings[] = "{$id}: distance must be positive, command ignored.";
+                continue;
+            }
+
+            $distance = min($maxDistance, $distance);
+            $delta = $directionMap[$direction];
+            $dx = (int) $delta['x'];
+            $dz = (int) $delta['z'];
+
+            $currentX = (float) data_get($runtime, $id.'.x', 0.0);
+            $currentZ = (float) data_get($runtime, $id.'.z', 0.0);
+            $lastSafeX = $currentX;
+            $lastSafeZ = $currentZ;
+            $blockedAt = null;
+            $outOfBoundsAt = null;
+
+            for ($step = 1; $step <= $distance; $step++) {
+                $nextX = $currentX + $dx;
+                $nextZ = $currentZ + $dz;
+
+                if ($nextX < $mapMin || $nextX > $mapMax || $nextZ < $mapMin || $nextZ > $mapMax) {
+                    $outOfBoundsAt = $step;
+                    break;
+                }
+
+                if ($this->isBlockedAtPosition($nextX, $nextZ, $blocked)) {
+                    $blockedAt = $step;
+                    break;
+                }
+
+                $lastSafeX = $nextX;
+                $lastSafeZ = $nextZ;
+                $currentX = $nextX;
+                $currentZ = $nextZ;
+            }
+
+            if ($outOfBoundsAt !== null) {
+                $warnings[] = "{$id}: vector path hit map boundary at step {$outOfBoundsAt}, clamped.";
+            } elseif ($blockedAt !== null) {
+                $warnings[] = "{$id}: vector path hit obstacle at step {$blockedAt}, clamped.";
+            }
+
+            $commandAction = strtoupper((string) data_get($command, 'action', ''));
+            $resolvedActionType = $actionType;
+            if ($commandAction === 'SCAN') {
+                $resolvedActionType = 'scan_sector';
+            } elseif ($commandAction === 'MOVE') {
+                $resolvedActionType = 'move_to';
+            }
+
+            $actions[] = [
+                'drone_id' => $id,
+                'type' => $resolvedActionType,
+                'target' => [
+                    'x' => round($lastSafeX, 2),
+                    'z' => round($lastSafeZ, 2),
+                ],
+                'priority' => 5,
+                'reason' => $resolvedActionType === 'scan_sector'
+                    ? 'Vector command translated to scan sector.'
+                    : 'Vector command translated to absolute target.',
+            ];
+        }
+
+        return ['actions' => $actions, 'warnings' => $warnings];
+    }
+
+    /**
+     * @param array<string, mixed> $state
+     */
+    public function buildTacticalBriefing(array $state): string
+    {
+        $runtime = (array) data_get($state, 'runtime_drones', []);
+        $survivors = (array) data_get($state, 'survivors', []);
+        $ragContext = (array) data_get($state, 'rag_context', []);
+        $radarPing = (string) data_get($state, 'radar_ping', '');
+        $learnings = Cache::get('swarm:mission_learnings', []);
+        $learnings = is_array($learnings) ? array_values($learnings) : [];
+        $override = trim((string) Cache::get('swarm:commander_override', ''));
+
+        $radarById = $this->parseRadarPing($radarPing);
+        $ids = array_keys($runtime);
+        sort($ids);
+
+        $lines = [];
+        $lines[] = '=== SWARM STATUS ===';
+        if (empty($ids)) {
+            $lines[] = 'NONE';
+        } else {
+            foreach ($ids as $id) {
+                $battery = (int) round((float) data_get($runtime, $id.'.battery', 0));
+                $lines[] = sprintf('%s: Bat:%d%%', $id, $battery);
+            }
+        }
+
+        $lines[] = '';
+        if (!empty($learnings)) {
+            $lines[] = '=== STANDING ORDERS (LONG-TERM MEMORY) ===';
+            foreach ($learnings as $index => $learning) {
+                $lines[] = sprintf('%d. %s', $index + 1, $learning);
+            }
+            $lines[] = '';
+        }
+        $lines[] = '=== TACTICAL RADAR ===';
+        if (empty($ids)) {
+            $lines[] = 'No active drones.';
+        } else {
+            foreach ($ids as $id) {
+                $lower = strtolower((string) $id);
+                $radar = $radarById[$lower] ?? [
+                    'area' => 'UNKNOWN',
+                    'radar' => 'NORTH[?], NORTHEAST[?], EAST[?], SOUTHEAST[?], SOUTH[?], SOUTHWEST[?], WEST[?], NORTHWEST[?]',
+                ];
+                $target = $this->closestSurvivorInfo((array) ($runtime[$id] ?? []), $survivors);
+                $targetText = $target
+                    ? sprintf('%s is [%s]', $target['label'], $target['direction'])
+                    : 'NONE';
+
+                $lines[] = sprintf(
+                    '%s: Area[%s] | Target: %s | Radar: %s',
+                    $lower,
+                    $radar['area'],
+                    $targetText,
+                    $radar['radar']
+                );
+            }
+        }
+
+        $lines[] = '';
+        $lines[] = '=== MISSION HISTORY (RAG) ===';
+        $ragLines = 0;
+        foreach ($ragContext as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            $summary = trim((string) data_get($entry, 'summary', ''));
+            if ($summary === '') {
+                continue;
+            }
+            $lines[] = 'Previous Tick: '.$summary;
+            $ragLines++;
+        }
+        if ($ragLines === 0) {
+            $lines[] = 'Previous Tick: NONE.';
+        }
+
+        if ($override !== '') {
+            $lines[] = '';
+            $lines[] = '=== COMMANDER OVERRIDE (CRITICAL PRIORITY) ===';
+            $lines[] = $override;
+        }
+
+        return implode("\n", $lines);
     }
 
     /**
@@ -250,6 +445,73 @@ class SwarmSimulationService
             $this->captureSurvivorSignal($id, (float) $runtime[$id]['x'], (float) $runtime[$id]['z'], $survivors, $foundMap, $signals, $logs, $runtime, $survivorProfiles, $isScanAction, $scanDetectionRadius);
         }
 
+        $areaSize = max(1, (int) env('SWARM_AREA_SIZE', 10));
+        $mapBounds = ['minX' => -49, 'maxX' => 49, 'minY' => -49, 'maxY' => 49];
+        $learnings = Cache::get('swarm:mission_learnings', []);
+        $learnings = is_array($learnings) ? array_values($learnings) : [];
+        $learningSet = array_fill_keys($learnings, true);
+        $history = Cache::get('swarm:drone_pos_history', []);
+        $history = is_array($history) ? $history : [];
+
+        foreach ($runtime as $id => $drone) {
+            $droneX = (float) data_get($drone, 'x', 0);
+            $droneZ = (float) data_get($drone, 'z', 0);
+
+            $history[$id] = array_values($history[$id] ?? []);
+            $history[$id][] = [
+                'x' => (int) round($droneX),
+                'z' => (int) round($droneZ),
+            ];
+            $history[$id] = array_slice($history[$id], -5);
+
+            if (count($history[$id]) === 5) {
+                $first = $history[$id][0];
+                $last = $history[$id][4];
+                $dx = (int) $last['x'] - (int) $first['x'];
+                $dz = (int) $last['z'] - (int) $first['z'];
+                $drift = sqrt(($dx * $dx) + ($dz * $dz));
+
+                if ($drift <= 2.0) {
+                    $zone = $this->getRelativeDirection($baseX, $baseZ, $droneX, $droneZ);
+                    if ($zone !== null) {
+                        $learning = sprintf(
+                            '%s is unable to navigate the [%s] zone. Assign %s to a different area.',
+                            $id,
+                            $zone,
+                            $id
+                        );
+                        if (!isset($learningSet[$learning])) {
+                            $learnings[] = $learning;
+                            $learningSet[$learning] = true;
+                        }
+                    }
+                }
+            }
+
+            $closest = $this->closestSurvivorInfo((array) $drone, $survivors);
+            if ($closest && $closest['dist'] <= 1.5) {
+                $direction = (string) $closest['direction'];
+                if ($direction !== '' && $this->isDirectionWallForDrone($droneX, $droneZ, $direction, $areaSize, $mapBounds)) {
+                    $learning = sprintf(
+                        'Target %s is blocked from the [%s] approach. Find an alternate route.',
+                        $closest['label'],
+                        $direction
+                    );
+                    if (!isset($learningSet[$learning])) {
+                        $learnings[] = $learning;
+                        $learningSet[$learning] = true;
+                    }
+                }
+            }
+        }
+
+        if (count($learnings) > 200) {
+            $learnings = array_slice($learnings, -200);
+        }
+
+        Cache::put('swarm:mission_learnings', $learnings, now()->addDays(7));
+        Cache::put('swarm:drone_pos_history', $history, now()->addHours(6));
+
         $telemetry = [];
         $ids = array_keys($runtime);
         \Illuminate\Support\Facades\Cache::put('swarm:last_drone_status', $lastDroneStats, now()->addHours(6));
@@ -314,6 +576,166 @@ class SwarmSimulationService
             'signals' => $signals,
             'found_survivors' => array_map('intval', array_keys($foundMap)),
         ];
+    }
+
+    /**
+     * @return array<string, array{area: string, radar: string}>
+     */
+    private function parseRadarPing(string $radarPing): array
+    {
+        $result = [];
+        $lines = preg_split('/\r?\n/', trim($radarPing)) ?: [];
+
+        foreach ($lines as $line) {
+            if (preg_match('/^([a-z0-9_-]+):\s*Current Area\s*\[([A-Z]+)\]\.\s*Radar:\s*(.+)$/i', $line, $matches)) {
+                $id = strtolower((string) $matches[1]);
+                $result[$id] = [
+                    'area' => strtoupper((string) $matches[2]),
+                    'radar' => trim((string) $matches[3]),
+                ];
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $survivors
+     * @return array{label: string, direction: string, dist: float}|null
+     */
+    private function closestSurvivorInfo(array $drone, array $survivors): ?array
+    {
+        if (empty($survivors)) {
+            return null;
+        }
+
+        $fromX = (float) data_get($drone, 'x', 0);
+        $fromZ = (float) data_get($drone, 'z', 0);
+        $bestDistSq = PHP_FLOAT_MAX;
+        $best = null;
+
+        foreach ($survivors as $index => $survivor) {
+            $toX = (float) data_get($survivor, 'x', 0);
+            $toZ = (float) data_get($survivor, 'z', 0);
+            $dx = $toX - $fromX;
+            $dz = $toZ - $fromZ;
+            $distSq = ($dx * $dx) + ($dz * $dz);
+
+            if ($distSq >= $bestDistSq) {
+                continue;
+            }
+
+            $direction = $this->getRelativeDirection($fromX, $fromZ, $toX, $toZ);
+            if ($direction === null) {
+                continue;
+            }
+
+            $bestDistSq = $distSq;
+            $best = [
+                'label' => 'S'.($index + 1),
+                'direction' => $direction,
+                'dist' => sqrt($distSq),
+            ];
+        }
+
+        return $best;
+    }
+
+    private function getRelativeDirection(float $fromX, float $fromZ, float $toX, float $toZ): ?string
+    {
+        $dx = $toX - $fromX;
+        $dz = $toZ - $fromZ;
+
+        if (abs($dx) < 0.001 && abs($dz) < 0.001) {
+            return null;
+        }
+
+        $angle = atan2($dz, $dx);
+        $deg = fmod((rad2deg($angle) + 360.0), 360.0);
+
+        if ($deg >= 337.5 || $deg < 22.5) {
+            return 'EAST';
+        }
+        if ($deg < 67.5) {
+            return 'NORTHEAST';
+        }
+        if ($deg < 112.5) {
+            return 'NORTH';
+        }
+        if ($deg < 157.5) {
+            return 'NORTHWEST';
+        }
+        if ($deg < 202.5) {
+            return 'WEST';
+        }
+        if ($deg < 247.5) {
+            return 'SOUTHWEST';
+        }
+        if ($deg < 292.5) {
+            return 'SOUTH';
+        }
+
+        return 'SOUTHEAST';
+    }
+
+    /**
+     * @param array<string, float|int> $mapBounds
+     */
+    private function isDirectionWallForDrone(float $x, float $z, string $direction, int $areaSize, array $mapBounds): bool
+    {
+        $offsets = $this->directionDeltaMap();
+        $direction = strtoupper($direction);
+        $cardinalMap = [
+            'NORTH' => 'U',
+            'NORTHEAST' => 'UR',
+            'EAST' => 'R',
+            'SOUTHEAST' => 'RD',
+            'SOUTH' => 'D',
+            'SOUTHWEST' => 'LD',
+            'WEST' => 'L',
+            'NORTHWEST' => 'LU',
+        ];
+        if (isset($cardinalMap[$direction])) {
+            $direction = $cardinalMap[$direction];
+        }
+        if (!isset($offsets[$direction])) {
+            return false;
+        }
+
+        [$areaX, $areaY] = $this->getAreaCoordinates($x, $z, $areaSize);
+        $targetAreaX = $areaX + $offsets[$direction]['x'];
+        $targetAreaY = $areaY + $offsets[$direction]['z'];
+
+        return $this->isAreaOutsideBounds($targetAreaX, $targetAreaY, $mapBounds, $areaSize);
+    }
+
+    /**
+     * @return array{0: int, 1: int}
+     */
+    private function getAreaCoordinates(float $x, float $z, int $areaSize): array
+    {
+        $size = max(1, $areaSize);
+        $areaX = (int) floor($x / $size);
+        $areaY = (int) floor($z / $size);
+
+        return [$areaX, $areaY];
+    }
+
+    /**
+     * @param array<string, float|int> $mapBounds
+     */
+    private function isAreaOutsideBounds(int $areaX, int $areaY, array $mapBounds, int $areaSize): bool
+    {
+        $size = max(1, $areaSize);
+        $minX = $areaX * $size;
+        $maxX = $minX + $size - 1;
+        $minY = $areaY * $size;
+        $maxY = $minY + $size - 1;
+
+        return $maxX < (int) $mapBounds['minX']
+            || $minX > (int) $mapBounds['maxX']
+            || $maxY < (int) $mapBounds['minY']
+            || $minY > (int) $mapBounds['maxY'];
     }
 
     /**
@@ -502,6 +924,23 @@ class SwarmSimulationService
             'return_to_base' => 'Returning to base',
             default => 'Transit',
         };
+    }
+
+    /**
+     * @return array<string, array{x: int, z: int}>
+     */
+    private function directionDeltaMap(): array
+    {
+        return [
+            'U' => ['x' => 0, 'z' => 1],
+            'UR' => ['x' => 1, 'z' => 1],
+            'R' => ['x' => 1, 'z' => 0],
+            'RD' => ['x' => 1, 'z' => -1],
+            'D' => ['x' => 0, 'z' => -1],
+            'LD' => ['x' => -1, 'z' => -1],
+            'L' => ['x' => -1, 'z' => 0],
+            'LU' => ['x' => -1, 'z' => 1],
+        ];
     }
 
     private function stableHash01(string $text): float

@@ -7,6 +7,7 @@ use App\Services\Swarm\LlmPlannerService;
 use App\Services\Swarm\McpDroneCommandExecutor;
 use App\Services\Swarm\MissionCommandAgentService;
 use App\Services\Swarm\SwarmCommandValidator;
+use App\Services\Swarm\SwarmRadarService;
 use App\Services\Swarm\SwarmSimulationService;
 use App\Services\Swarm\SwarmRagMemoryService;
 use Illuminate\Http\JsonResponse;
@@ -23,13 +24,14 @@ class SwarmController extends Controller
         private readonly McpDroneCommandExecutor $mcpExecutor,
         private readonly MissionCommandAgentService $commandAgent,
         private readonly SwarmCommandValidator $validator,
+        private readonly SwarmRadarService $radar,
         private readonly SwarmSimulationService $simulation,
         private readonly SwarmRagMemoryService $ragMemory,
     ) {}
 
-   public function initSwarm(Request $request): JsonResponse
-{
-    $validated = $request->validate([
+    public function initSwarm(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
         'base' => ['nullable', 'array'],
         'base.x' => ['nullable', 'numeric'],
         'base.z' => ['nullable', 'numeric'],
@@ -42,84 +44,90 @@ class SwarmController extends Controller
         'obstacles.*.z' => ['required_with:obstacles', 'numeric'],
         'obstacles.*.height' => ['nullable', 'numeric'],
         'use_default_map' => ['nullable', 'string', 'in:map1,map2,map3,map4,map5'],  
-    ]);
+        ]);
 
-    
-    if ($request->has('use_default_map')) {
-        $mapKey = $validated['use_default_map'];
-        $mapConfig = self::DEFAULT_MAPS[$mapKey] ?? self::DEFAULT_MAPS['map1'];
-        
-        $state = [
-            'base' => [
-                'x' => (float) $mapConfig['base']['x'],
-                'z' => (float) $mapConfig['base']['z'],
-            ],
-            'survivors' => collect($mapConfig['survivors'] ?? [])
-                ->map(fn (array $point): array => [
-                    'x' => (float) $point['x'],
-                    'z' => (float) $point['z'],
-                    'name' => $point['name'] ?? 'Unknown',
-                ])
-                ->values()
-                ->all(),
-            'obstacles' => collect($mapConfig['obstacles'] ?? [])
-                ->map(fn (array $point): array => [
-                    'x' => (float) $point['x'],
-                    'z' => (float) $point['z'],
-                    'height' => (float) ($point['height'] ?? 2.0),
-                ])
-                ->values()
-                ->all(),
-            'map_name' => $mapConfig['name'],
-            'map_description' => $mapConfig['description'],
-            'created_at' => now()->toIso8601String(),
-        ];
-    } else {
-        $state = [
-            'base' => [
-                'x' => (float) ($validated['base']['x'] ?? 0),
-                'z' => (float) ($validated['base']['z'] ?? 0),
-            ],
-            'survivors' => collect($validated['survivors'] ?? [])
-                ->map(fn (array $point): array => [
-                    'x' => (float) $point['x'],
-                    'z' => (float) $point['z'],
-                    'name' => $point['name'] ?? 'Unknown',
-                ])
-                ->values()
-                ->all(),
-            'obstacles' => collect($validated['obstacles'] ?? [])
-                ->map(fn (array $point): array => [
-                    'x' => (float) $point['x'],
-                    'z' => (float) $point['z'],
-                    'height' => (float) ($point['height'] ?? 2.0),
-                ])
-                ->values()
-                ->all(),
-            'created_at' => now()->toIso8601String(),
-        ];
+        if ($request->has('use_default_map')) {
+            $mapKey = $validated['use_default_map'];
+            $mapConfig = self::DEFAULT_MAPS[$mapKey] ?? self::DEFAULT_MAPS['map1'];
+
+            $state = [
+                'base' => [
+                    'x' => (float) $mapConfig['base']['x'],
+                    'z' => (float) $mapConfig['base']['z'],
+                ],
+                'survivors' => collect($mapConfig['survivors'] ?? [])
+                    ->map(fn (array $point): array => [
+                        'x' => (float) $point['x'],
+                        'z' => (float) $point['z'],
+                        'name' => $point['name'] ?? 'Unknown',
+                    ])
+                    ->values()
+                    ->all(),
+                'obstacles' => collect($mapConfig['obstacles'] ?? [])
+                    ->map(fn (array $point): array => [
+                        'x' => (float) $point['x'],
+                        'z' => (float) $point['z'],
+                        'height' => (float) ($point['height'] ?? 2.0),
+                    ])
+                    ->values()
+                    ->all(),
+                'map_name' => $mapConfig['name'],
+                'map_description' => $mapConfig['description'],
+                'created_at' => now()->toIso8601String(),
+            ];
+        } else {
+            $state = [
+                'base' => [
+                    'x' => (float) ($validated['base']['x'] ?? 0),
+                    'z' => (float) ($validated['base']['z'] ?? 0),
+                ],
+                'survivors' => collect($validated['survivors'] ?? [])
+                    ->map(fn (array $point): array => [
+                        'x' => (float) $point['x'],
+                        'z' => (float) $point['z'],
+                        'name' => $point['name'] ?? 'Unknown',
+                    ])
+                    ->values()
+                    ->all(),
+                'obstacles' => collect($validated['obstacles'] ?? [])
+                    ->map(fn (array $point): array => [
+                        'x' => (float) $point['x'],
+                        'z' => (float) $point['z'],
+                        'height' => (float) ($point['height'] ?? 2.0),
+                    ])
+                    ->values()
+                    ->all(),
+                'created_at' => now()->toIso8601String(),
+            ];
+        }
+
+        $ttl = now()->addHours(6);
+        $runtime = $this->simulation->initialDrones($state);
+        $survivorProfiles = $this->buildSurvivorProfiles($state);
+
+        Cache::put('swarm:setup', $state, $ttl);
+        Cache::put('swarm:runtime', $runtime, $ttl);
+        Cache::put('swarm:found_survivors', [], $ttl);
+        Cache::put('swarm:scanned_cells', [], $ttl);
+        Cache::put('swarm:mission_learnings', [], $ttl);
+        Cache::put('swarm:survivor_profiles', $survivorProfiles, $ttl);
+        Cache::forget('swarm:drone_pos_history');
+        Cache::forget('swarm:mission_state');
+        Cache::forget('swarm_state');
+        $this->ragMemory->clear();
+        $operatorSettings = $this->resolveOperatorSettings();
+
+        return response()->json([
+            'ok' => true,
+            'message' => $request->has('use_default_map')
+                ? 'Swarm initialized with default map: '.$state['map_name']
+                : 'Swarm setup initialized with custom configuration.',
+            'state' => $state,
+            'survivor_profiles' => $survivorProfiles,
+            'settings' => $operatorSettings,
+            'available_maps' => $this->getAvailableMapsList(),
+        ]);
     }
-
-    Cache::put('swarm:setup', $state, now()->addHours(6));
-    Cache::put('swarm:runtime', [], now()->addHours(6));
-    Cache::forget('swarm:mission_state');
-    $this->ragMemory->clear();
-    Cache::put('swarm:found_survivors', [], now()->addHours(6));
-    $survivorProfiles = $this->buildSurvivorProfiles($state);
-    Cache::put('swarm:survivor_profiles', $survivorProfiles, now()->addHours(6));
-    $operatorSettings = $this->resolveOperatorSettings();
-
-    return response()->json([
-        'ok' => true,
-        'message' => $request->has('use_default_map') 
-            ? 'Swarm initialized with default map: ' . $state['map_name']
-            : 'Swarm setup initialized with custom configuration.',
-        'state' => $state,
-        'survivor_profiles' => $survivorProfiles,
-        'settings' => $operatorSettings,
-        'available_maps' => $this->getAvailableMapsList(),
-    ]);
-}
 
 private function getAvailableMapsList(): array
 {
@@ -166,6 +174,35 @@ private function getAvailableMapsList(): array
             'message' => 'Runtime battery settings updated.',
             'settings' => $this->resolveOperatorSettings(),
             'generated_at' => now()->toIso8601String(),
+        ]);
+    }
+
+    public function setCommanderOverride(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'message' => ['nullable', 'string', 'max:500'],
+            'clear' => ['nullable', 'boolean'],
+        ]);
+
+        $message = trim((string) ($validated['message'] ?? ''));
+        $clear = (bool) ($validated['clear'] ?? false);
+
+        if ($clear || $message === '') {
+            Cache::forget('swarm:commander_override');
+
+            return response()->json([
+                'ok' => true,
+                'message' => 'Commander override cleared.',
+                'override' => null,
+            ]);
+        }
+
+        Cache::put('swarm:commander_override', $message, now()->addHours(6));
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'Commander override broadcast to swarm.',
+            'override' => $message,
         ]);
     }
 
@@ -220,6 +257,7 @@ private function getAvailableMapsList(): array
             'actions.*.target' => ['required_with:actions', 'array'],
             'actions.*.target.x' => ['required_with:actions', 'numeric'],
             'actions.*.target.z' => ['required_with:actions', 'numeric'],
+            'vector_commands_text' => ['nullable', 'string', 'max:2000'],
         ]);
 
         $state = $validated['state'] ?? Cache::get('swarm:setup');
@@ -235,6 +273,10 @@ private function getAvailableMapsList(): array
             $runtime = [];
         }
         $runtime = $this->filterRuntimeToAllowed($runtime);
+        $scannedCells = Cache::get('swarm:scanned_cells', []);
+        if (!is_array($scannedCells)) {
+            $scannedCells = [];
+        }
         $foundSurvivors = Cache::get('swarm:found_survivors', []);
         if (!is_array($foundSurvivors)) {
             $foundSurvivors = [];
@@ -249,6 +291,7 @@ private function getAvailableMapsList(): array
 
         $mcp = ['ok' => true, 'source' => 'mcp-skipped', 'tool_trace' => [], 'discovered_drones' => []];
         $objective = (string) ($validated['objective'] ?? 'search_and_rescue');
+        $vectorCommandsText = trim((string) ($validated['vector_commands_text'] ?? ''));
         if (empty($validated['actions']) && empty($runtime)) {
             $preDiscoveryStartedAt = microtime(true);
             $preDiscovery = $this->mcpExecutor->discoverActiveDrones($state, $objective);
@@ -271,14 +314,37 @@ private function getAvailableMapsList(): array
         $ragRetrieveStartedAt = microtime(true);
         $ragContext = $this->ragMemory->retrieveContext($objective, $state, $runtime, 5);
         $timings['rag_retrieve_ms'] = round((microtime(true) - $ragRetrieveStartedAt) * 1000, 2);
+        $areaSize = max(1, (int) env('SWARM_AREA_SIZE', 10));
+        $mapBounds = ['minX' => -49, 'maxX' => 49, 'minY' => -49, 'maxY' => 49];
+        $radarLines = $this->radar->buildRadarPingLines($runtime, $mapBounds, $scannedCells, $areaSize);
+        $radarPing = implode("\n", $radarLines);
         $planningStartedAt = microtime(true);
         if (!empty($validated['actions'])) {
             $plan = ['actions' => $validated['actions'], 'intent' => $objective, 'reasoning' => 'External actions submitted.', 'source' => 'external'];
+        } elseif ($vectorCommandsText !== '') {
+            $vectorMaxDistance = max(1, (int) env('SWARM_VECTOR_MAX_DISTANCE', 5));
+            $vectorCommands = $this->planner->parseVectorCommandsText($vectorCommandsText, $stateForTick, $runtime, $vectorMaxDistance);
+            if (empty($vectorCommands)) {
+                return response()->json([
+                    'ok' => false,
+                    'message' => 'Vector command payload was invalid or empty after parsing.',
+                ], 422);
+            }
+            $plan = [
+                'actions' => [],
+                'intent' => $objective,
+                'reasoning' => 'External vector commands submitted.',
+                'source' => 'external-vector',
+                'raw_model_output' => $vectorCommandsText,
+                'vector_commands' => $vectorCommands,
+                'parse_error' => empty($vectorCommands),
+            ];
         } else {
             $plannerState = $state;
             $plannerState['runtime_drones'] = $runtime;
             $plannerState['rag_context'] = $ragContext;
             $plannerState['operator_settings'] = $stateForTick['operator_settings'];
+            $plannerState['radar_ping'] = $radarPing;
             $commandAgentEnabled = $this->isCommandAgentEnabled();
 
             $shouldUseCommandAgent = $commandAgentEnabled && $this->commandAgent->supportsObjective($objective) && !empty($runtime);
@@ -302,12 +368,33 @@ private function getAvailableMapsList(): array
                 }
             }
         }
-        $plannerActions = (array) ($plan['actions'] ?? []);
         $timings['planning_ms'] = round((microtime(true) - $planningStartedAt) * 1000, 2);
 
         if (empty($validated['actions']) && !empty($runtime) && $this->shouldUseCachePatrolNudge($plan)) {
             $plan = $this->applyCachePatrolNudge($plan, $state, $runtime);
         }
+
+        $vectorWarnings = [];
+        if (empty($validated['actions']) && !empty($plan['vector_commands']) && is_array($plan['vector_commands'])) {
+            $vectorMaxDistance = max(1, (int) env('SWARM_VECTOR_MAX_DISTANCE', 5));
+            $translation = $this->simulation->translateVectorCommandsToActions(
+                (array) $plan['vector_commands'],
+                $runtime,
+                $stateForTick,
+                $vectorMaxDistance,
+                'move_to'
+            );
+
+            if (!empty($translation['actions'])) {
+                $plan['actions'] = $translation['actions'];
+                $vectorWarnings = (array) ($translation['warnings'] ?? []);
+            } else {
+                $vectorWarnings = (array) ($translation['warnings'] ?? []);
+                $vectorWarnings[] = 'Vector commands produced no usable actions; using fallback plan actions.';
+            }
+        }
+
+        $plannerActions = (array) ($plan['actions'] ?? []);
 
         if (empty($validated['actions'])) {
             $mcpStartedAt = microtime(true);
@@ -327,9 +414,20 @@ private function getAvailableMapsList(): array
         $checked = $this->validator->validateActions((array) ($plan['actions'] ?? []), $state, $runtime);
         $timings['validator_ms'] = round((microtime(true) - $validatorStartedAt) * 1000, 2);
 
+        $warnings = array_values(array_merge($vectorWarnings, (array) ($checked['warnings'] ?? [])));
+
         $simulationStartedAt = microtime(true);
         $step = $this->simulation->tick($runtime, $checked['actions'], $stateForTick, $foundSurvivors);
         $timings['simulation_ms'] = round((microtime(true) - $simulationStartedAt) * 1000, 2);
+
+        $scanRadius = max(1.0, min(25.0, (float) env('SWARM_SCAN_DETECTION_RADIUS', 6.0)));
+        $newScannedCells = $this->radar->collectScannedCellsFromActions(
+            (array) ($checked['actions'] ?? []),
+            (array) ($step['runtime'] ?? []),
+            $mapBounds,
+            $scanRadius
+        );
+        $mergedScannedCells = $this->radar->mergeScannedCells($scannedCells, $newScannedCells);
 
         $ragStoreStartedAt = microtime(true);
         $this->ragMemory->storeTickMemory(
@@ -345,6 +443,7 @@ private function getAvailableMapsList(): array
 
         Cache::put('swarm:runtime', $step['runtime'], now()->addHours(6));
         Cache::put('swarm:found_survivors', (array) ($step['found_survivors'] ?? []), now()->addHours(6));
+        Cache::put('swarm:scanned_cells', $mergedScannedCells, now()->addHours(6));
         $timings['total_ms'] = round((microtime(true) - $tickStartedAt) * 1000, 2);
 
         return response()->json([
@@ -353,7 +452,7 @@ private function getAvailableMapsList(): array
             'reasoning' => (string) ($plan['reasoning'] ?? 'Deterministic tick run.'),
             'source' => (string) ($plan['source'] ?? 'external'),
             'actions' => $checked['actions'],
-            'warnings' => $checked['warnings'],
+            'warnings' => $warnings,
             'mission' => $missionMeta,
             'rag' => [
                 'context_used' => $ragContext,
@@ -371,6 +470,7 @@ private function getAvailableMapsList(): array
             'llm_called' => in_array((string) ($plan['source'] ?? ''), ['ollama-refresh', 'ollama', 'ollama-fallback'], true),
             'signals' => $step['signals'] ?? [],
             'found_survivors' => $step['found_survivors'] ?? [],
+            'scanned_cells' => array_values($mergedScannedCells),
             'timings' => $timings,
             'model' => [
                 'raw_output' => (string) ($plan['raw_model_output'] ?? ''),
@@ -380,6 +480,8 @@ private function getAvailableMapsList(): array
                 'planner_actions' => $plannerActions,
                 'post_mcp_actions' => $postMcpActions,
                 'validated_actions' => $checked['actions'],
+                'radar_ping' => $radarPing,
+                'vector_commands_text' => $vectorCommandsText,
             ],
             'settings' => $this->resolveOperatorSettings(),
             'generated_at' => now()->toIso8601String(),

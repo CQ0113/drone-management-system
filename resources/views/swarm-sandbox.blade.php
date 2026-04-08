@@ -142,9 +142,209 @@
             background-color: rgba(34, 211, 238, 0.7);
         }
 
+        .heading-row {
+            align-items: center;
+        }
+
+        .drone-heading-label {
+            pointer-events: none;
+            background: rgba(6, 12, 20, 0.88);
+            border: 1px solid rgba(34, 211, 238, 0.45);
+            border-radius: 8px;
+            padding: 6px 8px;
+            box-shadow: 0 0 14px rgba(34, 211, 238, 0.18);
+            min-width: 130px;
+        }
+
+        .drone-heading-title {
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.18em;
+            color: rgba(148, 163, 184, 0.9);
+            margin-bottom: 4px;
+        }
+
+        .drone-heading-world {
+            font-size: 11px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            color: rgba(165, 243, 252, 0.95);
+        }
+
+        .drone-heading-view {
+            font-size: 10px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            color: rgba(251, 191, 36, 0.9);
+            margin-top: 2px;
+        }
+
+        .drone-heading-divider {
+            height: 1px;
+            background: rgba(34, 211, 238, 0.2);
+            margin: 4px 0;
+        }
+
+        .heading-compass {
+            position: relative;
+            width: 34px;
+            height: 34px;
+            border-radius: 999px;
+            background: radial-gradient(circle at 30% 30%, rgba(34, 211, 238, 0.35), rgba(2, 6, 12, 0.85));
+            border: 1px solid rgba(34, 211, 238, 0.45);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: inset 0 0 10px rgba(34, 211, 238, 0.1);
+        }
+
+        .heading-compass.moving {
+            box-shadow: 0 0 18px rgba(34, 211, 238, 0.35), inset 0 0 10px rgba(34, 211, 238, 0.2);
+        }
+
+        .heading-scan {
+            position: absolute;
+            inset: 4px;
+            border-radius: 999px;
+            background: conic-gradient(from 120deg, rgba(34, 211, 238, 0.0), rgba(34, 211, 238, 0.35), rgba(34, 211, 238, 0.0));
+            opacity: 0.4;
+            animation: headingSweep 2.2s linear infinite;
+            filter: blur(0.3px);
+        }
+
+        .heading-arrow-wrap {
+            position: relative;
+            width: 22px;
+            height: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2;
+        }
+
+        .heading-arrow {
+            width: 20px;
+            height: 20px;
+            color: #22d3ee;
+            filter: drop-shadow(0 0 6px rgba(34, 211, 238, 0.55));
+            animation: arrowPulse 1.35s ease-in-out infinite;
+        }
+
+        .heading-arrow path {
+            fill: currentColor;
+        }
+
+        .heading-hold-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 999px;
+            background: rgba(148, 163, 184, 0.75);
+            box-shadow: 0 0 10px rgba(148, 163, 184, 0.35);
+            display: inline-block;
+            animation: holdPulse 1.6s ease-in-out infinite;
+        }
+
+        .compass-hud {
+            position: fixed;
+            top: 86px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 18;
+            pointer-events: none;
+            text-align: center;
+        }
+
+        .compass-shell {
+            padding: 8px 10px 10px;
+            border-radius: 14px;
+            background: rgba(6, 12, 20, 0.75);
+            border: 1px solid rgba(34, 211, 238, 0.35);
+            box-shadow: 0 10px 26px rgba(3, 8, 16, 0.6), inset 0 0 10px rgba(34, 211, 238, 0.12);
+            backdrop-filter: blur(10px);
+        }
+
+        .compass-title {
+            font-size: 9px;
+            letter-spacing: 0.24em;
+            text-transform: uppercase;
+            color: rgba(148, 163, 184, 0.85);
+            margin-bottom: 6px;
+        }
+
+        .compass-dial {
+            position: relative;
+            width: 72px;
+            height: 72px;
+            border-radius: 999px;
+            border: 1px solid rgba(34, 211, 238, 0.4);
+            background: radial-gradient(circle at 30% 20%, rgba(34, 211, 238, 0.2), rgba(3, 6, 12, 0.95));
+            margin: 0 auto;
+            box-shadow: inset 0 0 18px rgba(34, 211, 238, 0.2);
+        }
+
+        .compass-letter {
+            position: absolute;
+            font-size: 9px;
+            font-weight: 600;
+            letter-spacing: 0.2em;
+            color: rgba(226, 232, 240, 0.7);
+        }
+
+        .compass-letter.n { top: 6px; left: 50%; transform: translateX(-50%); }
+        .compass-letter.e { right: 6px; top: 50%; transform: translateY(-50%); }
+        .compass-letter.s { bottom: 6px; left: 50%; transform: translateX(-50%); }
+        .compass-letter.w { left: 6px; top: 50%; transform: translateY(-50%); }
+
+        .compass-needle {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 3px;
+            height: 26px;
+            background: linear-gradient(180deg, rgba(34, 211, 238, 0.95), rgba(34, 211, 238, 0.2));
+            border-radius: 999px;
+            transform-origin: 50% 100%;
+            box-shadow: 0 0 8px rgba(34, 211, 238, 0.7);
+            transition: transform 0.12s linear;
+        }
+
+        .compass-center {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            border-radius: 999px;
+            background: rgba(34, 211, 238, 0.8);
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 6px rgba(34, 211, 238, 0.7);
+        }
+
+        .compass-readout {
+            margin-top: 6px;
+            font-size: 10px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            color: rgba(165, 243, 252, 0.9);
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+        }
+
         @keyframes survivorPulse {
             from { transform: scale(1); box-shadow: 0 0 10px rgba(250, 204, 21, 0.35); }
             to { transform: scale(1.02); box-shadow: 0 0 24px rgba(250, 204, 21, 0.75); }
+        }
+
+        @keyframes headingSweep {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes arrowPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.08); }
+        }
+
+        @keyframes holdPulse {
+            0%, 100% { opacity: 0.45; }
+            50% { opacity: 0.95; }
         }
     </style>
 </head>
@@ -153,6 +353,20 @@
     <div class="scanline-overlay"></div>
     <div id="survivor-alert" class="hidden fixed top-20 left-1/2 -translate-x-1/2 z-20 pointer-events-none rounded-lg border border-amber-300/70 bg-amber-500/20 px-5 py-3 text-amber-100 font-display tracking-wide text-sm md:text-base"></div>
     <div id="sprite-status" class="hidden fixed top-4 right-4 z-20 pointer-events-none rounded-lg border border-cyan-500/40 bg-slate-950/60 px-4 py-2 text-cyan-100 font-mono text-xs shadow-lg"></div>
+    <div id="compass-hud" class="compass-hud">
+        <div class="compass-shell">
+            <div class="compass-title">Map Compass</div>
+            <div class="compass-dial">
+                <span class="compass-letter n">N</span>
+                <span class="compass-letter e">E</span>
+                <span class="compass-letter s">S</span>
+                <span class="compass-letter w">W</span>
+                <div id="compass-needle" class="compass-needle"></div>
+                <div class="compass-center"></div>
+            </div>
+            <div id="compass-readout" class="compass-readout">View: N (0 deg)</div>
+        </div>
+    </div>
 
     <div class="fixed inset-0 z-10 pointer-events-none overflow-y-auto overscroll-contain md:overflow-hidden">
         <div class="relative min-h-[1040px] pb-4 pt-4 md:min-h-full md:pb-0 md:pt-0">
@@ -243,6 +457,19 @@
                     </div>
                     <p id="placement-hint" class="mt-2 text-[11px] text-cyan-600/80 text-center font-medium max-w-[250px] mx-auto leading-tight">Click the tactical grid to add elements.</p>
                 </div>
+
+                <div class="rounded-lg border border-fuchsia-900/60 bg-slate-950/70 p-3 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <h3 class="font-display text-xs uppercase tracking-[0.2em] text-fuchsia-300">Commander Override</h3>
+                        <span class="text-[10px] uppercase tracking-[0.15em] text-slate-400">Radio Link</span>
+                    </div>
+                    <textarea id="override-message" rows="3" class="w-full rounded-md border border-fuchsia-900/60 bg-slate-900/70 px-2 py-1.5 text-[11px] text-fuchsia-100 font-mono focus:outline-none focus:border-fuchsia-400" placeholder="Transmit a high-priority command to the swarm..."></textarea>
+                    <div class="flex gap-2">
+                        <button id="override-send-btn" class="hud-btn flex-1 rounded-md px-3 py-2 text-[11px] font-display uppercase tracking-[0.12em] text-fuchsia-100">Transmit</button>
+                        <button id="override-clear-btn" class="hud-btn flex-1 rounded-md px-3 py-2 text-[11px] font-display uppercase tracking-[0.12em] text-slate-200">Clear</button>
+                    </div>
+                    <div id="override-status" class="text-[10px] uppercase tracking-[0.12em] text-slate-400">Radio idle.</div>
+                </div>
             </div>
         </aside>
 
@@ -251,7 +478,27 @@
                 <div class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
                 <h2 class="font-display text-sm uppercase tracking-[0.2em] text-cyan-300">Swarm Telemetry</h2>
             </div>
-            <ul id="drone-status-list" class="space-y-2.5 text-sm overflow-y-scroll terminal-scroll flex-1 min-h-0 pr-2"></ul>
+            <div class="mb-3 flex rounded-md bg-slate-900/80 p-1 border border-cyan-900/50 shadow-inner">
+                <button id="telemetry-status-btn" class="hud-btn active rounded px-3 py-1.5 text-[11px] font-display uppercase tracking-[0.15em] text-cyan-200 transition-all">Status</button>
+                <button id="telemetry-radar-btn" class="hud-btn rounded px-3 py-1.5 text-[11px] font-display uppercase tracking-[0.15em] text-cyan-200 transition-all">Radar</button>
+            </div>
+            <div id="telemetry-status-view" class="flex-1 min-h-0">
+                <ul id="drone-status-list" class="space-y-2.5 text-sm overflow-y-scroll terminal-scroll flex-1 min-h-0 pr-2"></ul>
+            </div>
+            <div id="telemetry-radar-view" class="hidden flex-1 min-h-0 flex flex-col gap-2 overflow-y-auto terminal-scroll pr-1">
+                <div class="flex items-center justify-between">
+                    <h3 class="font-display text-xs uppercase tracking-[0.2em] text-emerald-300">AI Radar Diagnostics</h3>
+                    <span class="text-[10px] uppercase tracking-[0.15em] text-slate-400">Live</span>
+                </div>
+                <div class="rounded-md border border-emerald-900/60 bg-slate-950/70 p-2">
+                    <div class="text-[10px] uppercase tracking-[0.15em] text-emerald-200">Radar Ping</div>
+                    <pre id="ai-radar-ping" class="terminal-scroll mt-1 max-h-[110px] whitespace-pre-wrap break-words text-[11px] leading-relaxed text-emerald-100 font-mono">Awaiting radar ping...</pre>
+                </div>
+                <div class="rounded-md border border-cyan-900/60 bg-slate-950/70 p-2">
+                    <div class="text-[10px] uppercase tracking-[0.15em] text-cyan-200">Vector Commands</div>
+                    <pre id="ai-vector-commands" class="terminal-scroll mt-1 max-h-[110px] whitespace-pre-wrap break-words text-[11px] leading-relaxed text-cyan-100 font-mono">Awaiting vector commands...</pre>
+                </div>
+            </div>
         </aside>
 
         <section id="dashboard-section" class="pointer-events-auto fixed left-4 right-4 bottom-3 z-30 glass-panel rounded-xl p-4 h-[350px] sm:h-[360px] md:bottom-4 md:h-[300px] overflow-y-scroll terminal-scroll">
@@ -262,16 +509,15 @@
                         <h2 class="font-display text-sm md:text-base font-bold uppercase tracking-[0.2em] text-cyan-300">Dashboard</h2>
                     </div>
                     <div class="flex rounded-md bg-slate-900/80 p-1 border border-cyan-900/50 shadow-inner">
-                        <button id="dashboard-overview-btn" class="hud-btn active rounded px-4 py-1.5 text-[11px] font-display uppercase tracking-[0.15em] text-cyan-200 transition-all">Overview</button>
-                        <button id="dashboard-intelligence-btn" class="hud-btn rounded px-4 py-1.5 text-[11px] font-display uppercase tracking-[0.15em] text-cyan-200 transition-all">Intelligence</button>
-                        <button id="dashboard-debug-raw-btn" class="hud-btn rounded px-4 py-1.5 text-[11px] font-display uppercase tracking-[0.15em] text-cyan-200 transition-all">Debug / Raw</button>
+                        <button id="dashboard-output-btn" class="hud-btn active rounded px-4 py-1.5 text-[11px] font-display uppercase tracking-[0.15em] text-cyan-200 transition-all">Output</button>
+                        <button id="dashboard-tune-btn" class="hud-btn rounded px-4 py-1.5 text-[11px] font-display uppercase tracking-[0.15em] text-cyan-200 transition-all">Tune</button>
+                        <button id="dashboard-debug-btn" class="hud-btn rounded px-4 py-1.5 text-[11px] font-display uppercase tracking-[0.15em] text-cyan-200 transition-all">Debug</button>
                     </div>
                 </div>
                 <button id="toggle-dashboard-btn" class="hud-btn rounded-md px-4 py-1.5 text-[11px] font-display uppercase tracking-[0.15em] text-cyan-300 border border-cyan-700/50 hover:bg-cyan-900/40 transition-all">Collapse ▽</button>
             </div>
             <div id="dashboard-panels" class="h-[calc(100%-2rem)]">
-                <!-- Group 1: OVERVIEW (Summary & Main Event Feed) -->
-                <div id="dashboard-overview-view" class="grid h-full grid-cols-1 gap-3 auto-rows-fr sm:grid-cols-2 lg:grid-cols-3">
+                <div id="dashboard-output-view" class="grid h-full grid-cols-1 gap-3 auto-rows-fr sm:grid-cols-2 xl:grid-cols-4">
                     <div class="h-full flex flex-col">
                         <div class="flex items-center justify-between mb-2">
                             <h2 class="font-display text-sm uppercase tracking-[0.2em] text-cyan-300">Mission Log</h2>
@@ -281,27 +527,10 @@
                     </div>
                     <div class="h-full flex flex-col">
                         <div class="flex items-center justify-between mb-2">
-                            <h2 class="font-display text-sm uppercase tracking-[0.2em] text-fuchsia-300">Mission Metrics</h2>
-                            <span class="text-xs uppercase tracking-[0.15em] text-slate-400">Realtime</span>
+                            <h2 class="font-display text-sm uppercase tracking-[0.2em] text-emerald-300">LLM Decision Terminal</h2>
+                            <span class="text-xs uppercase tracking-[0.15em] text-slate-400">Reasoning</span>
                         </div>
-                        <div id="mission-metrics-panel" class="flex-1 min-h-0 rounded-md border border-fuchsia-900/60 bg-slate-950/70 px-4 py-3 text-sm leading-relaxed text-fuchsia-100 font-mono flex flex-col gap-3">
-                            <div class="flex justify-between border-b border-fuchsia-900/30 pb-2">
-                                <span class="uppercase tracking-widest text-fuchsia-400/70 text-xs">Mission Time</span>
-                                <span id="metric-time" class="font-bold text-fuchsia-200">0s</span>
-                            </div>
-                            <div class="flex justify-between border-b border-fuchsia-900/30 pb-2">
-                                <span class="uppercase tracking-widest text-fuchsia-400/70 text-xs">Active Drones</span>
-                                <span id="metric-drones" class="font-bold text-fuchsia-200">0</span>
-                            </div>
-                            <div class="flex justify-between border-b border-fuchsia-900/30 pb-2">
-                                <span class="uppercase tracking-widest text-fuchsia-400/70 text-xs">Coverage</span>
-                                <span id="metric-coverage" class="font-bold text-fuchsia-200">0.0%</span>
-                            </div>
-                            <div class="flex justify-between border-b border-fuchsia-900/30 pb-2">
-                                <span class="uppercase tracking-widest text-fuchsia-400/70 text-xs">Survivors</span>
-                                <span id="metric-survivors" class="font-bold text-fuchsia-200">0</span>
-                            </div>
-                        </div>
+                        <div id="llm-decision-log" class="terminal-scroll flex-1 min-h-0 rounded-md border border-emerald-900/60 bg-slate-950/70 px-3 py-2 text-xs md:text-sm leading-relaxed text-emerald-100 font-mono"></div>
                     </div>
                     <div class="h-full flex flex-col">
                         <div class="flex items-center justify-between mb-2">
@@ -310,93 +539,73 @@
                         </div>
                         <div id="found-survivor-list" class="terminal-scroll flex-1 min-h-0 rounded-md border border-amber-900/60 bg-slate-950/70 px-3 py-2 text-xs md:text-sm leading-relaxed text-amber-100 font-mono"></div>
                     </div>
-                </div>
-
-                <!-- Group 2: INTELLIGENCE (Decision Logs, History, and System Tuning) -->
-                <div id="dashboard-intelligence-view" class="hidden grid h-full grid-cols-1 gap-3 auto-rows-fr lg:grid-cols-2">
-                    <div class="h-full grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-                        <div class="h-full flex flex-col">
-                            <div class="flex items-center justify-between mb-2">
-                                <h2 class="font-display text-sm uppercase tracking-[0.2em] text-emerald-300">AI Decision Log</h2>
-                                <span class="text-xs uppercase tracking-[0.15em] text-slate-400">Reasoning</span>
-                            </div>
-                            <div id="llm-decision-log" class="terminal-scroll flex-1 min-h-0 rounded-md border border-emerald-900/60 bg-slate-950/70 px-3 py-2 text-xs md:text-sm leading-relaxed text-emerald-100 font-mono"></div>
-                        </div>
-                        <div class="h-full flex flex-col">
-                            <div class="flex items-center justify-between mb-2">
-                                <h2 class="font-display text-sm uppercase tracking-[0.2em] text-indigo-300">Drone History</h2>
-                                <span class="text-xs uppercase tracking-[0.15em] text-slate-400">State Log</span>
-                            </div>
-                            <div id="ollama-raw-log" class="terminal-scroll flex-1 min-h-0 whitespace-pre-wrap break-words rounded-md border border-indigo-900/60 bg-slate-950/70 px-3 py-2 text-[10px] md:text-xs leading-relaxed text-indigo-200 font-mono"></div>
-                        </div>
-                    </div>
-                    <div class="grid h-full grid-cols-1 gap-3 lg:grid-cols-1 xl:grid-cols-[280px_1fr]">
-                        <div class="flex h-full min-h-0 flex-col rounded-md border border-cyan-900/60 bg-slate-950/70 p-3 text-slate-100">
-                            <div class="flex items-center justify-between mb-2">
-                                <h2 class="font-display text-sm uppercase tracking-[0.2em] text-cyan-300">Planner Tuning</h2>
-                            </div>
-                            <label for="model-check-every" class="block text-[10px] uppercase tracking-[0.12em] text-cyan-200">Ollama Refresh Every N Ticks</label>
-                            <input id="model-check-every" type="number" min="1" max="50" value="8" class="mt-1 w-full rounded border border-cyan-800/70 bg-slate-950/80 px-2 py-1 text-sm text-cyan-100 outline-none focus:border-cyan-400" />
-                            <div id="model-check-hint" class="mt-2 text-[10px] text-slate-400">Configures reasoning cadence frequency.</div>
-                            
-                            <div class="mt-4 pt-3 border-t border-cyan-900/30">
-                                <h2 class="font-display text-[10px] uppercase tracking-[0.12em] text-sky-300 mb-2">Battery Lab Settings</h2>
-                                <div class="grid grid-cols-2 gap-2">
-                                    <label class="text-[10px] uppercase tracking-[0.12em] text-sky-200">
-                                        Move / 1%
-                                        <input id="battery-move-input" type="number" min="2" max="20" step="0.1" class="mt-1 w-full rounded border border-sky-800/70 bg-slate-950/80 px-2 py-0.5 text-xs text-sky-100 outline-none focus:border-sky-400" />
-                                    </label>
-                                    <label class="text-[10px] uppercase tracking-[0.12em] text-sky-200">
-                                        Scan Drain
-                                        <input id="battery-scan-input" type="number" min="0" max="10" step="0.1" class="mt-1 w-full rounded border border-sky-800/70 bg-slate-950/80 px-2 py-0.5 text-xs text-sky-100 outline-none focus:border-sky-400" />
-                                    </label>
-                                </div>
-                                <div class="mt-3 flex flex-col gap-1.5">
-                                    <button id="battery-save-btn" class="hud-btn rounded px-2 py-1 text-[10px] font-display uppercase tracking-[0.12em] text-sky-100 border border-sky-800/50">Apply</button>
-                                    <button id="battery-trial-btn" class="hud-btn rounded px-2 py-1 text-[10px] font-display uppercase tracking-[0.12em] text-emerald-100 border border-emerald-800/50">Run Trial</button>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="flex h-full min-h-0 flex-col rounded-md border border-sky-900/60 bg-slate-950/70 p-3 text-slate-100">
-                            <div class="flex items-center justify-between mb-2">
-                                <h2 class="font-display text-sm uppercase tracking-[0.2em] text-sky-300">Battery Analytics</h2>
-                                <span class="text-[10px] uppercase tracking-[0.15em] text-slate-500" id="battery-trial-summary">No active trial</span>
-                            </div>
-                            <div class="flex-1 min-h-0 rounded-md border border-sky-900/40 bg-slate-950/80 p-2">
-                                <canvas id="battery-usage-chart"></canvas>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Group 3: DEBUG / RAW (strictly low-level logs) -->
-                <div id="dashboard-debug-raw-view" class="hidden grid h-full grid-cols-1 gap-3 auto-rows-fr lg:grid-cols-3">
-                    <div class="h-full flex flex-col lg:col-span-1">
+                    <div class="h-full flex flex-col">
                         <div class="flex items-center justify-between mb-2">
-                            <h2 class="font-display text-sm uppercase tracking-[0.2em] text-violet-300">Ollama Raw</h2>
-                            <span class="text-xs uppercase tracking-[0.15em] text-slate-400">LLM Output</span>
+                            <h2 class="font-display text-sm uppercase tracking-[0.2em] text-fuchsia-300">Ollama Raw Output</h2>
+                            <span class="text-xs uppercase tracking-[0.15em] text-slate-400">Complete</span>
                         </div>
-                        <div id="ollama-raw-output" class="terminal-scroll flex-1 min-h-0 whitespace-pre-wrap break-words rounded-md border border-violet-900/60 bg-slate-950/70 px-3 py-2 text-[10px] md:text-xs leading-relaxed text-violet-200 font-mono"></div>
+                        <div id="ollama-raw-log" class="terminal-scroll flex-1 min-h-0 whitespace-pre-wrap break-words rounded-md border border-fuchsia-900/60 bg-slate-950/70 px-3 py-2 text-xs md:text-sm leading-relaxed text-fuchsia-100 font-mono"></div>
                     </div>
-                    <div class="grid grid-cols-1 gap-3 h-full lg:col-span-2 sm:grid-cols-3">
-                        <div class="h-full flex flex-col">
-                            <div class="flex items-center justify-between mb-2">
-                                <h2 class="font-display text-sm uppercase tracking-[0.2em] text-fuchsia-300">Stage 1: Raw</h2>
-                            </div>
-                            <div id="debug-raw-actions-log" class="terminal-scroll flex-1 min-h-0 whitespace-pre-wrap break-words rounded-md border border-fuchsia-900/60 bg-slate-950/70 px-3 py-2 text-[10px] leading-relaxed text-fuchsia-100 font-mono"></div>
+                </div>
+                <div id="dashboard-tune-view" class="hidden grid h-full grid-cols-1 gap-3 auto-rows-fr lg:grid-cols-[minmax(280px,340px)_minmax(0,1fr)]">
+                    <div class="flex h-full min-h-0 flex-col rounded-md border border-cyan-900/60 bg-slate-950/70 p-3 text-slate-100">
+                        <div class="flex items-center justify-between mb-3">
+                            <h2 class="font-display text-sm uppercase tracking-[0.2em] text-cyan-300">Planner Tuning</h2>
+                            <span class="text-xs uppercase tracking-[0.15em] text-slate-400">Cadence</span>
                         </div>
-                        <div class="h-full flex flex-col">
-                            <div class="flex items-center justify-between mb-2">
-                                <h2 class="font-display text-sm uppercase tracking-[0.2em] text-cyan-300">Stage 2: MCP</h2>
-                            </div>
-                            <div id="debug-post-mcp-log" class="terminal-scroll flex-1 min-h-0 whitespace-pre-wrap break-words rounded-md border border-cyan-900/60 bg-slate-950/70 px-3 py-2 text-[10px] leading-relaxed text-cyan-100 font-mono"></div>
+                        <label for="model-check-every" class="block text-[10px] uppercase tracking-[0.12em] text-cyan-200">Ollama Refresh Every N Ticks</label>
+                        <input id="model-check-every" type="number" min="1" max="50" value="8" class="mt-1 w-full rounded border border-cyan-800/70 bg-slate-950/80 px-2 py-1 text-sm text-cyan-100 outline-none focus:border-cyan-400" />
+                        <div id="model-check-hint" class="mt-3 text-[11px] text-slate-300">Uses Ollama every 8 ticks, cached plan in between.</div>
+                        <div class="mt-4 rounded border border-cyan-900/40 bg-cyan-500/5 p-3 text-[11px] leading-relaxed text-slate-300">Tune mode groups all live planning and battery controls in one place so you can switch between runtime outputs and parameter adjustment inside the same dashboard.</div>
+                    </div>
+                    <div class="flex h-full min-h-0 flex-col rounded-md border border-sky-900/60 bg-slate-950/70 p-3 text-slate-100">
+                        <div class="flex items-center justify-between mb-2">
+                            <h2 class="font-display text-sm uppercase tracking-[0.2em] text-sky-300">Battery Lab</h2>
+                            <span class="text-xs uppercase tracking-[0.15em] text-slate-400">Tuning</span>
                         </div>
-                        <div class="h-full flex flex-col">
-                            <div class="flex items-center justify-between mb-2">
-                                <h2 class="font-display text-sm uppercase tracking-[0.2em] text-emerald-300">Stage 3: Valid</h2>
+                        <div class="grid grid-cols-1 gap-3 lg:grid-cols-[220px_220px_minmax(0,1fr)]">
+                            <label class="text-[11px] uppercase tracking-[0.12em] text-sky-200">
+                                Move Units / 1%
+                                <input id="battery-move-input" type="number" min="2" max="20" step="0.1" class="mt-1 w-full rounded border border-sky-800/70 bg-slate-950/80 px-2 py-1 text-sm text-sky-100 outline-none focus:border-sky-400" />
+                            </label>
+                            <label class="text-[11px] uppercase tracking-[0.12em] text-sky-200">
+                                Scan Drain
+                                <input id="battery-scan-input" type="number" min="0" max="10" step="0.1" class="mt-1 w-full rounded border border-sky-800/70 bg-slate-950/80 px-2 py-1 text-sm text-sky-100 outline-none focus:border-sky-400" />
+                            </label>
+                            <div class="flex flex-wrap items-end gap-2 lg:justify-end">
+                                <button id="battery-save-btn" class="hud-btn rounded-md px-3 py-2 text-[11px] font-display uppercase tracking-[0.12em] text-sky-100">Apply Battery Settings</button>
+                                <button id="battery-trial-btn" class="hud-btn rounded-md px-3 py-2 text-[11px] font-display uppercase tracking-[0.12em] text-emerald-100">Run 60-Tick Trial</button>
+                                <button id="battery-chart-reset-btn" class="hud-btn rounded-md px-3 py-2 text-[11px] font-display uppercase tracking-[0.12em] text-slate-200">Reset Graph</button>
                             </div>
-                            <div id="debug-validated-log" class="terminal-scroll flex-1 min-h-0 whitespace-pre-wrap break-words rounded-md border border-emerald-900/60 bg-slate-950/70 px-3 py-2 text-[10px] leading-relaxed text-emerald-100 font-mono"></div>
                         </div>
+                        <div id="battery-settings-status" class="mt-3 text-[11px] text-slate-300">Loading runtime battery settings...</div>
+                        <div id="battery-trial-summary" class="mt-1 text-[11px] text-slate-400">No battery trial data yet.</div>
+                        <div class="mt-3 flex-1 min-h-0 rounded-md border border-sky-900/50 bg-slate-950/90 p-2">
+                            <canvas id="battery-usage-chart" height="150"></canvas>
+                        </div>
+                    </div>
+                </div>
+                <div id="dashboard-debug-view" class="hidden grid h-full grid-cols-1 gap-3 auto-rows-fr lg:grid-cols-3">
+                    <div class="h-full flex flex-col">
+                        <div class="flex items-center justify-between mb-2">
+                            <h2 class="font-display text-sm uppercase tracking-[0.2em] text-fuchsia-300">Stage 1 Raw Model</h2>
+                            <span class="text-xs uppercase tracking-[0.15em] text-slate-400">Parsed</span>
+                        </div>
+                        <div id="debug-raw-actions-log" class="terminal-scroll flex-1 min-h-0 whitespace-pre-wrap break-words rounded-md border border-fuchsia-900/60 bg-slate-950/70 px-3 py-2 text-xs md:text-sm leading-relaxed text-fuchsia-100 font-mono"></div>
+                    </div>
+                    <div class="h-full flex flex-col">
+                        <div class="flex items-center justify-between mb-2">
+                            <h2 class="font-display text-sm uppercase tracking-[0.2em] text-cyan-300">Stage 2 Post MCP</h2>
+                            <span class="text-xs uppercase tracking-[0.15em] text-slate-400">Tool Rewrites</span>
+                        </div>
+                        <div id="debug-post-mcp-log" class="terminal-scroll flex-1 min-h-0 whitespace-pre-wrap break-words rounded-md border border-cyan-900/60 bg-slate-950/70 px-3 py-2 text-xs md:text-sm leading-relaxed text-cyan-100 font-mono"></div>
+                    </div>
+                    <div class="h-full flex flex-col">
+                        <div class="flex items-center justify-between mb-2">
+                            <h2 class="font-display text-sm uppercase tracking-[0.2em] text-emerald-300">Stage 3 Validated</h2>
+                            <span class="text-xs uppercase tracking-[0.15em] text-slate-400">Executed</span>
+                        </div>
+                        <div id="debug-validated-log" class="terminal-scroll flex-1 min-h-0 whitespace-pre-wrap break-words rounded-md border border-emerald-900/60 bg-slate-950/70 px-3 py-2 text-xs md:text-sm leading-relaxed text-emerald-100 font-mono"></div>
                     </div>
                 </div>
             </div>
@@ -424,6 +633,9 @@
         const SWARM_WS_ENABLED = false;
         const SWARM_WS_URL = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws/swarm`;
         const DASHBOARD_VIEW_STORAGE_KEY = 'swarm.dashboard.view';
+        const SCANNED_TILE_SIZE = 1;
+        const SCANNED_TILE_Y = 0.01;
+        const SCANNED_TILE_OPACITY = 0.28;
 
         function readCssHexVar(name, fallback) {
             const raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -467,11 +679,12 @@
             tickInFlight: false,
             tickCounter: 0,
             modelCheckEveryTicks: 8,
+            overrideForceReplan: false,
+            overrideBoostTicks: 0,
+            overridePrevCadence: null,
             websocket: null,
             benchmarkRunning: false,
-            dashboardView: 'output',
-            missionStartTime: null,
-            missionTimeRenderLoop: null
+            dashboardView: 'output'
         };
 
         let currentRotation = 0;
@@ -498,12 +711,6 @@
 
         const foundSurvivorSignals = new Set();
 
-        // Drone state history: { [droneId]: [{state, timestamp, x, z, battery}, ...] }
-        const droneStateHistory = {};
-
-        // Ollama raw log: full, append-only history of every LLM response.
-        const ollamaRawLog = [];
-
         const placementMeshes = {
             base: null,
             survivors: [],
@@ -524,21 +731,34 @@
         const plannerSourceBadgeEl = document.getElementById('planner-source-badge');
         const dashboardSectionEl = document.getElementById('dashboard-section');
         const dashboardPanelsEl = document.getElementById('dashboard-panels');
-        const dashboardOverviewViewEl = document.getElementById('dashboard-overview-view');
-        const dashboardIntelligenceViewEl = document.getElementById('dashboard-intelligence-view');
-        const dashboardDebugRawViewEl = document.getElementById('dashboard-debug-raw-view');
+        const dashboardOutputViewEl = document.getElementById('dashboard-output-view');
+        const dashboardTuneViewEl = document.getElementById('dashboard-tune-view');
+        const dashboardDebugViewEl = document.getElementById('dashboard-debug-view');
         const placementHintEl = document.getElementById('placement-hint');
         const spriteStatusEl = document.getElementById('sprite-status');
+        const compassHudEl = document.getElementById('compass-hud');
+        const compassNeedleEl = document.getElementById('compass-needle');
+        const compassReadoutEl = document.getElementById('compass-readout');
         const deployBtn = document.getElementById('deploy-btn');
         const restartBtn = document.getElementById('restart-btn');
         const clearAllBtn = document.getElementById('clear-all-btn');
         const toggleDashboardBtn = document.getElementById('toggle-dashboard-btn');
-        const dashboardOverviewBtn = document.getElementById('dashboard-overview-btn');
-        const dashboardIntelligenceBtn = document.getElementById('dashboard-intelligence-btn');
-        const dashboardDebugRawBtn = document.getElementById('dashboard-debug-raw-btn');
+        const dashboardOutputBtn = document.getElementById('dashboard-output-btn');
+        const dashboardTuneBtn = document.getElementById('dashboard-tune-btn');
+        const dashboardDebugBtn = document.getElementById('dashboard-debug-btn');
         const debugRawActionsLogEl = document.getElementById('debug-raw-actions-log');
         const debugPostMcpLogEl = document.getElementById('debug-post-mcp-log');
         const debugValidatedLogEl = document.getElementById('debug-validated-log');
+        const telemetryStatusBtn = document.getElementById('telemetry-status-btn');
+        const telemetryRadarBtn = document.getElementById('telemetry-radar-btn');
+        const telemetryStatusViewEl = document.getElementById('telemetry-status-view');
+        const telemetryRadarViewEl = document.getElementById('telemetry-radar-view');
+        const radarPingEl = document.getElementById('ai-radar-ping');
+        const vectorCommandsEl = document.getElementById('ai-vector-commands');
+        const overrideMessageInput = document.getElementById('override-message');
+        const overrideSendBtn = document.getElementById('override-send-btn');
+        const overrideClearBtn = document.getElementById('override-clear-btn');
+        const overrideStatusEl = document.getElementById('override-status');
         const modelCheckEveryInput = document.getElementById('model-check-every');
         const modelCheckHintEl = document.getElementById('model-check-hint');
         const batteryMoveInput = document.getElementById('battery-move-input');
@@ -565,6 +785,11 @@
         let controls;
         let dragControls;
         let labelRenderer;
+        let scannedTilesGroup;
+        let scannedTileGeometry;
+        let scannedTileMaterial;
+        const scannedTilesSeen = new Set();
+        let compassNeedleAngle = null;
 
         ensureThreeLoaded()
             .then(() => {
@@ -696,6 +921,8 @@
             border.rotation.x = -Math.PI / 2;
             border.position.y = 0.02;
             scene.add(border);
+
+            initScannedTilesLayer();
 
             raycaster = new THREE.Raycaster();
             pointer = new THREE.Vector2();
@@ -995,14 +1222,11 @@
             if (toggleDashboardBtn) {
                 toggleDashboardBtn.addEventListener('click', toggleDashboardPanels);
             }
-            if (dashboardOverviewBtn) {
-                dashboardOverviewBtn.addEventListener('click', () => setDashboardView('overview'));
+            if (dashboardOutputBtn) {
+                dashboardOutputBtn.addEventListener('click', () => setDashboardView('output'));
             }
-            if (dashboardIntelligenceBtn) {
-                dashboardIntelligenceBtn.addEventListener('click', () => setDashboardView('intelligence'));
-            }
-            if (dashboardDebugRawBtn) {
-                dashboardDebugRawBtn.addEventListener('click', () => setDashboardView('debug-raw'));
+            if (dashboardTuneBtn) {
+                dashboardTuneBtn.addEventListener('click', () => setDashboardView('tune'));
             }
 
             if (modelCheckEveryInput) {
@@ -1031,36 +1255,66 @@
                     appendMissionLog('Battery chart history cleared.');
                 });
             }
+            if (overrideSendBtn) {
+                overrideSendBtn.addEventListener('click', sendOverride);
+            }
+            if (overrideClearBtn) {
+                overrideClearBtn.addEventListener('click', clearOverride);
+            }
             if (dashboardDebugBtn) {
                 dashboardDebugBtn.addEventListener('click', () => setDashboardView('debug'));
+            }
+            if (telemetryStatusBtn) {
+                telemetryStatusBtn.addEventListener('click', () => setTelemetryView('status'));
+            }
+            if (telemetryRadarBtn) {
+                telemetryRadarBtn.addEventListener('click', () => setTelemetryView('radar'));
+            }
+
+            setTelemetryView('status');
+        }
+
+        function setTelemetryView(view) {
+            const nextView = view === 'radar' ? 'radar' : 'status';
+
+            if (telemetryStatusViewEl) {
+                telemetryStatusViewEl.classList.toggle('hidden', nextView !== 'status');
+            }
+            if (telemetryRadarViewEl) {
+                telemetryRadarViewEl.classList.toggle('hidden', nextView !== 'radar');
+            }
+            if (telemetryStatusBtn) {
+                telemetryStatusBtn.classList.toggle('active', nextView === 'status');
+            }
+            if (telemetryRadarBtn) {
+                telemetryRadarBtn.classList.toggle('active', nextView === 'radar');
             }
         }
 
         function setDashboardView(view) {
-            const nextView = view === 'intelligence' || view === 'debug-raw' ? view : 'overview';
+            const nextView = view === 'tune' || view === 'debug' ? view : 'output';
             runtime.dashboardView = nextView;
 
-            if (dashboardOverviewViewEl) {
-                dashboardOverviewViewEl.classList.toggle('hidden', nextView !== 'overview');
+            if (dashboardOutputViewEl) {
+                dashboardOutputViewEl.classList.toggle('hidden', nextView !== 'output');
             }
-            if (dashboardIntelligenceViewEl) {
-                dashboardIntelligenceViewEl.classList.toggle('hidden', nextView !== 'intelligence');
+            if (dashboardTuneViewEl) {
+                dashboardTuneViewEl.classList.toggle('hidden', nextView !== 'tune');
             }
-            if (dashboardDebugRawViewEl) {
-                dashboardDebugRawViewEl.classList.toggle('hidden', nextView !== 'debug-raw');
+            if (dashboardDebugViewEl) {
+                dashboardDebugViewEl.classList.toggle('hidden', nextView !== 'debug');
             }
-            
-            if (dashboardOverviewBtn) {
-                dashboardOverviewBtn.classList.toggle('active', nextView === 'overview');
+            if (dashboardOutputBtn) {
+                dashboardOutputBtn.classList.toggle('active', nextView === 'output');
             }
-            if (dashboardIntelligenceBtn) {
-                dashboardIntelligenceBtn.classList.toggle('active', nextView === 'intelligence');
+            if (dashboardTuneBtn) {
+                dashboardTuneBtn.classList.toggle('active', nextView === 'tune');
             }
-            if (dashboardDebugRawBtn) {
-                dashboardDebugRawBtn.classList.toggle('active', nextView === 'debug-raw');
+            if (dashboardDebugBtn) {
+                dashboardDebugBtn.classList.toggle('active', nextView === 'debug');
             }
 
-            if (nextView === 'intelligence') {
+            if (nextView === 'tune') {
                 renderBatteryChart();
             }
 
@@ -1099,15 +1353,15 @@
         }
 
         function applyDashboardPreferences() {
-            let preferredView = 'overview';
+            let preferredView = 'output';
 
             try {
                 const savedView = window.localStorage.getItem(DASHBOARD_VIEW_STORAGE_KEY);
-                preferredView = (savedView === 'intelligence' || savedView === 'debug-raw') ? savedView : 'overview';
+                preferredView = savedView === 'tune' || savedView === 'debug' ? savedView : 'output';
                 // Always start collapsed after refresh so map interaction is immediately available.
                 window.localStorage.removeItem('swarm.dashboard.open');
             } catch (_e) {
-                preferredView = 'overview';
+                preferredView = 'output';
             }
 
             setDashboardView(preferredView);
@@ -1378,6 +1632,14 @@
                     const droneLabel = new window.CSS2DObject(droneDiv);
                     droneLabel.position.set(0, 6.0, 0); // Position cleanly above drone
                     mesh.add(droneLabel);
+
+                    if (drone.headingLabel) {
+                        mesh.add(drone.headingLabel);
+                    } else {
+                        const headingLabel = createDroneHeadingLabel(id);
+                        mesh.add(headingLabel);
+                        drone.headingLabel = headingLabel;
+                    }
 
                     mesh.position.copy(pos);
                     scene.add(mesh);
@@ -1693,6 +1955,8 @@
             foundSurvivorSignals.clear();
             foundSurvivorRegistry.clear();
             renderFoundSurvivorRegistry();
+            clearScannedTiles();
+            clearRadarDiagnostics();
             titleEl.textContent = 'Simulation Active';
             placementHintEl.textContent = 'Grid editing disabled while simulation is running.';
             deployBtn.disabled = true;
@@ -1754,6 +2018,8 @@
             foundSurvivorSignals.clear();
             foundSurvivorRegistry.clear();
             renderFoundSurvivorRegistry();
+            clearScannedTiles();
+            clearRadarDiagnostics();
             resetBatteryAnalytics();
 
             appendMissionLog('Deployment restart requested. Reinitializing swarm runtime...');
@@ -1783,6 +2049,9 @@
                 if (drone && drone.scanMesh) {
                     scene.remove(drone.scanMesh);
                 }
+                if (drone && drone.headingMesh) {
+                    scene.remove(drone.headingMesh);
+                }
                 delete runtime.drones[id];
             });
 
@@ -1794,6 +2063,9 @@
             placementMeshes.obstacles.forEach((mesh) => scene.remove(mesh));
             placementMeshes.survivors = [];
             placementMeshes.obstacles = [];
+
+            clearScannedTiles();
+            clearRadarDiagnostics();
 
             state.base = null;
             state.survivors = [];
@@ -1884,6 +2156,9 @@
                 if (drone && drone.scanMesh) {
                     scene.remove(drone.scanMesh);
                 }
+                if (drone && drone.headingMesh) {
+                    scene.remove(drone.headingMesh);
+                }
                 delete runtime.drones[id];
             });
 
@@ -1898,25 +2173,47 @@
                     droneLabel.position.set(0, 6.0, 0); // Position cleanly above drone
                     mesh.add(droneLabel);
 
+                    const headingLabel = createDroneHeadingLabel(id);
+                    mesh.add(headingLabel);
+
                     scene.add(mesh);
 
                     const scanMesh = createScanRadiusMesh(DRONE_SCAN_RADIUS);
                     scene.add(scanMesh);
 
+                    const headingMesh = createDroneHeadingIndicator();
+                    scene.add(headingMesh);
+
                     runtime.drones[id] = {
                         id,
                         mesh,
                         scanMesh,
+                        headingMesh,
+                        headingLabel,
                         targetX: state.base.x,
                         targetZ: state.base.z,
                         battery: 100,
                         scanActive: false,
                         scanPulsePhase: Math.random() * Math.PI * 2,
+                        headingPulsePhase: Math.random() * Math.PI * 2,
                         lastScanCheckAt: 0
                     };
                 }
 
                 const drone = runtime.drones[id];
+                if (!drone.headingLabel) {
+                    const headingLabel = createDroneHeadingLabel(id);
+                    drone.mesh.add(headingLabel);
+                    drone.headingLabel = headingLabel;
+                }
+                if (!drone.headingMesh) {
+                    const headingMesh = createDroneHeadingIndicator();
+                    scene.add(headingMesh);
+                    drone.headingMesh = headingMesh;
+                }
+                if (!drone.headingPulsePhase) {
+                    drone.headingPulsePhase = Math.random() * Math.PI * 2;
+                }
                 drone.battery = 100;
                 drone.scanActive = false;
                 drone.targetX = state.base.x + offsets[index].x;
@@ -2076,27 +2373,12 @@
                 : 'Live mode enabled. Sending setup state to backend API...');
 
             if (!skipInit) {
-                runtime.missionStartTime = Date.now();
                 try {
                     await sendInitSwarm();
                     appendMissionLog('Initialization payload sent to /api/init-swarm.');
                 } catch (error) {
                     appendMissionLog(`Init request failed: ${error.message}`);
                 }
-            } else if (!runtime.missionStartTime) {
-                runtime.missionStartTime = Date.now();
-            }
-
-            if (!runtime.missionTimeRenderLoop) {
-                runtime.missionTimeRenderLoop = setInterval(() => {
-                    if (runtime.liveLoopActive || runtime.benchmarkRunning) {
-                        const elapsedSeconds = Math.floor((Date.now() - runtime.missionStartTime) / 1000);
-                        const timeEl = document.getElementById('metric-time');
-                        if (timeEl) {
-                            timeEl.textContent = elapsedSeconds + 's';
-                        }
-                    }
-                }, 1000);
             }
 
             if (runtime.liveTimer) {
@@ -2117,7 +2399,8 @@
 
                 runtime.tickInFlight = true;
                 runtime.tickCounter += 1;
-                const forceReplan = runtime.tickCounter % Math.max(1, runtime.modelCheckEveryTicks) === 0;
+                const manualReplan = runtime.overrideForceReplan;
+                const forceReplan = manualReplan || (runtime.tickCounter % Math.max(1, runtime.modelCheckEveryTicks) === 0);
                 try {
                     const tickResponse = FRONTEND_SHARED_STATE_MODE
                         ? await fetchWithTimeout('/api/swarm/state', {
@@ -2141,6 +2424,28 @@
                         return;
                     }
 
+                    if (manualReplan && !FRONTEND_SHARED_STATE_MODE) {
+                        runtime.overrideForceReplan = false;
+                    }
+
+                    if (!FRONTEND_SHARED_STATE_MODE && runtime.overrideBoostTicks > 0) {
+                        runtime.overrideBoostTicks -= 1;
+                        if (runtime.overrideBoostTicks <= 0 && runtime.overridePrevCadence !== null) {
+                            runtime.modelCheckEveryTicks = runtime.overridePrevCadence;
+                            runtime.overridePrevCadence = null;
+                            if (modelCheckHintEl) {
+                                modelCheckHintEl.textContent = `Uses Ollama every ${runtime.modelCheckEveryTicks} ticks, cached plan in between.`;
+                            }
+                            appendDecisionLog('Override boost ended; cadence restored.');
+                        }
+                    }
+
+                    updateRadarDiagnostics(tick);
+
+                    if (Array.isArray(tick.scanned_cells)) {
+                        renderScannedCells(tick.scanned_cells);
+                    }
+
                     if (tick.mcp && Array.isArray(tick.mcp.discovered_drones) && tick.mcp.discovered_drones.length) {
                         const discoveredIds = tick.mcp.discovered_drones
                             .map((entry) => entry && entry.id)
@@ -2151,28 +2456,17 @@
                     }
 
                     applyBatteryAnalyticsFromTick(tick);
-                    
-                    if (tick.llm_called) {
-                        if (tick.reasoning) {
-                            appendDecisionLog(`Reasoning: ${tick.reasoning}`);
-                        }
-                        if (tick.model && typeof tick.model.raw_output === 'string' && tick.model.raw_output.trim()) {
-                            setOllamaRawLog(tick.model.raw_output);
-                        }
-                    }
-
-                    if (tick.metrics) {
-                        const dronesEl = document.getElementById('metric-drones');
-                        const coverageEl = document.getElementById('metric-coverage');
-                        const survivorsEl = document.getElementById('metric-survivors');
-
-                        if (dronesEl) dronesEl.textContent = tick.metrics.active_drones;
-                        if (coverageEl) coverageEl.textContent = (tick.metrics.coverage_percent || 0).toFixed(1) + '%';
-                        if (survivorsEl) survivorsEl.textContent = tick.metrics.survivors_found;
-                    }
-
+                    appendDecisionLog(`Source=${tick.source || 'unknown'} Intent=${tick.intent || 'n/a'}`);
                     setPlannerSourceBadge(tick.source || 'unknown', tick.timings || null);
                     syncBatterySettingsFromResponse(tick.settings || null);
+                    if (Array.isArray(tick.actions)) {
+                        tick.actions.slice(0, 3).forEach((action) => {
+                            appendDecisionLog(`${action.drone_id}: ${action.type} -> (${Math.round(action.target.x)}, ${Math.round(action.target.z)})`);
+                        });
+                    }
+                    if (tick.model && typeof tick.model.raw_output === 'string' && tick.model.raw_output.trim().length) {
+                        appendOllamaRawLog(tick.model.raw_output);
+                    }
                     appendActionStageDebug(tick);
                     if (tick.model && tick.model.parse_error) {
                         appendDecisionLog('Model parse fallback triggered; check raw output terminal.');
@@ -2192,44 +2486,22 @@
                         drone.targetZ = Number(update.z) || 0;
                         drone.battery = clamp(Number(update.battery) || 0, 0, 100);
 
-                        const newStatus = update.status || 'Live telemetry';
-                        const prevStatus = (dronePanelState[id] || {}).status;
-
                         dronePanelState[id] = {
                             battery: Math.round(drone.battery),
-                            status: newStatus
+                            status: update.status || 'Live telemetry'
                         };
                         drone.scanActive = isScanningStatus(dronePanelState[id].status);
-
-                        // Append to state history only when state actually changes.
-                        if (newStatus !== prevStatus) {
-                            if (!droneStateHistory[id]) {
-                                droneStateHistory[id] = [];
-                            }
-                            droneStateHistory[id].push({
-                                state: newStatus,
-                                timestamp: Date.now(),
-                                x: Math.round(drone.targetX),
-                                z: Math.round(drone.targetZ),
-                                battery: Math.round(drone.battery)
-                            });
-                            // Cap per-drone history to prevent unbounded growth.
-                            if (droneStateHistory[id].length > 200) {
-                                droneStateHistory[id].shift();
-                            }
-                            renderDroneStateHistory();
-                        }
                     });
 
                     if (Array.isArray(tick.logs)) {
-                        tick.logs.forEach((line) => appendMissionLog(line));
+                        tick.logs.slice(-3).forEach((line) => appendMissionLog(line));
                     }
                     if (Array.isArray(tick.warnings) && tick.warnings.length) {
-                        tick.warnings.forEach((line) => appendMissionLog(`Warning: ${line}`));
-                        tick.warnings.forEach((line) => appendDecisionLog(`Validator: ${line}`));
+                        tick.warnings.slice(-2).forEach((line) => appendMissionLog(`Warning: ${line}`));
+                        tick.warnings.slice(-2).forEach((line) => appendDecisionLog(`Validator: ${line}`));
                     }
                     if (Array.isArray(tick.signals) && tick.signals.length) {
-                        tick.signals.forEach((signal) => handleSurvivorSignal(signal));
+                        tick.signals.forEach((signal) => handleSurvivorSignal(signal, 'live'));
                     }
 
                     renderDroneStatus();
@@ -2391,6 +2663,109 @@
             });
         }
 
+        function setOverrideStatus(message, tone) {
+            if (!overrideStatusEl) {
+                return;
+            }
+
+            overrideStatusEl.textContent = message;
+            overrideStatusEl.classList.remove('text-emerald-300', 'text-rose-300', 'text-slate-400');
+
+            if (tone === 'ok') {
+                overrideStatusEl.classList.add('text-emerald-300');
+            } else if (tone === 'error') {
+                overrideStatusEl.classList.add('text-rose-300');
+            } else {
+                overrideStatusEl.classList.add('text-slate-400');
+            }
+        }
+
+        function setOverrideButtonsDisabled(isDisabled) {
+            [overrideSendBtn, overrideClearBtn].forEach((btn) => {
+                if (!btn) {
+                    return;
+                }
+                btn.disabled = isDisabled;
+                btn.classList.toggle('opacity-60', isDisabled);
+                btn.classList.toggle('cursor-not-allowed', isDisabled);
+            });
+        }
+
+        async function sendOverride() {
+            const message = overrideMessageInput ? overrideMessageInput.value.trim() : '';
+            if (!message) {
+                setOverrideStatus('Enter a message before transmit.', 'error');
+                return;
+            }
+
+            setOverrideButtonsDisabled(true);
+            setOverrideStatus('Transmitting override...', 'idle');
+
+            try {
+                const response = await fetch('/api/swarm/override', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ message })
+                });
+                const payload = await response.json().catch(() => ({}));
+                if (!response.ok || !payload.ok) {
+                    throw new Error(payload.message || 'Override rejected.');
+                }
+                runtime.overrideForceReplan = true;
+                if (runtime.overridePrevCadence === null) {
+                    runtime.overridePrevCadence = runtime.modelCheckEveryTicks;
+                }
+                runtime.overrideBoostTicks = 3;
+                runtime.modelCheckEveryTicks = 1;
+                if (modelCheckHintEl) {
+                    modelCheckHintEl.textContent = 'Override boost active: forcing Ollama every tick (3 ticks).';
+                }
+                setOverrideStatus('Override active.', 'ok');
+                appendMissionLog('Commander override transmitted.');
+                appendDecisionLog('Commander override injected into tactical briefing.');
+                appendDecisionLog('Override queued: forcing replan on next tick.');
+            } catch (error) {
+                setOverrideStatus(`Transmit failed: ${error.message}`, 'error');
+                appendMissionLog(`Commander override failed: ${error.message}`);
+            } finally {
+                setOverrideButtonsDisabled(false);
+            }
+        }
+
+        async function clearOverride() {
+            setOverrideButtonsDisabled(true);
+            setOverrideStatus('Clearing override...', 'idle');
+
+            try {
+                const response = await fetch('/api/swarm/override', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ clear: true })
+                });
+                const payload = await response.json().catch(() => ({}));
+                if (!response.ok || !payload.ok) {
+                    throw new Error(payload.message || 'Override clear failed.');
+                }
+                if (overrideMessageInput) {
+                    overrideMessageInput.value = '';
+                }
+                setOverrideStatus('Override cleared.', 'ok');
+                appendMissionLog('Commander override cleared.');
+                appendDecisionLog('Commander override cleared.');
+            } catch (error) {
+                setOverrideStatus(`Clear failed: ${error.message}`, 'error');
+                appendMissionLog(`Commander override clear failed: ${error.message}`);
+            } finally {
+                setOverrideButtonsDisabled(false);
+            }
+        }
+
         async function fetchWithTimeout(url, options, timeoutMs) {
             const controller = new AbortController();
             const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -2423,7 +2798,12 @@
                 body: JSON.stringify(state)
             });
 
-            return response.json().catch(() => ({}));
+            const payload = await response.json().catch(() => ({}));
+            if (payload && payload.ok) {
+                clearScannedTiles();
+                clearRadarDiagnostics();
+            }
+            return payload;
         }
 
         async function loadBatterySettings() {
@@ -2727,6 +3107,12 @@
                         throw new Error(`Trial tick ${tickIndex} returned invalid telemetry.`);
                     }
 
+                    updateRadarDiagnostics(tick);
+
+                    if (Array.isArray(tick.scanned_cells)) {
+                        renderScannedCells(tick.scanned_cells);
+                    }
+
                     if (tick.mcp && Array.isArray(tick.mcp.discovered_drones) && tick.mcp.discovered_drones.length) {
                         const discoveredIds = tick.mcp.discovered_drones
                             .map((entry) => entry && entry.id)
@@ -2799,6 +3185,8 @@
                 const item = dronePanelState[id] || { battery: 0, status: 'Offline' };
                 const batteryClass = item.battery > 60 ? 'text-emerald-300' : (item.battery > 25 ? 'text-amber-300' : 'text-rose-300');
                 const dotColor = item.battery > 25 ? '#22c55e' : '#f43f5e';
+                const headingData = getDroneHeadingData(id);
+                const headingMarkup = headingData ? buildHeadingMarkup(headingData) : '';
 
                 return `
                     <li class="rounded-md border border-cyan-900/60 bg-slate-900/80 p-3">
@@ -2809,9 +3197,287 @@
                         <div class="text-xs text-slate-300 mt-1">
                             <span class="status-dot" style="background:${dotColor}"></span>${item.status}
                         </div>
+                        ${headingMarkup}
                     </li>
                 `;
             }).join('');
+        }
+
+        function getDroneHeadingData(id) {
+            const drone = runtime.drones && runtime.drones[id];
+            if (!drone || !drone.mesh) {
+                return null;
+            }
+
+            const currentX = Number(drone.mesh.position && drone.mesh.position.x);
+            const currentZ = Number(drone.mesh.position && drone.mesh.position.z);
+            const targetX = Number(drone.targetX);
+            const targetZ = Number(drone.targetZ);
+
+            if (![currentX, currentZ, targetX, targetZ].every(Number.isFinite)) {
+                return null;
+            }
+
+            const dx = targetX - currentX;
+            const dz = targetZ - currentZ;
+            const result = headingFromVector(dx, dz);
+            return result;
+        }
+
+        function headingFromVector(dx, dz) {
+            const distSq = (dx * dx) + (dz * dz);
+            if (distSq < 0.01) {
+                return { label: 'HOLD', deg: 0, moving: false };
+            }
+
+            const angle = Math.atan2(dz, dx);
+            const deg = (angle * 180 / Math.PI + 360) % 360;
+            let label = 'R';
+
+            if (deg >= 337.5 || deg < 22.5) {
+                label = 'R';
+            } else if (deg < 67.5) {
+                label = 'UR';
+            } else if (deg < 112.5) {
+                label = 'U';
+            } else if (deg < 157.5) {
+                label = 'LU';
+            } else if (deg < 202.5) {
+                label = 'L';
+            } else if (deg < 247.5) {
+                label = 'LD';
+            } else if (deg < 292.5) {
+                label = 'D';
+            } else {
+                label = 'RD';
+            }
+
+            return { label, deg, moving: true };
+        }
+
+        function compassLabelFromDegrees(deg) {
+            const normalized = ((deg % 360) + 360) % 360;
+            if (normalized >= 337.5 || normalized < 22.5) {
+                return 'N';
+            }
+            if (normalized < 67.5) {
+                return 'NE';
+            }
+            if (normalized < 112.5) {
+                return 'E';
+            }
+            if (normalized < 157.5) {
+                return 'SE';
+            }
+            if (normalized < 202.5) {
+                return 'S';
+            }
+            if (normalized < 247.5) {
+                return 'SW';
+            }
+            if (normalized < 292.5) {
+                return 'W';
+            }
+
+            return 'NW';
+        }
+
+        function updateCompass() {
+            if (!compassHudEl || !compassNeedleEl || !camera) {
+                return;
+            }
+
+            const forward = new THREE.Vector3();
+            camera.getWorldDirection(forward);
+            forward.y = 0;
+            if (forward.lengthSq() < 0.0001) {
+                return;
+            }
+            forward.normalize();
+
+            const yawRad = Math.atan2(forward.x, forward.z);
+            const yawDeg = (yawRad * 180 / Math.PI + 360) % 360;
+            const needleTarget = -yawDeg;
+            if (compassNeedleAngle === null) {
+                compassNeedleAngle = needleTarget;
+            } else {
+                const delta = ((needleTarget - compassNeedleAngle + 540) % 360) - 180;
+                compassNeedleAngle += delta;
+            }
+            compassNeedleEl.style.transform = `translate(-50%, -100%) rotate(${compassNeedleAngle}deg)`;
+
+            if (compassReadoutEl) {
+                const label = compassLabelFromDegrees(yawDeg);
+                compassReadoutEl.textContent = `View: ${label} (${Math.round(yawDeg)} deg)`;
+            }
+        }
+
+        function lerpAngleDeg(fromDeg, toDeg, t) {
+            const delta = ((toDeg - fromDeg + 540) % 360) - 180;
+            return fromDeg + (delta * t);
+        }
+
+        function moveTowards(current, target, maxDelta) {
+            if (Math.abs(target - current) <= maxDelta) {
+                return target;
+            }
+            return current + Math.sign(target - current) * maxDelta;
+        }
+
+        function getCameraHeadingData(dx, dz) {
+            if (!camera || !Number.isFinite(dx) || !Number.isFinite(dz)) {
+                return null;
+            }
+
+            const forward = new THREE.Vector3();
+            camera.getWorldDirection(forward);
+            forward.y = 0;
+            if (forward.lengthSq() < 0.0001) {
+                return null;
+            }
+            forward.normalize();
+
+            const right = new THREE.Vector3(forward.z, 0, -forward.x);
+            const relX = (dx * right.x) + (dz * right.z);
+            const relZ = (dx * forward.x) + (dz * forward.z);
+
+            return headingFromVector(relX, relZ);
+        }
+
+        function updateDroneHeadingIndicator(drone, nowSec) {
+            if (!drone || !drone.mesh || !drone.headingMesh) {
+                return;
+            }
+
+            const headingMesh = drone.headingMesh;
+            headingMesh.position.set(drone.mesh.position.x, 0.07, drone.mesh.position.z);
+
+            const lastX = Number.isFinite(drone.headingLastX) ? drone.headingLastX : drone.mesh.position.x;
+            const lastZ = Number.isFinite(drone.headingLastZ) ? drone.headingLastZ : drone.mesh.position.z;
+            const dx = drone.targetX - drone.mesh.position.x;
+            const dz = drone.targetZ - drone.mesh.position.z;
+            const vx = drone.mesh.position.x - lastX;
+            const vz = drone.mesh.position.z - lastZ;
+
+            drone.headingLastX = drone.mesh.position.x;
+            drone.headingLastZ = drone.mesh.position.z;
+
+            const movementHeading = headingFromVector(vx, vz);
+            const targetHeading = headingFromVector(dx, dz);
+            const useMovement = movementHeading && movementHeading.moving;
+            const worldHeading = useMovement ? movementHeading : targetHeading;
+            if (!worldHeading) {
+                return;
+            }
+
+            const arrowGroup = headingMesh.userData.arrowGroup;
+            const holdDot = headingMesh.userData.holdDot;
+            const ring = headingMesh.userData.ring;
+
+            const lastSec = Number.isFinite(drone.headingLastSec) ? drone.headingLastSec : nowSec;
+            const dt = Math.max(0, Math.min(0.12, nowSec - lastSec));
+            drone.headingLastSec = nowSec;
+
+            if (worldHeading.moving) {
+                drone.headingHoldUntil = nowSec + 0.85;
+            }
+
+            const graceActive = !worldHeading.moving && Number.isFinite(drone.headingHoldUntil) && nowSec < drone.headingHoldUntil;
+            const desiredAlpha = (worldHeading.moving || graceActive) ? 1 : 0;
+            const currentAlpha = Number.isFinite(drone.headingAlpha) ? drone.headingAlpha : 0;
+            const rate = desiredAlpha > currentAlpha ? 5.0 : 0.9;
+            const nextAlpha = moveTowards(currentAlpha, desiredAlpha, rate * dt);
+            drone.headingAlpha = Math.min(1, Math.max(0, nextAlpha));
+
+            if (worldHeading.moving) {
+                const priorDeg = Number.isFinite(drone.headingAngleDeg) ? drone.headingAngleDeg : worldHeading.deg;
+                const smoothedDeg = lerpAngleDeg(priorDeg, worldHeading.deg, Math.min(1, dt * 6));
+                drone.headingAngleDeg = smoothedDeg;
+            }
+
+            const displayDeg = Number.isFinite(drone.headingAngleDeg) ? drone.headingAngleDeg : worldHeading.deg;
+            const arrowAlpha = drone.headingAlpha;
+
+            if (arrowGroup) {
+                arrowGroup.visible = arrowAlpha > 0.05;
+                arrowGroup.rotation.y = -(displayDeg * Math.PI) / 180;
+                if (arrowGroup.children && arrowGroup.children[0] && arrowGroup.children[0].material) {
+                    arrowGroup.children[0].material.opacity = 0.9 * arrowAlpha;
+                }
+            }
+
+            const showHold = !worldHeading.moving && arrowAlpha < 0.25;
+            if (holdDot) {
+                holdDot.visible = showHold;
+                if (holdDot.material) {
+                    holdDot.material.opacity = showHold ? 0.75 : 0.0;
+                }
+            }
+
+            const pulse = 0.92 + 0.08 * Math.sin((nowSec * 3.2) + (drone.headingPulsePhase || 0));
+            headingMesh.scale.set(pulse, pulse, pulse);
+            if (ring && ring.material) {
+                const baseOpacity = worldHeading.moving ? (0.4 + (pulse - 0.92) * 1.2) : 0.22;
+                ring.material.opacity = baseOpacity * Math.max(0.2, arrowAlpha);
+            }
+
+            if (drone.headingLabel && drone.headingLabel.userData) {
+                const worldLine = drone.headingLabel.userData.worldLine;
+                const viewLine = drone.headingLabel.userData.viewLine;
+                const worldDeg = Math.round(displayDeg);
+                if (worldLine) {
+                    worldLine.textContent = worldHeading.label === 'HOLD'
+                        ? 'World: HOLD'
+                        : `World: ${worldHeading.label} (${worldDeg} deg)`;
+                }
+
+                const refDx = useMovement ? vx : dx;
+                const refDz = useMovement ? vz : dz;
+                const viewHeading = getCameraHeadingData(refDx, refDz);
+                if (viewLine) {
+                    if (!viewHeading || viewHeading.label === 'HOLD') {
+                        viewLine.textContent = 'View: HOLD';
+                    } else {
+                        viewLine.textContent = `View: ${viewHeading.label} (${Math.round(viewHeading.deg)} deg)`;
+                    }
+                }
+            }
+        }
+
+        function buildHeadingMarkup(heading) {
+            if (!heading || typeof heading !== 'object') {
+                return '';
+            }
+
+            if (!heading.moving || heading.label === 'HOLD') {
+                return `
+                    <div class="mt-2 flex items-center gap-2 heading-row text-[10px] uppercase tracking-[0.18em] text-slate-400">
+                        <span class="heading-hold-dot"></span>
+                        Hold position
+                    </div>
+                `;
+            }
+
+            const degrees = Math.round(Number(heading.deg) || 0);
+            const rotation = Number.isFinite(heading.deg) ? heading.deg : 0;
+            const label = String(heading.label || 'R');
+
+            return `
+                <div class="mt-2 flex items-center gap-3 heading-row">
+                    <div class="heading-compass moving">
+                        <div class="heading-scan"></div>
+                        <div class="heading-arrow-wrap" style="transform: rotate(${rotation}deg);">
+                            <svg class="heading-arrow" viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M12 3l5 7h-3v8h-4v-8H7l5-7z"></path>
+                            </svg>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="text-[10px] uppercase tracking-[0.18em] text-cyan-200/80">Vector (world)</div>
+                        <div class="text-[11px] font-mono text-cyan-100">${label} <span class="text-slate-400">(${degrees} deg)</span></div>
+                    </div>
+                </div>
+            `;
         }
 
         function appendMissionLog(message) {
@@ -2850,83 +3516,23 @@
             llmDecisionLogEl.scrollTop = llmDecisionLogEl.scrollHeight;
         }
 
-        function renderDroneStateHistory() {
-            const el = document.getElementById('ollama-raw-log');
-            if (!el) {
+        function appendOllamaRawLog(rawOutput) {
+            if (!ollamaRawLogEl || typeof rawOutput !== 'string' || rawOutput.trim() === '') {
                 return;
             }
 
-            // Flatten all drones' histories into a single chronological list.
-            const allEntries = [];
-            Object.keys(droneStateHistory).sort().forEach((id) => {
-                (droneStateHistory[id] || []).forEach((entry) => {
-                    allEntries.push({ id, ...entry });
-                });
-            });
+            const now = new Date();
+            const stamp = now.toLocaleTimeString();
+            const block = document.createElement('div');
+            block.className = 'mb-2 pb-2 border-b border-fuchsia-900/40';
+            block.textContent = `[${stamp}]\n${rawOutput}`;
+            ollamaRawLogEl.appendChild(block);
 
-            // Sort chronologically (oldest first).
-            allEntries.sort((a, b) => a.timestamp - b.timestamp);
-
-            // Keep only the latest 200 total entries across all drones.
-            const visible = allEntries.slice(-200);
-
-            el.innerHTML = '';
-            visible.forEach((entry) => {
-                const stamp = new Date(entry.timestamp).toLocaleTimeString();
-                const line = document.createElement('div');
-                line.className = 'border-b border-indigo-900/30 pb-1 mb-1';
-                line.textContent = `[${stamp}] ${entry.id} → ${entry.state}  (X:${entry.x} Z:${entry.z} | ${entry.battery}%)`;
-                el.appendChild(line);
-            });
-
-            el.scrollTop = el.scrollHeight;
-        }
-
-        // Keep backward-compat stub — raw LLM output still flows to decision log instead.
-        function setOllamaRawLog(rawOutput) {
-            if (typeof rawOutput !== 'string' || !rawOutput.trim()) {
-                return;
+            while (ollamaRawLogEl.children.length > 40) {
+                ollamaRawLogEl.removeChild(ollamaRawLogEl.firstChild);
             }
 
-            // 1. Store full response in the in-memory log array.
-            ollamaRawLog.push({
-                timestamp: Date.now(),
-                raw: rawOutput
-            });
-
-            // Cap to last 50 responses to prevent memory growth.
-            if (ollamaRawLog.length > 50) {
-                ollamaRawLog.shift();
-            }
-
-            // 2. Render every entry into the dedicated panel (append, not overwrite).
-            const el = document.getElementById('ollama-raw-output');
-            if (!el) {
-                // Fallback: send truncated preview to decision log.
-                appendDecisionLog(`[LLM Raw] ${rawOutput.substring(0, 120)}${rawOutput.length > 120 ? '...' : ''}`);
-                return;
-            }
-
-            el.innerHTML = '';
-            ollamaRawLog.forEach((entry) => {
-                const stamp = new Date(entry.timestamp).toLocaleTimeString();
-                const block = document.createElement('div');
-                block.className = 'mb-3 pb-2 border-b border-violet-900/40';
-
-                const header = document.createElement('div');
-                header.className = 'text-violet-400 mb-1 font-semibold';
-                header.textContent = `[${stamp}] LLM Response`;
-
-                const body = document.createElement('pre');
-                body.className = 'whitespace-pre-wrap break-all text-violet-100';
-                body.textContent = entry.raw;
-
-                block.appendChild(header);
-                block.appendChild(body);
-                el.appendChild(block);
-            });
-
-            el.scrollTop = el.scrollHeight;
+            ollamaRawLogEl.scrollTop = ollamaRawLogEl.scrollHeight;
         }
 
         function setPlannerSourceBadge(source, timings) {
@@ -2976,6 +3582,192 @@
             return mesh;
         }
 
+        function createDroneHeadingIndicator() {
+            const group = new THREE.Group();
+            group.userData.kind = 'heading-indicator';
+
+            const ring = new THREE.Mesh(
+                new THREE.RingGeometry(2.6, 3.1, 64),
+                new THREE.MeshBasicMaterial({
+                    color: UI_THEME.accent,
+                    transparent: true,
+                    opacity: 0.55,
+                    side: THREE.DoubleSide,
+                    depthWrite: false
+                })
+            );
+            ring.rotation.x = -Math.PI / 2;
+            ring.position.y = 0.05;
+            group.add(ring);
+
+            const arrowGroup = new THREE.Group();
+            const arrow = new THREE.Mesh(
+                new THREE.ConeGeometry(0.28, 0.7, 20),
+                new THREE.MeshBasicMaterial({
+                    color: UI_THEME.accent,
+                    transparent: true,
+                    opacity: 0.9
+                })
+            );
+            arrow.rotation.z = -Math.PI / 2;
+            arrow.position.set(3.28, 0.16, 0);
+            arrowGroup.add(arrow);
+            group.add(arrowGroup);
+
+            const holdDot = new THREE.Mesh(
+                new THREE.SphereGeometry(0.16, 12, 12),
+                new THREE.MeshBasicMaterial({
+                    color: 0x94a3b8,
+                    transparent: true,
+                    opacity: 0.8
+                })
+            );
+            holdDot.position.set(0, 0.14, 0);
+            group.add(holdDot);
+
+            group.userData.ring = ring;
+            group.userData.arrowGroup = arrowGroup;
+            group.userData.arrow = arrow;
+            group.userData.holdDot = holdDot;
+            return group;
+        }
+
+        function createDroneHeadingLabel(id) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'drone-heading-label';
+
+            const title = document.createElement('div');
+            title.className = 'drone-heading-title';
+            title.textContent = `${id} VECTOR`;
+
+            const worldLine = document.createElement('div');
+            worldLine.className = 'drone-heading-world';
+
+            const divider = document.createElement('div');
+            divider.className = 'drone-heading-divider';
+
+            const viewLine = document.createElement('div');
+            viewLine.className = 'drone-heading-view';
+
+            wrapper.appendChild(title);
+            wrapper.appendChild(worldLine);
+            wrapper.appendChild(divider);
+            wrapper.appendChild(viewLine);
+
+            const label = new window.CSS2DObject(wrapper);
+            label.position.set(0, 4.6, 0);
+            label.userData.worldLine = worldLine;
+            label.userData.viewLine = viewLine;
+            label.userData.billboard = true;
+            return label;
+        }
+
+        function updateRadarDiagnostics(tick) {
+            if (!radarPingEl && !vectorCommandsEl) {
+                return;
+            }
+
+            const radarPing = tick && tick.debug && typeof tick.debug.radar_ping === 'string'
+                ? tick.debug.radar_ping.trim()
+                : '';
+            const vectorText = tick && tick.debug && typeof tick.debug.vector_commands_text === 'string'
+                ? tick.debug.vector_commands_text.trim()
+                : '';
+
+            if (radarPingEl) {
+                radarPingEl.textContent = radarPing.length ? radarPing : '(radar ping unavailable)';
+            }
+            if (vectorCommandsEl) {
+                vectorCommandsEl.textContent = vectorText.length ? vectorText : '(vector commands unavailable)';
+            }
+        }
+
+        function clearRadarDiagnostics() {
+            if (radarPingEl) {
+                radarPingEl.textContent = 'Awaiting radar ping...';
+            }
+            if (vectorCommandsEl) {
+                vectorCommandsEl.textContent = 'Awaiting vector commands...';
+            }
+        }
+
+        function initScannedTilesLayer() {
+            if (!scene) {
+                return;
+            }
+
+            scannedTilesGroup = new THREE.Group();
+            scannedTilesGroup.name = 'scanned-tiles';
+            scannedTilesGroup.renderOrder = 1;
+
+            scannedTileGeometry = new THREE.PlaneGeometry(SCANNED_TILE_SIZE, SCANNED_TILE_SIZE);
+            scannedTileMaterial = new THREE.MeshBasicMaterial({
+                color: UI_THEME.success,
+                transparent: true,
+                opacity: SCANNED_TILE_OPACITY,
+                depthWrite: false
+            });
+
+            scene.add(scannedTilesGroup);
+        }
+
+        function clearScannedTiles() {
+            scannedTilesSeen.clear();
+            if (scannedTilesGroup) {
+                scannedTilesGroup.clear();
+            }
+        }
+
+        function normalizeScannedCell(cell) {
+            if (!cell || typeof cell !== 'object') {
+                return null;
+            }
+
+            const x = Number(cell.x);
+            const z = Number(cell.y ?? cell.z);
+            if (!Number.isFinite(x) || !Number.isFinite(z)) {
+                return null;
+            }
+
+            return {
+                x: Math.round(x),
+                z: Math.round(z)
+            };
+        }
+
+        function addScannedTile(x, z) {
+            if (!scannedTilesGroup || !scannedTileGeometry || !scannedTileMaterial) {
+                return;
+            }
+
+            const clampedX = clamp(x, -49, 49);
+            const clampedZ = clamp(z, -49, 49);
+            const key = `${clampedX},${clampedZ}`;
+            if (scannedTilesSeen.has(key)) {
+                return;
+            }
+
+            scannedTilesSeen.add(key);
+            const tile = new THREE.Mesh(scannedTileGeometry, scannedTileMaterial);
+            tile.rotation.x = -Math.PI / 2;
+            tile.position.set(clampedX, SCANNED_TILE_Y, clampedZ);
+            scannedTilesGroup.add(tile);
+        }
+
+        function renderScannedCells(cells) {
+            if (!Array.isArray(cells)) {
+                return;
+            }
+
+            cells.forEach((cell) => {
+                const normalized = normalizeScannedCell(cell);
+                if (!normalized) {
+                    return;
+                }
+                addScannedTile(normalized.x, normalized.z);
+            });
+        }
+
         function isScanningStatus(status) {
             const text = String(status || '').toLowerCase();
             return text.includes('scan') || text.includes('thermal sweep');
@@ -3018,31 +3810,26 @@
                     z: survivor.z,
                     message: `SURVIVOR FOUND by ${droneId} at X:${Math.round(survivor.x)} Z:${Math.round(survivor.z)}`,
                     info
-                });
+                }, 'mock');
             });
         }
 
-        function handleSurvivorSignal(signal) {
+        function handleSurvivorSignal(signal, sourcePrefix) {
             if (!signal || signal.type !== 'survivor_found') {
                 return;
             }
 
             const survivorIndex = Number(signal.survivor_index);
-            // Single canonical key — no prefix so both live and mock paths share one gate.
-            const canonicalKey = `survivor-${survivorIndex}`;
-            if (foundSurvivorSignals.has(canonicalKey)) {
+            const existing = Number.isFinite(survivorIndex) ? foundSurvivorRegistry.get(survivorIndex) : null;
+            if (existing && (sourcePrefix !== 'live' || existing.droneId === signal.drone_id)) {
                 return;
             }
-            // Mark found immediately before any async side-effects.
-            foundSurvivorSignals.add(canonicalKey);
-            foundSurvivorRegistry.set(survivorIndex, {
-                index: survivorIndex,
-                droneId: signal.drone_id,
-                x: Number(signal.x),
-                z: Number(signal.z),
-                info: signal.info || null,
-                foundAt: new Date().toLocaleTimeString()
-            });
+
+            const signalKey = `${sourcePrefix}-${signal.survivor_index}`;
+            if (foundSurvivorSignals.has(signalKey)) {
+                return;
+            }
+            foundSurvivorSignals.add(signalKey);
 
             const msg = signal.message || `SURVIVOR FOUND by ${signal.drone_id} at (${Math.round(signal.x)}, ${Math.round(signal.z)})`;
             appendMissionLog(`ALERT: ${msg}`);
@@ -3052,6 +3839,15 @@
                 appendMissionLog(`SURVIVOR INFO: Temp ${signal.info.temperature_c} C | HR ${signal.info.heart_rate_bpm} bpm | SpO2 ${signal.info.blood_oxygen_spo2}% | ${signal.info.condition} | Priority ${signal.info.priority}`);
                 appendDecisionLog(`Info S${signal.survivor_index}: Temp ${signal.info.temperature_c}C HR ${signal.info.heart_rate_bpm} SpO2 ${signal.info.blood_oxygen_spo2}% (${signal.info.condition})`);
             }
+
+            foundSurvivorRegistry.set(Number(signal.survivor_index), {
+                index: Number(signal.survivor_index),
+                droneId: signal.drone_id,
+                x: Number(signal.x),
+                z: Number(signal.z),
+                info: signal.info || null,
+                foundAt: new Date().toLocaleTimeString()
+            });
 
             renderFoundSurvivorRegistry();
             flashSurvivorAlert(msg);
@@ -3172,12 +3968,15 @@
                     }
                 }
 
+                updateDroneHeadingIndicator(drone, nowSec);
+
                 if (drone.id) {
                     emitScanRadiusSignals(drone.id, drone, 'ui-scan');
                 }
             });
 
             tickBillboards();
+            updateCompass();
             if (controls) controls.update();
             renderer.render(scene, camera);
             if (labelRenderer) labelRenderer.render(scene, camera);
@@ -3227,6 +4026,11 @@
                     if (titleEl && data.state.map_name) {
                         titleEl.textContent = `Swarm Command Center - ${data.state.map_name}`;
                     }
+                }
+
+                if (Array.isArray(data.scanned_cells)) {
+                    clearScannedTiles();
+                    renderScannedCells(data.scanned_cells);
                 }
             }
         } catch (error) {
