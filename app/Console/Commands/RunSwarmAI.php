@@ -37,9 +37,31 @@ class RunSwarmAI extends Command
             return;
         }
 
+        $replanIntervalTicks = max(5, (int) env('SWARM_REPLAN_INTERVAL_TICKS', 10));
+        $lastKnownSurvivorCount = 0;
+        $lastKnownIdleDrones = [];
+
         while ($this->shouldContinueLoop($tickCount, $maxTicks)) {
             $tickCount++;
-            $forceReplan = ($tickCount % 4) === 0;
+
+            // Event: survivor count increased since last tick → replan immediately.
+            $currentSurvivorCount = count((array) Cache::get('swarm:found_survivors', []));
+            $survivorEvent = $currentSurvivorCount > $lastKnownSurvivorCount;
+            $lastKnownSurvivorCount = $currentSurvivorCount;
+
+            // Event: a drone BECAME idle this tick (transition, not persistent idle).
+            $runtimeDrones = (array) Cache::get('swarm:runtime', []);
+            $currentIdleDrones = collect($runtimeDrones)
+                ->filter(fn ($d) => is_array($d) && ($d['drone_state'] ?? '') === 'idle')
+                ->keys()
+                ->all();
+            $idleEvent = !empty(array_diff($currentIdleDrones, $lastKnownIdleDrones));
+            $lastKnownIdleDrones = $currentIdleDrones;
+
+            // Force replan every N ticks OR on a meaningful event.
+            $forceReplan = ($tickCount % $replanIntervalTicks === 0)
+                || $survivorEvent
+                || $idleEvent;
 
             try {
                 $response = Http::connectTimeout(4)

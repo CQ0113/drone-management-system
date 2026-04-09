@@ -15,6 +15,64 @@ const survivors = [
   { id: "S2", x: -8, z: 15, tempC: 35.8 },
 ];
 
+function resolveApiBaseUrl() {
+  const raw =
+    process.env.MCP_DRONE_API_BASE_URL ||
+    process.env.MCP_DRONE_API_URL ||
+    "http://127.0.0.1:8000";
+  return raw.replace(/\/+$/, "");
+}
+
+async function apiGet(path) {
+  if (typeof fetch !== "function") {
+    throw new Error("fetch is not available; use Node 18+ for MCP HTTP calls");
+  }
+
+  const response = await fetch(`${resolveApiBaseUrl()}${path}`, {
+    method: "GET",
+    headers: {
+      Accept: "application/json",
+    },
+  });
+
+  const text = await response.text();
+  if (!text) {
+    return { ok: response.ok, status: response.status };
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { ok: response.ok, status: response.status, raw: text };
+  }
+}
+
+async function apiPost(path, payload) {
+  if (typeof fetch !== "function") {
+    throw new Error("fetch is not available; use Node 18+ for MCP HTTP calls");
+  }
+
+  const response = await fetch(`${resolveApiBaseUrl()}${path}`, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload ?? {}),
+  });
+
+  const text = await response.text();
+  if (!text) {
+    return { ok: response.ok, status: response.status };
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { ok: response.ok, status: response.status, raw: text };
+  }
+}
+
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
@@ -39,7 +97,10 @@ const server = new McpServer({
   version: "0.1.0",
 });
 
-server.tool("list_active_drones", "Discover currently active drones on the network.", async () => {
+server.tool(
+  "list_active_drones",
+  "Discover currently active drones on the network. Coordinates are absolute; vector commands are preferred for planning.",
+  async () => {
   const active = Array.from(drones.values()).map((d) => ({
     id: d.id,
     x: d.x,
@@ -56,7 +117,51 @@ server.tool("list_active_drones", "Discover currently active drones on the netwo
       },
     ],
   };
-});
+  },
+);
+
+server.tool(
+  "get_swarm_state",
+  "Get the current swarm state from the Laravel backend. The backend clamps vectors that hit obstacles or map bounds at the last valid unit.",
+  async () => {
+    const payload = await apiGet("/api/swarm/state");
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(payload, null, 2),
+        },
+      ],
+    };
+  },
+);
+
+server.tool(
+  "submit_vector_commands",
+  "Submit raw vector commands to the Laravel backend. Format: DRONE_ID(DIRECTION,DISTANCE). Directions: U, UR, R, RD, D, LD, L, LU. Max distance is SWARM_VECTOR_MAX_DISTANCE (default 5). Backend clamps on obstacles/bounds.",
+  {
+    commands: z.string(),
+    objective: z.string().optional(),
+    force_replan: z.boolean().optional(),
+  },
+  async ({ commands, objective, force_replan }) => {
+    const payload = await apiPost("/api/swarm/tick", {
+      objective: objective || "search_and_rescue",
+      vector_commands_text: commands,
+      force_replan: Boolean(force_replan),
+    });
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(payload, null, 2),
+        },
+      ],
+    };
+  },
+);
 
 server.tool(
   "get_battery_status",
@@ -88,7 +193,7 @@ server.tool(
 
 server.tool(
   "move_to",
-  "Move a drone to an X/Z coordinate on the tactical map.",
+  "Legacy absolute move. Prefer submit_vector_commands for vector planning; backend clamps vectors on obstacles/bounds.",
   {
     drone_id: z.string(),
     x: z.number(),
