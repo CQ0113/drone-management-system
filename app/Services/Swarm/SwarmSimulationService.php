@@ -156,6 +156,18 @@ class SwarmSimulationService
         }
 
         $lines[] = '';
+        $lines[] = '=== DRONE POSITIONS ===';
+        if (empty($ids)) {
+            $lines[] = 'NONE';
+        } else {
+            foreach ($ids as $id) {
+                $x = round((float) data_get($runtime, $id.'.x', 0), 2);
+                $z = round((float) data_get($runtime, $id.'.z', 0), 2);
+                $lines[] = sprintf('%s: X:%0.2f Z:%0.2f', $id, $x, $z);
+            }
+        }
+
+        $lines[] = '';
         if (!empty($learnings)) {
             $lines[] = '=== STANDING ORDERS (LONG-TERM MEMORY) ===';
             foreach ($learnings as $index => $learning) {
