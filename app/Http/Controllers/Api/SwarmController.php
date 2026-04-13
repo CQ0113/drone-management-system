@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Services\Swarm\DangerMapService;
 use App\Services\Swarm\LlmPlannerService;
 use App\Services\Swarm\McpDroneCommandExecutor;
 use App\Services\Swarm\MissionCommandAgentService;
@@ -27,6 +28,7 @@ class SwarmController extends Controller
         private readonly SwarmRadarService $radar,
         private readonly SwarmSimulationService $simulation,
         private readonly SwarmRagMemoryService $ragMemory,
+        private readonly DangerMapService $dangerMapService,
     ) {}
 
     public function initSwarm(Request $request): JsonResponse
@@ -43,7 +45,7 @@ class SwarmController extends Controller
         'obstacles.*.x' => ['required_with:obstacles', 'numeric'],
         'obstacles.*.z' => ['required_with:obstacles', 'numeric'],
         'obstacles.*.height' => ['nullable', 'numeric'],
-        'use_default_map' => ['nullable', 'string', 'in:map1,map2,map3,map4,map5'],  
+        'use_default_map' => ['nullable', 'string', 'in:map1,map2,map3,map4,map5,map6'],  
         ]);
 
         if ($request->has('use_default_map')) {
@@ -71,6 +73,7 @@ class SwarmController extends Controller
                     ])
                     ->values()
                     ->all(),
+                'danger_zones' => [],
                 'map_name' => $mapConfig['name'],
                 'map_description' => $mapConfig['description'],
                 'created_at' => now()->toIso8601String(),
@@ -97,6 +100,7 @@ class SwarmController extends Controller
                     ])
                     ->values()
                     ->all(),
+                'danger_zones' => [],
                 'created_at' => now()->toIso8601String(),
             ];
         }
@@ -111,6 +115,8 @@ class SwarmController extends Controller
         Cache::put('swarm:scanned_cells', [], $ttl);
         Cache::put('swarm:mission_learnings', [], $ttl);
         Cache::put('swarm:survivor_profiles', $survivorProfiles, $ttl);
+        Cache::put('swarm:hidden_hazards', $this->generateHiddenHazards($state), $ttl);
+        Cache::put('swarm:danger_zones', [], $ttl);
         Cache::forget('swarm:drone_pos_history');
         Cache::forget('swarm:mission_state');
         Cache::forget('swarm_state');
@@ -127,6 +133,35 @@ class SwarmController extends Controller
             'settings' => $operatorSettings,
             'available_maps' => $this->getAvailableMapsList(),
         ]);
+    }
+
+    private function generateHiddenHazards(array $state): array
+    {
+        $hazards = [];
+        $obstacles = (array) data_get($state, 'obstacles', []);
+        $survivors = (array) data_get($state, 'survivors', []);
+        
+        $pointsOfInterest = array_merge($obstacles, $survivors);
+        if (empty($pointsOfInterest)) {
+            $pointsOfInterest = [['x' => 0, 'z' => 0]];
+        }
+
+        $types = ['Fire', 'Toxic Spill', 'Flood', 'Collapsed Structure'];
+        $count = mt_rand(1, 2);
+        for ($i = 0; $i < $count; $i++) {
+            $poi = $pointsOfInterest[array_rand($pointsOfInterest)];
+            $offsetX = mt_rand(-4, 4);
+            $offsetZ = mt_rand(-4, 4);
+            $x = min(49, max(-49, (float) data_get($poi, 'x', 0) + $offsetX));
+            $z = min(49, max(-49, (float) data_get($poi, 'z', 0) + $offsetZ));
+            $hazards[] = [
+                'x' => $x,
+                'z' => $z,
+                'type' => $types[array_rand($types)],
+            ];
+        }
+
+        return $hazards;
     }
 
 private function getAvailableMapsList(): array
@@ -150,6 +185,22 @@ private function getAvailableMapsList(): array
             'ok' => true,
             'settings' => $this->resolveOperatorSettings(),
             'generated_at' => now()->toIso8601String(),
+        ]);
+    }
+
+    public function getDangerMap(): JsonResponse
+    {
+        $state = Cache::get('swarm:setup', []);
+        if (empty($state)) {
+            return response()->json(['ok' => false, 'message' => 'Swarm not initialized'], 400);
+        }
+
+        $grid = $this->dangerMapService->generateDangerMap((array) $state);
+
+        return response()->json([
+            'ok' => true,
+            'grid' => $grid,
+            'timestamp' => now()->toIso8601String(),
         ]);
     }
 
@@ -285,9 +336,17 @@ private function getAvailableMapsList(): array
         if (!is_array($survivorProfiles)) {
             $survivorProfiles = [];
         }
+        // Load dynamically-detected danger zones from the cache so they are available
+        // to both the simulation tick (hazard detection) and the AI tactical briefing.
+        $liveDangerZones = Cache::get('swarm:danger_zones', []);
+        if (!is_array($liveDangerZones)) {
+            $liveDangerZones = [];
+        }
+
         $stateForTick = $state;
         $stateForTick['survivor_profiles'] = $survivorProfiles;
         $stateForTick['operator_settings'] = $this->resolveOperatorSettings();
+        $stateForTick['danger_zones'] = $liveDangerZones;
 
         $mcp = ['ok' => true, 'source' => 'mcp-skipped', 'tool_trace' => [], 'discovered_drones' => []];
         $objective = (string) ($validated['objective'] ?? 'search_and_rescue');
@@ -345,6 +404,8 @@ private function getAvailableMapsList(): array
             $plannerState['rag_context'] = $ragContext;
             $plannerState['operator_settings'] = $stateForTick['operator_settings'];
             $plannerState['radar_ping'] = $radarPing;
+            // Inject live detected danger zones so the AI briefing reflects real-time hazards.
+            $plannerState['danger_zones'] = $liveDangerZones;
             $commandAgentEnabled = $this->isCommandAgentEnabled();
 
             $shouldUseCommandAgent = $commandAgentEnabled && $this->commandAgent->supportsObjective($objective) && !empty($runtime);
@@ -516,6 +577,7 @@ public function getDefaultMap(string $mapId): JsonResponse
             'base' => $map['base'],
             'survivors' => $map['survivors'],
             'obstacles' => $map['obstacles'],
+            'danger_zones' => $map['danger_zones'] ?? [],
         ],
         'generated_at' => now()->toIso8601String(),
     ]);
@@ -665,6 +727,21 @@ public function getDefaultMap(string $mapId): JsonResponse
                 ['x' => -10, 'z' => 40, 'height' => 4],
                 ['x' => -8, 'z' => 42, 'height' => 3],
                 ['x' => -5, 'z' => 45, 'height' => 4],
+            ]
+        ],
+        'map6' => [
+            'name' => 'Danger Zone Map',
+            'description' => 'A map specifically tailored to evaluate the autonomous danger zone detection feature',
+            'base' => ['x' => 0, 'z' => 0],
+            'survivors' => [
+                ['x' => 20, 'z' => 20, 'name' => 'Trapped Victim F'],
+                ['x' => -25, 'z' => -15, 'name' => 'Trapped Victim G'],
+            ],
+            'obstacles' => [
+                ['x' => 15, 'z' => 15, 'height' => 3],
+                ['x' => -20, 'z' => -10, 'height' => 4],
+                ['x' => 10, 'z' => -20, 'height' => 2],
+                ['x' => -30, 'z' => 20, 'height' => 3],
             ]
         ]
     ];

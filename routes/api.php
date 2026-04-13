@@ -31,6 +31,7 @@ Route::prefix('swarm')->group(function () {
     Route::get('settings', [SwarmController::class, 'getSettings']);
     Route::post('settings', [SwarmController::class, 'updateSettings']);
     Route::get('llm-health', [SwarmController::class, 'llmHealth']);
+    Route::get('danger-map', [SwarmController::class, 'getDangerMap']);
     
     Route::get('maps', [SwarmController::class, 'getDefaultMaps']);
     Route::get('maps/{mapId}', [SwarmController::class, 'getDefaultMap']);

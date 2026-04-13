@@ -139,12 +139,25 @@ class SwarmSimulationService
         $learnings = Cache::get('swarm:mission_learnings', []);
         $learnings = is_array($learnings) ? array_values($learnings) : [];
         $override = trim((string) Cache::get('swarm:commander_override', ''));
+        $dangerZones = (array) data_get($state, 'danger_zones', []);
 
         $radarById = $this->parseRadarPing($radarPing);
         $ids = array_keys($runtime);
         sort($ids);
 
         $lines = [];
+        
+        if (!empty($dangerZones)) {
+            $lines[] = '=== HIGH PRIORITY DANGER ZONES ===';
+            $lines[] = 'These coordinations represent confirmed Danger Zones. You MUST prioritize scanning these locations immediately.';
+            foreach ($dangerZones as $index => $zone) {
+                $dzx = (float) data_get($zone, 'x', 0);
+                $dzz = (float) data_get($zone, 'z', 0);
+                $lines[] = sprintf('%d. Danger Zone at X:%.2f, Z:%.2f', $index + 1, $dzx, $dzz);
+            }
+            $lines[] = '';
+        }
+        
         $lines[] = '=== SWARM STATUS ===';
         if (empty($ids)) {
             $lines[] = 'NONE';
@@ -265,6 +278,7 @@ class SwarmSimulationService
                 $runtime[$id]['path'] = [];
                 $logs[] = sprintf('%s: Charging at base.', $id);
                 $this->captureSurvivorSignal($id, (float) $runtime[$id]['x'], (float) $runtime[$id]['z'], $survivors, $foundMap, $signals, $logs, $runtime, $survivorProfiles, false, $scanDetectionRadius);
+                $this->captureHazardSignal($id, (float) $runtime[$id]['x'], (float) $runtime[$id]['z'], $signals, $logs, $runtime, false, $scanDetectionRadius);
                 continue;
             }
 
@@ -365,6 +379,7 @@ class SwarmSimulationService
             $logs[] = sprintf('%s: %s.', $id, $status);
             $isScanAction = $actionType === 'scan_sector';
             $this->captureSurvivorSignal($id, (float) $runtime[$id]['x'], (float) $runtime[$id]['z'], $survivors, $foundMap, $signals, $logs, $runtime, $survivorProfiles, $isScanAction, $scanDetectionRadius);
+            $this->captureHazardSignal($id, (float) $runtime[$id]['x'], (float) $runtime[$id]['z'], $signals, $logs, $runtime, $isScanAction, $scanDetectionRadius);
         }
 
         $areaSize = max(1, (int) env('SWARM_AREA_SIZE', 10));
@@ -671,6 +686,57 @@ class SwarmSimulationService
                 'info' => is_array($profile) ? $profile : null,
             ];
             $logs[] = $message;
+        }
+    }
+
+    private function captureHazardSignal(
+        string $droneId,
+        float $x,
+        float $z,
+        array &$signals,
+        array &$logs,
+        array &$runtime,
+        bool $scanActive,
+        float $scanRadius
+    ): void {
+        if (!$scanActive) {
+            return;
+        }
+
+        $hazards = (array) Cache::get('swarm:hidden_hazards', []);
+        if (empty($hazards)) {
+            return;
+        }
+        
+        $dangerZones = (array) Cache::get('swarm:danger_zones', []);
+        $foundNew = false;
+        $updatedHazards = [];
+
+        foreach ($hazards as $hazard) {
+            $hx = (float) data_get($hazard, 'x', 0);
+            $hz = (float) data_get($hazard, 'z', 0);
+
+            if ($this->isClose($x, $z, $hx, $hz, $scanRadius)) {
+                $dangerZones[] = ['x' => $hx, 'z' => $hz];
+                $message = sprintf('HIGH PRIORITY HAZARD (Heat/Instability) detected at X:%d Z:%d.', (int) round($hx), (int) round($hz));
+                $signals[] = [
+                    'type' => 'danger_zone_detected',
+                    'drone_id' => $droneId,
+                    'x' => $hx,
+                    'z' => $hz,
+                    'message' => $message,
+                ];
+                $logs[] = sprintf('%s: %s', $droneId, $message);
+                $foundNew = true;
+                $runtime[$droneId]['status'] = 'Hazard located';
+            } else {
+                $updatedHazards[] = $hazard;
+            }
+        }
+
+        if ($foundNew) {
+            Cache::put('swarm:hidden_hazards', $updatedHazards, now()->addHours(6));
+            Cache::put('swarm:danger_zones', $dangerZones, now()->addHours(6));
         }
     }
 

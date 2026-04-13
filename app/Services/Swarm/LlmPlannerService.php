@@ -58,6 +58,7 @@ class LlmPlannerService
             .' MISSION: '.$objective.'.'
             .' Use the mission history section to avoid repeating recent failures and to continue successful patterns.'
             .' You must obey all rules listed in the STANDING ORDERS section. These are permanent mission facts.'
+            .' If HIGH PRIORITY DANGER ZONES are listed in the briefing, you MUST explicitly coordinate your drones to MOVE toward and SCAN those exact coordinates.'
             .' You are receiving a text-based tactical briefing. If a drone has a Target listed (e.g., Target: S1 is [NORTHEAST]), prioritize moving in that direction unless the Radar shows it is a [WALL].'
             .' Use the Tactical Radar section to move toward [UNSCANNED] areas, avoid [SCANNED] areas, and NEVER move into [WALL] areas.'
             .' Only issue SCAN when the target area is [UNSCANNED]; do NOT scan areas already marked [SCANNED].'
