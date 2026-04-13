@@ -149,6 +149,7 @@ class RunSwarmAI extends Command
                 ->asJson()
                 ->post($initUrl, [
                     'base'      => ['x' => 0, 'z' => 0],
+                    'drone_count' => 3,
                     'survivors' => [],
                     'obstacles' => [],
                 ]);

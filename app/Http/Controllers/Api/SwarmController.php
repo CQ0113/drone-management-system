@@ -35,6 +35,7 @@ class SwarmController extends Controller
         'base' => ['nullable', 'array'],
         'base.x' => ['nullable', 'numeric'],
         'base.z' => ['nullable', 'numeric'],
+        'drone_count' => ['nullable', 'integer', 'min:1', 'max:50'],
         'survivors' => ['nullable', 'array'],
         'survivors.*.x' => ['required_with:survivors', 'numeric'],
         'survivors.*.z' => ['required_with:survivors', 'numeric'],
@@ -45,6 +46,9 @@ class SwarmController extends Controller
         'obstacles.*.height' => ['nullable', 'numeric'],
         'use_default_map' => ['nullable', 'string', 'in:map1,map2,map3,map4,map5'],  
         ]);
+
+        $requestedDroneCount = (int) ($validated['drone_count'] ?? 0);
+        $droneCount = max(3, $requestedDroneCount);
 
         if ($request->has('use_default_map')) {
             $mapKey = $validated['use_default_map'];
@@ -71,6 +75,8 @@ class SwarmController extends Controller
                     ])
                     ->values()
                     ->all(),
+                'targets' => $this->defaultTargets(),
+                'drone_count' => $droneCount,
                 'map_name' => $mapConfig['name'],
                 'map_description' => $mapConfig['description'],
                 'created_at' => now()->toIso8601String(),
@@ -97,6 +103,8 @@ class SwarmController extends Controller
                     ])
                     ->values()
                     ->all(),
+                'targets' => $this->defaultTargets(),
+                'drone_count' => $droneCount,
                 'created_at' => now()->toIso8601String(),
             ];
         }
@@ -221,6 +229,14 @@ private function getAvailableMapsList(): array
             ], 422);
         }
 
+        if (!isset($state['drone_count'])) {
+            $cachedSetup = Cache::get('swarm:setup', []);
+            $fallbackCount = max(3, (int) data_get($cachedSetup, 'drone_count', 3));
+            $state['drone_count'] = $fallbackCount;
+        } else {
+            $state['drone_count'] = max(3, (int) data_get($state, 'drone_count', 3));
+        }
+
         $objective = (string) ($validated['objective'] ?? 'search_and_rescue');
         $stateForPlanner = $state;
         $cachedRuntime = Cache::get('swarm:runtime', []);
@@ -273,6 +289,7 @@ private function getAvailableMapsList(): array
             $runtime = [];
         }
         $runtime = $this->filterRuntimeToAllowed($runtime);
+        $runtime = $this->ensureRuntimeMeetsSwarmConstraints($runtime, $state);
         $scannedCells = Cache::get('swarm:scanned_cells', []);
         if (!is_array($scannedCells)) {
             $scannedCells = [];
@@ -420,6 +437,9 @@ private function getAvailableMapsList(): array
         $step = $this->simulation->tick($runtime, $checked['actions'], $stateForTick, $foundSurvivors);
         $timings['simulation_ms'] = round((microtime(true) - $simulationStartedAt) * 1000, 2);
 
+        $updatedTargets = array_values((array) ($step['targets'] ?? data_get($state, 'targets', [])));
+        $state['targets'] = $updatedTargets;
+
         $scanRadius = max(1.0, min(25.0, (float) env('SWARM_SCAN_DETECTION_RADIUS', 6.0)));
         $newScannedCells = $this->radar->collectScannedCellsFromActions(
             (array) ($checked['actions'] ?? []),
@@ -444,6 +464,7 @@ private function getAvailableMapsList(): array
         Cache::put('swarm:runtime', $step['runtime'], now()->addHours(6));
         Cache::put('swarm:found_survivors', (array) ($step['found_survivors'] ?? []), now()->addHours(6));
         Cache::put('swarm:scanned_cells', $mergedScannedCells, now()->addHours(6));
+        Cache::put('swarm:setup', $state, now()->addHours(6));
         $timings['total_ms'] = round((microtime(true) - $tickStartedAt) * 1000, 2);
 
         return response()->json([
@@ -468,6 +489,7 @@ private function getAvailableMapsList(): array
             'logs' => $step['logs'],
             'signals' => $step['signals'] ?? [],
             'found_survivors' => $step['found_survivors'] ?? [],
+            'targets' => $updatedTargets,
             'scanned_cells' => array_values($mergedScannedCells),
             'timings' => $timings,
             'model' => [
@@ -719,6 +741,17 @@ public function getDefaultMap(string $mapId): JsonResponse
     }
 
     /**
+     * @return array<int, array{id: string, x: float, y: float, status: string}>
+     */
+    private function defaultTargets(): array
+    {
+        return [
+            ['id' => 'V1', 'x' => 15.0, 'y' => 25.0, 'status' => 'missing'],
+            ['id' => 'V2', 'x' => -22.0, 'y' => -12.0, 'status' => 'missing'],
+        ];
+    }
+
+    /**
      * @param array<string, array<string, mixed>> $runtime
      * @param array<string, mixed> $state
      * @param array<int, mixed> $discovered
@@ -771,19 +804,25 @@ public function getDefaultMap(string $mapId): JsonResponse
      */
     private function resolveAllowedDroneIds(): array
     {
-        $raw = trim((string) ($_ENV['SWARM_ALLOWED_DRONE_IDS'] ?? $_SERVER['SWARM_ALLOWED_DRONE_IDS'] ?? 'D1,D2,D3'));
-        $ids = collect(explode(',', $raw))
-            ->map(fn (string $id): string => strtoupper(trim($id)))
-            ->filter(fn (string $id): bool => $id !== '')
-            ->unique()
-            ->values()
-            ->all();
+        $hasExplicitEnv = isset($_ENV['SWARM_ALLOWED_DRONE_IDS']) || isset($_SERVER['SWARM_ALLOWED_DRONE_IDS']);
+        if ($hasExplicitEnv) {
+            $raw = trim((string) ($_ENV['SWARM_ALLOWED_DRONE_IDS'] ?? $_SERVER['SWARM_ALLOWED_DRONE_IDS'] ?? ''));
+            $ids = collect(explode(',', $raw))
+                ->map(fn (string $id): string => strtoupper(trim($id)))
+                ->filter(fn (string $id): bool => $id !== '')
+                ->unique()
+                ->values()
+                ->all();
 
-        if (empty($ids)) {
-            return ['D1', 'D2', 'D3'];
+            if (!empty($ids)) {
+                return $ids;
+            }
         }
 
-        return $ids;
+        $setup = Cache::get('swarm:setup', []);
+        $count = max(3, (int) data_get($setup, 'drone_count', 3));
+
+        return array_map(fn (int $index): string => 'D'.$index, range(1, $count));
     }
 
     /**
@@ -832,6 +871,42 @@ public function getDefaultMap(string $mapId): JsonResponse
         ksort($filtered);
 
         return $filtered;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $runtime
+     * @param array<string, mixed> $state
+     * @return array<string, array<string, mixed>>
+     */
+    private function ensureRuntimeMeetsSwarmConstraints(array $runtime, array $state): array
+    {
+        $allowed = $this->resolveAllowedDroneIds();
+        if (count($allowed) < 3) {
+            $allowed = ['D1', 'D2', 'D3'];
+        }
+
+        $seedRuntime = $this->simulation->initialDrones($state);
+        $next = $runtime;
+
+        foreach ($allowed as $id) {
+            if (isset($next[$id])) {
+                continue;
+            }
+
+            if (isset($seedRuntime[$id]) && is_array($seedRuntime[$id])) {
+                $next[$id] = $seedRuntime[$id];
+            }
+        }
+
+        $next = collect($next)
+            ->filter(fn ($entry): bool => is_array($entry))
+            ->mapWithKeys(fn ($entry, $id): array => [strtoupper((string) $id) => $entry])
+            ->filter(fn ($entry, string $id): bool => in_array($id, $allowed, true))
+            ->all();
+
+        ksort($next);
+
+        return $next;
     }
 
     /**

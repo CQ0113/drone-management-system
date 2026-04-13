@@ -5,6 +5,8 @@ namespace App\Services\Swarm;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\RequestException;
 use Throwable;
 
 class LlmPlannerService
@@ -27,7 +29,7 @@ class LlmPlannerService
         $baseZ = (float) data_get($state, 'base.z', 0.0);
         $maxDistanceFromBase = $this->maxDistanceFromBaseToMapEnd($baseX, $baseZ, $mapMin, $mapMax);
 
-        if ($provider !== 'ollama') {
+        if ($provider === 'mock') {
             return $this->mockPlan($state, $objective, 'mock-provider');
         }
 
@@ -36,89 +38,122 @@ class LlmPlannerService
             @set_time_limit((int) config('services.ollama.timeout', 120) + 30);
         }
 
+        $cloudBaseUrl = rtrim((string) env('LLM_CLOUD_BASE_URL', ''), '/');
+        $cloudModel = (string) env('LLM_CLOUD_MODEL', '');
+        $cloudApiKey = (string) env('LLM_CLOUD_API_KEY', '');
+        $cloudTimeout = (int) env('LLM_CLOUD_TIMEOUT', 3);
+
         $baseUrl = rtrim((string) config('services.ollama.base_url', 'http://127.0.0.1:11434'), '/');
         $model = (string) config('services.ollama.model', 'qwen2.5:7b-instruct');
         $timeout = (int) config('services.ollama.timeout', 30);
-        $temperature = max(0.15, min(2.0, (float) config('services.ollama.temperature', 0.45)));
+        $temperature = max(0.0, min(2.0, (float) config('services.ollama.temperature', 0.45)));
         $topP = max(0.0, min(1.0, (float) config('services.ollama.top_p', 0.9)));
-        $vectorMaxDistance = (int) env('SWARM_VECTOR_MAX_DISTANCE', 5);
-        $vectorMaxDistance = max(1, $vectorMaxDistance);
         $ragContext = $this->normalizeRagContext((array) data_get($state, 'rag_context', []), 3, 220);
         $briefingState = $state;
         $briefingState['rag_context'] = $ragContext;
         $briefing = $this->simulation->buildTacticalBriefing($briefingState);
         $override = Cache::get('swarm:commander_override');
 
-        $system = 'You are the drone swarm planner. Output ONLY plain text commands, one per line.'
-            .' Format: DRONE_ID(ACTION,DIRECTION,DISTANCE) or DRONE_ID(DIRECTION,DISTANCE) (defaults to MOVE).'
-            .' Valid actions: MOVE, SCAN.'
-            .' Valid directions: NORTH, NORTHEAST, EAST, SOUTHEAST, SOUTH, SOUTHWEST, WEST, NORTHWEST.'
-            .' Distance must be an integer from 1 to '.$vectorMaxDistance.'.'
+        $system = 'You are the Swarm Commander. You receive radar and compass telemetry. Do not micromanage steps.'
+            .' Output high-level strategic waypoints only.'
+            .' Output strictly one line per drone using one of two formats: DRONE_ID:WAYPOINT(X, Y) or DRONE_ID:SEARCH_ZONE(X, Y, RADIUS).'
+            .' Examples: D1:WAYPOINT(12, 5) and D2:SEARCH_ZONE(15, 20, 4).'
             .' Use only the drone IDs listed in SWARM STATUS. No JSON, no markdown, no explanations.'
             .' MISSION: '.$objective.'.'
-            .' Use the mission history section to avoid repeating recent failures and to continue successful patterns.'
+            .' Use mission history to avoid repeating recent failures and to continue successful patterns.'
             .' You must obey all rules listed in the STANDING ORDERS section. These are permanent mission facts.'
-            .' You are receiving a text-based tactical briefing. If a drone has a Target listed (e.g., Target: S1 is [NORTHEAST]), prioritize moving in that direction unless the Radar shows it is a [WALL].'
+            .' You are receiving a text-based tactical briefing. If a drone has a Target listed (e.g., Target: S1 is [NORTHEAST]), prioritize moving toward that direction unless the Radar shows it is a [WALL].'
             .' Use the Tactical Radar section to move toward [UNSCANNED] areas, avoid [SCANNED] areas, and NEVER move into [WALL] areas.'
-            .' Only issue SCAN when the target area is [UNSCANNED]; do NOT scan areas already marked [SCANNED].'
-            .' Always give command to 3 Drones D1,D2,D3.'
-            .' CRITICAL SYNTAX RULE: You must output exactly three lines, following this exact template:'
-            ."\nD1(ACTION,DIRECTION,DISTANCE)"
-            ."\nD2(ACTION,DIRECTION,DISTANCE)"
-            ."\nD3(ACTION,DIRECTION,DISTANCE)"
-            .' Example: D1(MOVE,NORTH,3).'
-            .' Replace ACTION with MOVE or SCAN. Replace DIRECTION with NORTH, NORTHEAST, EAST, SOUTHEAST, SOUTH, SOUTHWEST, WEST, NORTHWEST. Replace DISTANCE with a number from 1 to '.$vectorMaxDistance.'. No other text or explanation is allowed.';
+            .' CRITICAL FORMAT RULE: Output exactly one command line per drone ID using WAYPOINT or SEARCH_ZONE.';
 
         if (is_string($override) && trim($override) !== '') {
             $system .= ' CRITICAL HUMAN OVERRIDE ACTIVE: '.trim($override).' - YOU MUST OBEY THIS RULE ABOVE ALL OTHERS.';
         }
-        
-        try {
-            $response = Http::timeout($timeout)
-                ->acceptJson()
-                ->asJson()
-                ->post($baseUrl.'/api/chat', [
-                    'model' => $model,
-                    'stream' => false,
-                    'options' => [
+
+        $raw = '';
+        $source = '';
+
+        if ($cloudBaseUrl !== '' && $cloudModel !== '') {
+            try {
+                $cloudEndpoint = preg_match('#/v1/messages/?$#i', $cloudBaseUrl)
+                    ? $cloudBaseUrl
+                    : $cloudBaseUrl.'/v1/messages';
+
+                $cloudResponse = Http::timeout($cloudTimeout)
+                    ->acceptJson()
+                    ->asJson()
+                    ->withHeaders([
+                        'x-api-key' => $cloudApiKey,
+                        'anthropic-version' => '2023-06-01',
+                        'content-type' => 'application/json',
+                    ])
+                    ->post($cloudEndpoint, [
+                        'model' => $cloudModel,
+                        'system' => $system,
                         'temperature' => $temperature,
                         'top_p' => $topP,
-                        'num_predict' => 300,
-                        'num_ctx' => 2048,
-                    ],
-                    'messages' => [
-                        ['role' => 'system', 'content' => $system],
-                        ['role' => 'user', 'content' => $briefing],
-                    ],
-                ]);
+                        'max_tokens' => 150,
+                        'messages' => [
+                            ['role' => 'user', 'content' => $briefing],
+                        ],
+                    ]);
 
-            if (!$response->successful()) {
-                return $this->mockPlan($state, $objective, 'ollama-http-fallback');
+                if (!$cloudResponse->successful()) {
+                    $cloudResponse->throw();
+                }
+
+                $raw = (string) data_get($cloudResponse->json(), 'content.0.text', '');
+                $source = 'cloud-llm';
+            } catch (ConnectionException|RequestException $e) {
+                Log::warning('Cloud LLM failed, falling back to local edge model.');
             }
-
-            $raw = (string) data_get($response->json(), 'message.content', '');
-            Log::info("OLLAMA RAW OUTPUT: \n".$raw);
-            $vectorCommands = $this->parseVectorCommands($raw, $plannerDrones, $vectorMaxDistance);
-            Log::info("PARSED COMMANDS: \n".json_encode($vectorCommands));
-
-            if (empty($vectorCommands)) {
-                $fallback = $this->mockPlan($state, $objective, 'ollama-parse-fallback');
-                $fallback['raw_model_output'] = $raw;
-                $fallback['parse_error'] = true;
-
-                return $fallback;
-            }
-
-            $plan = $this->mockPlan($state, $objective, 'ollama-vector-staged');
-            $plan['raw_model_output'] = $raw;
-            $plan['parse_error'] = false;
-            $plan['vector_commands'] = $vectorCommands;
-            $plan['reasoning'] = 'Vector commands parsed; translation to absolute targets pending.';
-
-            return $plan;
-        } catch (Throwable) {
-            return $this->mockPlan($state, $objective, 'ollama-exception-fallback');
         }
+
+        if ($raw === '') {
+            try {
+                $edgeResponse = Http::timeout($timeout)
+                    ->acceptJson()
+                    ->asJson()
+                    ->post($baseUrl.'/api/generate', [
+                        'model' => $model,
+                        'prompt' => $briefing,
+                        'system' => $system,
+                        'stream' => false,
+                        'keep_alive' => -1,
+                        'options' => [
+                            'temperature' => $temperature,
+                            'top_p' => $topP,
+                            'num_predict' => 300,
+                            'num_ctx' => 2048,
+                        ],
+                    ]);
+
+                if (!$edgeResponse->successful()) {
+                    return $this->mockPlan($state, $objective, 'ollama-http-fallback');
+                }
+
+                $raw = (string) data_get($edgeResponse->json(), 'response', '');
+                $source = 'edge-ollama';
+            } catch (Throwable) {
+                return $this->mockPlan($state, $objective, 'ollama-exception-fallback');
+            }
+        }
+
+        $waypointActions = $this->parseWaypointCommands($raw, $plannerDrones, $mapMin, $mapMax);
+        if (empty($waypointActions)) {
+            $fallback = $this->mockPlan($state, $objective, $source !== '' ? $source.'-parse-fallback' : 'planner-parse-fallback');
+            $fallback['raw_model_output'] = $raw;
+            $fallback['parse_error'] = true;
+
+            return $fallback;
+        }
+
+        $decoded = ['actions' => $waypointActions];
+        $plan = $this->sanitizePlan($decoded, $state, $objective, $source !== '' ? $source : 'planner', $plannerDrones, null);
+        $plan['raw_model_output'] = $raw;
+        $plan['parse_error'] = false;
+
+        return $plan;
     }
 
     /**
@@ -126,7 +161,7 @@ class LlmPlannerService
      * @param array<string, mixed> $state
      * @return array<string, mixed>
      */
-    private function sanitizePlan(array $decoded, array $state, string $objective, string $source, array $plannerDrones = []): array
+    private function sanitizePlan(array $decoded, array $state, string $objective, string $source, array $plannerDrones = [], ?float $maxStepFromDrone = 15.0): array
     {
          $allowedIds = collect($plannerDrones)
         ->map(fn (array $drone): string => (string) data_get($drone, 'id', ''))
@@ -187,14 +222,20 @@ class LlmPlannerService
             $currentDrone = (array) ($plannerDroneLookup->get($id) ?? []);
             $currentDroneX = (float) data_get($currentDrone, 'x', $baseX);
             $currentDroneZ = (float) data_get($currentDrone, 'z', $baseZ);
-            ['x' => $targetX, 'z' => $targetZ] = $this->clampTargetDistanceFromPoint($targetX, $targetZ, $currentDroneX, $currentDroneZ, 15.0);
+            if ($maxStepFromDrone !== null) {
+                ['x' => $targetX, 'z' => $targetZ] = $this->clampTargetDistanceFromPoint($targetX, $targetZ, $currentDroneX, $currentDroneZ, $maxStepFromDrone);
+            }
             ['x' => $targetX, 'z' => $targetZ] = $this->clampTargetDistanceFromBase($targetX, $targetZ, $baseX, $baseZ, $maxDistanceFromBase);
             $priority = (int) data_get($action, 'priority', 5);
+
+            $scanRadius = (int) round((float) data_get($action, 'scan_radius', 2));
+            $scanRadius = max(1, min(25, $scanRadius));
 
             $byDrone[$id] = [
                 'drone_id' => $id,
                 'type' => $type,
                 'target' => ['x' => $targetX, 'z' => $targetZ],
+                'scan_radius' => $scanRadius,
                 'priority' => max(1, min(9, $priority)),
                 'reason' => $this->defaultReasonForType($type),
             ];
@@ -206,16 +247,17 @@ class LlmPlannerService
             }
 
             $byDrone[$id] = [
-            'drone_id' => $id,
-            'type' => 'scan_sector',  
-            'target' => [
-                'x' => $this->clamp((float) data_get($defaultTargets, $id.'.x', $baseX), -49, 49),
-                'z' => $this->clamp((float) data_get($defaultTargets, $id.'.z', $baseZ), -49, 49),
-            ],
-            'priority' => 5,
-            'reason' => 'Default: scanning survivor location',
-        ];
-    }
+                'drone_id' => $id,
+                'type' => 'scan_sector',
+                'target' => [
+                    'x' => $this->clamp((float) data_get($defaultTargets, $id.'.x', $baseX), -49, 49),
+                    'z' => $this->clamp((float) data_get($defaultTargets, $id.'.z', $baseZ), -49, 49),
+                ],
+                'scan_radius' => 2,
+                'priority' => 5,
+                'reason' => 'Default: scanning survivor location',
+            ];
+        }
 
         return [
             'ok' => true,
@@ -224,6 +266,61 @@ class LlmPlannerService
             'reasoning' => 'Plan generated by local model.',
             'source' => $source,
         ];
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $plannerDrones
+     * @return array<int, array<string, mixed>>
+     */
+    private function parseWaypointCommands(string $raw, array $plannerDrones, float $mapMin, float $mapMax): array
+    {
+        $allowedIds = collect($plannerDrones)
+            ->map(fn (array $drone): string => strtoupper((string) data_get($drone, 'id', '')))
+            ->filter(fn (string $id): bool => $id !== '')
+            ->values()
+            ->all();
+
+        if ($raw === '' || empty($allowedIds)) {
+            return [];
+        }
+
+        $allowedLookup = array_fill_keys($allowedIds, true);
+        $pattern = '/\b([A-Za-z0-9_-]+)\s*:\s*(WAYPOINT|SEARCH_ZONE)\s*\(\s*(-?[0-9]+(?:\.[0-9]+)?)\s*,\s*(-?[0-9]+(?:\.[0-9]+)?)(?:\s*,\s*([0-9]+(?:\.[0-9]+)?))?\s*\)/i';
+        $matches = [];
+        preg_match_all($pattern, $raw, $matches, PREG_SET_ORDER);
+
+        if (empty($matches)) {
+            return [];
+        }
+
+        $actions = [];
+        $seen = [];
+        foreach ($matches as $match) {
+            $id = strtoupper((string) $match[1]);
+            if (!isset($allowedLookup[$id]) || isset($seen[$id])) {
+                continue;
+            }
+
+            $commandType = strtoupper((string) ($match[2] ?? 'WAYPOINT'));
+            $x = $this->clamp((float) $match[3], $mapMin, $mapMax);
+            $z = $this->clamp((float) $match[4], $mapMin, $mapMax);
+            $radiusRaw = (float) ($match[5] ?? 2);
+            $scanRadius = max(1, min(25, (int) round($radiusRaw > 0 ? $radiusRaw : 2)));
+
+            $actions[] = [
+                'drone_id' => $id,
+                'type' => 'move_to',
+                'target' => ['x' => $x, 'z' => $z],
+                'scan_radius' => $scanRadius,
+                'priority' => 5,
+                'reason' => $commandType === 'SEARCH_ZONE'
+                    ? 'Macro search zone command with active scan radius.'
+                    : 'Macro waypoint command.',
+            ];
+            $seen[$id] = true;
+        }
+
+        return $actions;
     }
 
     /**

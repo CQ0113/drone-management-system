@@ -116,6 +116,10 @@
         .survivor-alert {
             animation: survivorPulse 0.9s ease-in-out infinite alternate;
         }
+
+        .target-alert {
+            animation: targetPulse 0.7s ease-in-out infinite alternate;
+        }
         .terminal-scroll {
             overflow-y: scroll !important;
             overflow-x: hidden;
@@ -253,26 +257,18 @@
         }
 
         .compass-shell {
-            padding: 8px 10px 10px;
-            border-radius: 14px;
+            padding: 6px;
+            border-radius: 12px;
             background: rgba(6, 12, 20, 0.75);
             border: 1px solid rgba(34, 211, 238, 0.35);
             box-shadow: 0 10px 26px rgba(3, 8, 16, 0.6), inset 0 0 10px rgba(34, 211, 238, 0.12);
             backdrop-filter: blur(10px);
         }
 
-        .compass-title {
-            font-size: 9px;
-            letter-spacing: 0.24em;
-            text-transform: uppercase;
-            color: rgba(148, 163, 184, 0.85);
-            margin-bottom: 6px;
-        }
-
         .compass-dial {
             position: relative;
-            width: 72px;
-            height: 72px;
+            width: 56px;
+            height: 56px;
             border-radius: 999px;
             border: 1px solid rgba(34, 211, 238, 0.4);
             background: radial-gradient(circle at 30% 20%, rgba(34, 211, 238, 0.2), rgba(3, 6, 12, 0.95));
@@ -282,23 +278,23 @@
 
         .compass-letter {
             position: absolute;
-            font-size: 9px;
+            font-size: 8px;
             font-weight: 600;
             letter-spacing: 0.2em;
             color: rgba(226, 232, 240, 0.7);
         }
 
-        .compass-letter.n { top: 6px; left: 50%; transform: translateX(-50%); }
-        .compass-letter.e { right: 6px; top: 50%; transform: translateY(-50%); }
-        .compass-letter.s { bottom: 6px; left: 50%; transform: translateX(-50%); }
-        .compass-letter.w { left: 6px; top: 50%; transform: translateY(-50%); }
+        .compass-letter.n { top: 4px; left: 50%; transform: translateX(-50%); }
+        .compass-letter.e { right: 4px; top: 50%; transform: translateY(-50%); }
+        .compass-letter.s { bottom: 4px; left: 50%; transform: translateX(-50%); }
+        .compass-letter.w { left: 4px; top: 50%; transform: translateY(-50%); }
 
         .compass-needle {
             position: absolute;
             left: 50%;
             top: 50%;
-            width: 3px;
-            height: 26px;
+            width: 2px;
+            height: 20px;
             background: linear-gradient(180deg, rgba(34, 211, 238, 0.95), rgba(34, 211, 238, 0.2));
             border-radius: 999px;
             transform-origin: 50% 100%;
@@ -308,8 +304,8 @@
 
         .compass-center {
             position: absolute;
-            width: 8px;
-            height: 8px;
+            width: 6px;
+            height: 6px;
             border-radius: 999px;
             background: rgba(34, 211, 238, 0.8);
             left: 50%;
@@ -318,14 +314,6 @@
             box-shadow: 0 0 6px rgba(34, 211, 238, 0.7);
         }
 
-        .compass-readout {
-            margin-top: 6px;
-            font-size: 10px;
-            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-            color: rgba(165, 243, 252, 0.9);
-            letter-spacing: 0.12em;
-            text-transform: uppercase;
-        }
 
         @keyframes survivorPulse {
             from { transform: scale(1); box-shadow: 0 0 10px rgba(250, 204, 21, 0.35); }
@@ -346,25 +334,25 @@
             0%, 100% { opacity: 0.45; }
             50% { opacity: 0.95; }
         }
+
+        @keyframes targetPulse {
+            from { transform: scale(1); box-shadow: 0 0 10px rgba(34, 197, 94, 0.35); }
+            to { transform: scale(1.03); box-shadow: 0 0 24px rgba(34, 197, 94, 0.75); }
+        }
     </style>
 </head>
 <body>
     <div id="scene-container"></div>
     <div class="scanline-overlay"></div>
     <div id="survivor-alert" class="hidden fixed top-20 left-1/2 -translate-x-1/2 z-20 pointer-events-none rounded-lg border border-amber-300/70 bg-amber-500/20 px-5 py-3 text-amber-100 font-display tracking-wide text-sm md:text-base"></div>
+    <div id="target-alert" class="hidden fixed top-36 left-1/2 -translate-x-1/2 z-20 pointer-events-none rounded-lg border border-emerald-300/70 bg-emerald-500/20 px-5 py-3 text-emerald-100 font-display tracking-wide text-sm md:text-base"></div>
     <div id="sprite-status" class="hidden fixed top-4 right-4 z-20 pointer-events-none rounded-lg border border-cyan-500/40 bg-slate-950/60 px-4 py-2 text-cyan-100 font-mono text-xs shadow-lg"></div>
     <div id="compass-hud" class="compass-hud">
         <div class="compass-shell">
-            <div class="compass-title">Map Compass</div>
             <div class="compass-dial">
-                <span class="compass-letter n">N</span>
-                <span class="compass-letter e">E</span>
-                <span class="compass-letter s">S</span>
-                <span class="compass-letter w">W</span>
                 <div id="compass-needle" class="compass-needle"></div>
                 <div class="compass-center"></div>
             </div>
-            <div id="compass-readout" class="compass-readout">View: N (0 deg)</div>
         </div>
     </div>
 
@@ -382,10 +370,15 @@
                 <option value="map4">Map 4: Open Terrain (4 survivors)</option>
                 <option value="map5">Map 5: Night Search (6 survivors)</option>
             </select>
+            <label class="flex items-center gap-2 rounded-md border border-cyan-800/60 bg-slate-900/80 px-2 py-1 text-[10px] font-display uppercase tracking-[0.12em] text-cyan-200">
+                Drones
+                <input id="drone-count-input" type="number" min="3" max="50" value="3" class="w-16 rounded border border-cyan-700/70 bg-slate-950/80 px-1.5 py-0.5 text-center text-xs text-cyan-100 outline-none focus:border-cyan-400" />
+            </label>
             <button id="load-map-btn" class="hud-btn rounded-md px-3 py-1.5 text-xs font-display uppercase tracking-[0.12em] text-emerald-100 border border-emerald-800/60">
                 Load Map
             </button>
             <span id="planner-source-badge" class="rounded-full border border-cyan-600/60 bg-cyan-500/10 px-3 py-1 text-[10px] md:text-xs uppercase tracking-[0.16em] text-cyan-200">Source: Idle</span>
+            <span id="model-runtime-badge" class="rounded-full border border-fuchsia-600/50 bg-fuchsia-500/10 px-3 py-1 text-[10px] md:text-xs uppercase tracking-[0.16em] text-fuchsia-100">Model: Pending</span>
             <span class="text-xs md:text-sm uppercase tracking-[0.25em] text-slate-300">Decentralised Swarm Intelligence</span>
         </div>
         </header>
@@ -483,6 +476,11 @@
                 <button id="telemetry-radar-btn" class="hud-btn rounded px-3 py-1.5 text-[11px] font-display uppercase tracking-[0.15em] text-cyan-200 transition-all">Radar</button>
             </div>
             <div id="telemetry-status-view" class="flex-1 min-h-0">
+                <div class="mb-2 rounded-md border border-emerald-900/60 bg-emerald-500/10 p-2">
+                    <div class="text-[10px] uppercase tracking-[0.15em] text-emerald-200">Search and Rescue Status</div>
+                    <div id="rescue-status-label" class="mt-1 text-sm font-semibold text-emerald-100">Victims Secured: 0 / 0</div>
+                    <div id="rescue-status-meta" class="text-[11px] text-slate-300">Awaiting target telemetry...</div>
+                </div>
                 <ul id="drone-status-list" class="space-y-2.5 text-sm overflow-y-scroll terminal-scroll flex-1 min-h-0 pr-2"></ul>
             </div>
             <div id="telemetry-radar-view" class="hidden flex-1 min-h-0 flex flex-col gap-2 overflow-y-auto terminal-scroll pr-1">
@@ -627,6 +625,9 @@
         const LIVE_TICK_REQUEST_TIMEOUT_MS = {{ max(5000, (int) env('SWARM_FRONTEND_TICK_TIMEOUT_MS', 30000)) }};
         const LIVE_TICK_COOLDOWN_MS = {{ max(0, (int) env('SWARM_FRONTEND_TICK_COOLDOWN_MS', 0)) }};
         const FRONTEND_SHARED_STATE_MODE = {{ in_array(strtolower((string) env('SWARM_FRONTEND_TICK_MODE', 'api_tick')), ['state_poll', 'shared_state'], true) ? 'true' : 'false' }};
+        const MODEL_PROVIDER_MODE = @json((string) env('LLM_PROVIDER', 'mock'));
+        const CLOUD_LLM_MODEL = @json((string) env('LLM_CLOUD_MODEL', ''));
+        const EDGE_LLM_MODEL = @json((string) env('OLLAMA_MODEL', (string) config('services.ollama.model', 'qwen2.5:7b-instruct')));
         const DRONE_SCAN_RADIUS = {{ max(1, min(25, (float) env('SWARM_SCAN_DETECTION_RADIUS', 6))) }};
         const DEFAULT_MOVEMENT_UNITS_PER_PERCENT = {{ round(max(2, min(20, (float) env('SWARM_BATTERY_MOVEMENT_UNITS_PER_PERCENT', 8))), 2) }};
         const DEFAULT_SCAN_DRAIN = {{ round(max(0, min(10, (float) env('SWARM_BATTERY_SCAN_DRAIN', 1))), 2) }};
@@ -636,6 +637,7 @@
         const SCANNED_TILE_SIZE = 1;
         const SCANNED_TILE_Y = 0.01;
         const SCANNED_TILE_OPACITY = 0.28;
+        const TARGET_MARKER_Y = 0.15;
 
         function readCssHexVar(name, fallback) {
             const raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -662,7 +664,9 @@
         const state = {
             base: null,
             survivors: [],
-            obstacles: []
+            obstacles: [],
+            targets: [],
+            drone_count: 3
         };
 
         const survivorMetadata = [];
@@ -714,8 +718,12 @@
         const placementMeshes = {
             base: null,
             survivors: [],
-            obstacles: []
+            obstacles: [],
+            targets: []
         };
+
+        const targetRegistry = new Map();
+        const targetFoundRegistry = new Set();
 
         const dronePanelState = {};
         resetDronePanelState(runtime.droneIds, 'Idle');
@@ -726,9 +734,11 @@
         const foundSurvivorListEl = document.getElementById('found-survivor-list');
         const ollamaRawLogEl = document.getElementById('ollama-raw-log');
         const survivorAlertEl = document.getElementById('survivor-alert');
+        const targetAlertEl = document.getElementById('target-alert');
         const droneStatusListEl = document.getElementById('drone-status-list');
         const titleEl = document.getElementById('hud-title');
         const plannerSourceBadgeEl = document.getElementById('planner-source-badge');
+        const modelRuntimeBadgeEl = document.getElementById('model-runtime-badge');
         const dashboardSectionEl = document.getElementById('dashboard-section');
         const dashboardPanelsEl = document.getElementById('dashboard-panels');
         const dashboardOutputViewEl = document.getElementById('dashboard-output-view');
@@ -755,6 +765,9 @@
         const telemetryRadarViewEl = document.getElementById('telemetry-radar-view');
         const radarPingEl = document.getElementById('ai-radar-ping');
         const vectorCommandsEl = document.getElementById('ai-vector-commands');
+        const rescueStatusLabelEl = document.getElementById('rescue-status-label');
+        const rescueStatusMetaEl = document.getElementById('rescue-status-meta');
+        const droneCountInput = document.getElementById('drone-count-input');
         const overrideMessageInput = document.getElementById('override-message');
         const overrideSendBtn = document.getElementById('override-send-btn');
         const overrideClearBtn = document.getElementById('override-clear-btn');
@@ -790,6 +803,7 @@
         let scannedTileMaterial;
         const scannedTilesSeen = new Set();
         let compassNeedleAngle = null;
+        let targetAlertTimer = null;
 
         ensureThreeLoaded()
             .then(() => {
@@ -1020,6 +1034,15 @@
         }
 
         function bindUI() {
+            if (droneCountInput) {
+                droneCountInput.addEventListener('change', () => {
+                    const parsed = Math.max(3, Math.min(50, Number(droneCountInput.value) || 3));
+                    droneCountInput.value = String(parsed);
+                    state.drone_count = parsed;
+                    appendMissionLog(`Swarm size set to ${parsed} drones.`);
+                });
+            }
+
             modeButtons.forEach((btn) => {
                 btn.addEventListener('click', () => {
                     if (runtime.setupLocked) {
@@ -1159,7 +1182,10 @@
                         'Content-Type': 'application/json',
                         'Accept': 'application/json'
                     },
-                    body: JSON.stringify({ use_default_map: mapId })
+                    body: JSON.stringify({
+                        use_default_map: mapId,
+                        drone_count: Math.max(3, Math.min(50, Number(droneCountInput?.value) || state.drone_count || 3))
+                    })
                 });
                 
                 const data = await response.json();
@@ -1170,6 +1196,11 @@
                     
                     
                     if (data.state) {
+                        if (droneCountInput && Number.isFinite(Number(data.state.drone_count))) {
+                            const count = Math.max(3, Math.min(50, Number(data.state.drone_count)));
+                            droneCountInput.value = String(count);
+                            state.drone_count = count;
+                        }
                         
                         if (data.state.base) {
                             placeBase(data.state.base.x, data.state.base.z);
@@ -2070,6 +2101,7 @@
             state.base = null;
             state.survivors = [];
             state.obstacles = [];
+            state.drone_count = Math.max(3, Math.min(50, Number(droneCountInput?.value) || 3));
             survivorMetadata.length = 0;
 
             foundSurvivorSignals.clear();
@@ -2788,6 +2820,7 @@
 
         async function sendInitSwarm() {
             const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
+            state.drone_count = Math.max(3, Math.min(50, Number(droneCountInput?.value) || state.drone_count || 3));
             const response = await fetch('/api/init-swarm', {
                 method: 'POST',
                 headers: {
@@ -3535,11 +3568,28 @@
             ollamaRawLogEl.scrollTop = ollamaRawLogEl.scrollHeight;
         }
 
-        function setPlannerSourceBadge(source, timings) {
-            if (!plannerSourceBadgeEl) {
-                return;
+        function resolveActiveModelFromSource(source) {
+            const text = String(source || 'unknown').toLowerCase();
+            const cloudModel = String(CLOUD_LLM_MODEL || '').trim();
+            const edgeModel = String(EDGE_LLM_MODEL || '').trim();
+
+            if (text.includes('cloud')) {
+                return cloudModel || 'cloud-model';
+            }
+            if (text.includes('ollama')) {
+                return edgeModel || 'ollama-model';
+            }
+            if (text.includes('mock')) {
+                return 'mock-planner';
+            }
+            if (text.includes('cache') || text.includes('stale') || text.includes('bootstrap') || text.includes('idle')) {
+                return `cached (${MODEL_PROVIDER_MODE})`;
             }
 
+            return MODEL_PROVIDER_MODE || 'unknown';
+        }
+
+        function setPlannerSourceBadge(source, timings) {
             const text = String(source || 'unknown');
             const lower = text.toLowerCase();
             let visual = 'cache';
@@ -3547,22 +3597,36 @@
                 visual = 'fallback';
             } else if (lower.includes('ollama') && !lower.includes('cache')) {
                 visual = 'ollama';
+            } else if (lower.includes('cloud')) {
+                visual = 'cloud';
             }
 
             let classes = 'rounded-full border px-3 py-1 text-[10px] md:text-xs uppercase tracking-[0.16em]';
             if (visual === 'ollama') {
                 classes += ' border-emerald-400/70 bg-emerald-500/15 text-emerald-200';
+            } else if (visual === 'cloud') {
+                classes += ' border-sky-400/70 bg-sky-500/15 text-sky-100';
             } else if (visual === 'fallback') {
                 classes += ' border-amber-400/70 bg-amber-500/15 text-amber-100';
             } else {
                 classes += ' border-cyan-600/60 bg-cyan-500/10 text-cyan-200';
             }
 
-            plannerSourceBadgeEl.className = classes;
+            if (plannerSourceBadgeEl) {
+                plannerSourceBadgeEl.className = classes;
 
-            const ms = Number(timings && timings.total_ms);
-            const latency = Number.isFinite(ms) ? ` | ${Math.round(ms)}ms` : '';
-            plannerSourceBadgeEl.textContent = `Source: ${text}${latency}`;
+                const ms = Number(timings && timings.total_ms);
+                const latency = Number.isFinite(ms) ? ` | ${Math.round(ms)}ms` : '';
+                plannerSourceBadgeEl.textContent = `Source: ${text}${latency}`;
+            }
+
+            if (modelRuntimeBadgeEl) {
+                const activeModel = resolveActiveModelFromSource(text);
+                const cloudModel = String(CLOUD_LLM_MODEL || '').trim() || 'cloud-not-set';
+                const edgeModel = String(EDGE_LLM_MODEL || '').trim() || 'ollama-not-set';
+                modelRuntimeBadgeEl.textContent = `Model: ${activeModel}`;
+                modelRuntimeBadgeEl.title = `Primary: ${cloudModel} | Edge fallback: ${edgeModel}`;
+            }
         }
 
         function createScanRadiusMesh(radius) {
@@ -3998,6 +4062,11 @@
             const data = await response.json();
             
             if (data && data.state) {
+                if (droneCountInput && Number.isFinite(Number(data.state.drone_count))) {
+                    const count = Math.max(3, Math.min(50, Number(data.state.drone_count)));
+                    droneCountInput.value = String(count);
+                    state.drone_count = count;
+                }
                 
                 if (data.state.survivors && data.state.survivors.length > 0) {
                     clearAllStuff();

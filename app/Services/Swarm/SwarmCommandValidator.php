@@ -82,6 +82,7 @@ class SwarmCommandValidator
                 'drone_id' => $id,
                 'type' => $type,
                 'target' => $target,
+                'scan_radius' => max(1, min(25, (int) round((float) data_get($action, 'scan_radius', 2)))),
                 'priority' => max(1, min(9, (int) data_get($action, 'priority', 5))),
                 'reason' => (string) data_get($action, 'reason', 'Validated action.'),
             ];
@@ -97,6 +98,7 @@ class SwarmCommandValidator
                 'drone_id' => $id,
                 'type' => 'return_to_base',
                 'target' => ['x' => $baseX, 'z' => $baseZ],
+                'scan_radius' => 2,
                 'priority' => 5,
                 'reason' => 'Safety default.',
             ];

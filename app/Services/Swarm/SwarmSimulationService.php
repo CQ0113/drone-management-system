@@ -3,6 +3,7 @@
 namespace App\Services\Swarm;
 
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 
 class SwarmSimulationService
 {
@@ -14,12 +15,59 @@ class SwarmSimulationService
     {
         $baseX = (float) data_get($state, 'base.x', 0);
         $baseZ = (float) data_get($state, 'base.z', 0);
+        $requestedCount = (int) data_get($state, 'drone_count', 3);
+        $droneCount = max(3, $requestedCount);
 
-        return [
-            'D1' => ['x' => $baseX - 1.4, 'z' => $baseZ, 'battery' => 100.0, 'status' => 'Deploying', 'goal' => null, 'path' => []],
-            'D2' => ['x' => $baseX + 1.4, 'z' => $baseZ, 'battery' => 100.0, 'status' => 'Deploying', 'goal' => null, 'path' => []],
-            'D3' => ['x' => $baseX, 'z' => $baseZ + 1.4, 'battery' => 100.0, 'status' => 'Deploying', 'goal' => null, 'path' => []],
+        $offsets = $this->buildSpawnOffsets($droneCount);
+        $runtime = [];
+
+        foreach ($offsets as $index => $offset) {
+            $id = 'D'.($index + 1);
+            $runtime[$id] = [
+                'x' => $baseX + (float) $offset['x'],
+                'z' => $baseZ + (float) $offset['z'],
+                'battery' => 100.0,
+                'status' => 'Deploying',
+                'goal' => null,
+                'path' => [],
+            ];
+        }
+
+        return $runtime;
+    }
+
+    /**
+     * @return array<int, array{x: int, z: int}>
+     */
+    private function buildSpawnOffsets(int $count): array
+    {
+        $count = max(3, $count);
+        $offsets = [
+            ['x' => 0, 'z' => 0],
+            ['x' => 1, 'z' => 0],
+            ['x' => 0, 'z' => 1],
+            ['x' => -1, 'z' => 0],
+            ['x' => 0, 'z' => -1],
+            ['x' => 1, 'z' => 1],
+            ['x' => -1, 'z' => 1],
+            ['x' => 1, 'z' => -1],
+            ['x' => -1, 'z' => -1],
         ];
+
+        $radius = 2;
+        while (count($offsets) < $count) {
+            for ($x = -$radius; $x <= $radius && count($offsets) < $count; $x++) {
+                for ($z = -$radius; $z <= $radius && count($offsets) < $count; $z++) {
+                    if (abs($x) !== $radius && abs($z) !== $radius) {
+                        continue;
+                    }
+                    $offsets[] = ['x' => $x, 'z' => $z];
+                }
+            }
+            $radius++;
+        }
+
+        return array_slice($offsets, 0, $count);
     }
 
     /**
@@ -219,8 +267,8 @@ class SwarmSimulationService
      * @param array<string, array<string, mixed>> $runtime
      * @param array<int, array<string, mixed>> $actions
      * @param array<string, mixed> $state
-     * @param array<int, int|string> $foundSurvivors
-     * @return array{runtime: array<string, array<string, mixed>>, telemetry: array<int, array<string, mixed>>, logs: array<int, string>, signals: array<int, array<string, mixed>>, found_survivors: array<int, int>}
+    * @param array<int, int|string> $foundSurvivors
+    * @return array{runtime: array<string, array<string, mixed>>, telemetry: array<int, array<string, mixed>>, logs: array<int, string>, signals: array<int, array<string, mixed>>, found_survivors: array<int, int>, targets: array<int, array<string, mixed>>}
      */
     public function tick(array $runtime, array $actions, array $state, array $foundSurvivors = []): array
     {
@@ -241,6 +289,7 @@ class SwarmSimulationService
         $baseZ = (float) data_get($state, 'base.z', 0);
         $survivors = array_values((array) data_get($state, 'survivors', []));
         $survivorProfiles = array_values((array) data_get($state, 'survivor_profiles', []));
+        $targets = array_values((array) data_get($state, 'targets', []));
         $foundMap = [];
         foreach ($foundSurvivors as $index) {
             $foundMap[(string) ((int) $index)] = true;
@@ -257,6 +306,19 @@ class SwarmSimulationService
             $currentZ = (float) $runtime[$id]['z'];
             $currentBattery = (float) ($runtime[$id]['battery'] ?? 0.0);
             $atBase = $this->isClose($currentX, $currentZ, $baseX, $baseZ, 1.0);
+            $holdingTarget = (string) data_get($runtime, $id.'.hold_target_id', '');
+            if ($holdingTarget !== '') {
+                $runtime[$id]['goal'] = null;
+                $runtime[$id]['path'] = [];
+                $nextBattery = max(0.0, $currentBattery - $idleDrain);
+                $runtime[$id]['battery'] = $nextBattery;
+                $runtime[$id]['status'] = $nextBattery <= 0.0
+                    ? 'Power depleted - stopped'
+                    : 'SECURE';
+                $logs[] = sprintf('%s: Securing target %s.', $id, $holdingTarget);
+                $this->captureSurvivorSignal($id, (float) $runtime[$id]['x'], (float) $runtime[$id]['z'], $survivors, $foundMap, $signals, $logs, $runtime, $survivorProfiles, false, $scanDetectionRadius);
+                continue;
+            }
 
             if ($atBase && $currentBattery < $baseChargeUntil) {
                 $runtime[$id]['battery'] = min(100.0, $currentBattery + $chargeRate);
@@ -280,6 +342,7 @@ class SwarmSimulationService
             $runtime[$id]['path'] = is_array(data_get($runtime[$id], 'path')) ? $runtime[$id]['path'] : [];
 
             $actionType = (string) data_get($action, 'type', 'move_to');
+            $activeScanRadius = $this->clamp((float) data_get($action, 'scan_radius', 2), 1.0, 25.0);
             $targetX = (float) data_get($action, 'target.x', $runtime[$id]['x']);
             $targetZ = (float) data_get($action, 'target.z', $runtime[$id]['z']);
 
@@ -363,6 +426,25 @@ class SwarmSimulationService
 
             $runtime[$id]['status'] = $status;
             $logs[] = sprintf('%s: %s.', $id, $status);
+
+            $targetCheck = $this->detectTargetAcquisition(
+                $id,
+                (float) $runtime[$id]['x'],
+                (float) $runtime[$id]['z'],
+                $targets,
+                $activeScanRadius
+            );
+            $targets = $targetCheck['targets'];
+            if ($targetCheck['acquired_target_id'] !== null) {
+                $runtime[$id]['status'] = 'SECURE';
+                $runtime[$id]['goal'] = null;
+                $runtime[$id]['path'] = [];
+                $runtime[$id]['hold_target_id'] = $targetCheck['acquired_target_id'];
+                if ($targetCheck['message'] !== null) {
+                    $logs[] = $targetCheck['message'];
+                }
+            }
+
             $isScanAction = $actionType === 'scan_sector';
             $this->captureSurvivorSignal($id, (float) $runtime[$id]['x'], (float) $runtime[$id]['z'], $survivors, $foundMap, $signals, $logs, $runtime, $survivorProfiles, $isScanAction, $scanDetectionRadius);
         }
@@ -457,6 +539,57 @@ class SwarmSimulationService
             'logs' => $logs,
             'signals' => $signals,
             'found_survivors' => array_map('intval', array_keys($foundMap)),
+            'targets' => $targets,
+        ];
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $targets
+     * @return array{targets: array<int, array<string, mixed>>, acquired_target_id: string|null, message: string|null}
+     */
+    private function detectTargetAcquisition(
+        string $droneId,
+        float $droneX,
+        float $droneZ,
+        array $targets,
+        float $radius
+    ): array {
+        foreach ($targets as $index => $target) {
+            $status = strtolower((string) data_get($target, 'status', 'missing'));
+            if ($status !== 'missing') {
+                continue;
+            }
+
+            $targetX = (float) data_get($target, 'x', 0.0);
+            $targetY = data_get($target, 'y');
+            $targetZ = is_numeric($targetY) ? (float) $targetY : (float) data_get($target, 'z', 0.0);
+
+            if (!$this->isClose($droneX, $droneZ, $targetX, $targetZ, $radius)) {
+                continue;
+            }
+
+            $targetId = (string) data_get($target, 'id', 'UNKNOWN');
+            $targets[$index]['status'] = 'found';
+            $message = sprintf(
+                'TARGET ACQUIRED: Drone %s has located Victim %s at (%d, %d)',
+                $droneId,
+                $targetId,
+                (int) round($targetX),
+                (int) round($targetZ)
+            );
+            Log::info($message);
+
+            return [
+                'targets' => $targets,
+                'acquired_target_id' => $targetId,
+                'message' => $message,
+            ];
+        }
+
+        return [
+            'targets' => $targets,
+            'acquired_target_id' => null,
+            'message' => null,
         ];
     }
 
