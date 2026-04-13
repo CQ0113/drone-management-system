@@ -353,7 +353,6 @@
     <div class="scanline-overlay"></div>
     <div id="survivor-alert" class="hidden fixed top-20 left-1/2 -translate-x-1/2 z-20 pointer-events-none rounded-lg border border-amber-300/70 bg-amber-500/20 px-5 py-3 text-amber-100 font-display tracking-wide text-sm md:text-base"></div>
     <div id="sprite-status" class="hidden fixed top-4 right-4 z-20 pointer-events-none rounded-lg border border-cyan-500/40 bg-slate-950/60 px-4 py-2 text-cyan-100 font-mono text-xs shadow-lg"></div>
-    
     <div id="danger-cell-tooltip" class="hidden fixed z-30 pointer-events-none rounded-lg border border-rose-500/40 bg-slate-950/90 p-3 shadow-2xl backdrop-blur text-[11px] font-mono text-rose-100/80 w-48 shadow-rose-900/40">
         <div id="danger-cell-tooltip-info"></div>
     </div>
@@ -393,7 +392,6 @@
                 <option value="map3">Map 3: Maze Challenge (4 survivors)</option>
                 <option value="map4">Map 4: Open Terrain (4 survivors)</option>
                 <option value="map5">Map 5: Night Search (6 survivors)</option>
-                <option value="map6">Map 6: Danger Zone Map</option>
             </select>
             <button id="load-map-btn" class="hud-btn rounded-md px-3 py-1.5 text-xs font-display uppercase tracking-[0.12em] text-emerald-100 border border-emerald-800/60">
                 Load Map
@@ -424,16 +422,12 @@
                     <button id="btn-place-obstacle" class="hud-btn w-full rounded-md py-2.5 px-3 text-left font-medium text-sm flex items-center justify-between transition-colors duration-500" data-mode="obstacle">
                         <span>Place Obstacle</span>
                     </button>
-                    <button id="btn-place-hazard" class="hud-btn w-full rounded-md py-2.5 px-3 text-left font-medium text-rose-400 text-sm flex items-center justify-between transition-colors duration-500" data-mode="danger-zone">
-                        <span>Place Hazard</span>
-                    </button>
                 </div>
                 <!-- Removal Tools -->
                 <div class="space-y-2.5 bg-rose-950/20 p-2 rounded-lg border border-rose-900/30">
                     <h3 class="text-[10px] uppercase tracking-widest text-rose-400 font-display mb-1 ml-1">Removal Tools</h3>
                     <button class="hud-btn w-full rounded-md py-2 px-3 text-left text-xs font-medium text-rose-300 hover:text-rose-200 hover:border-rose-500/50 hover:bg-rose-900/20" data-mode="delete-survivor">Delete Survivor</button>
                     <button class="hud-btn w-full rounded-md py-2 px-3 text-left text-xs font-medium text-rose-300 hover:text-rose-200 hover:border-rose-500/50 hover:bg-rose-900/20" data-mode="delete-obstacle">Delete Obstacle</button>
-                    <button class="hud-btn w-full rounded-md py-2 px-3 text-left text-xs font-medium text-rose-300 hover:text-rose-200 hover:border-rose-500/50 hover:bg-rose-900/20" data-mode="delete-danger-zone">Delete Hazard</button>
                 </div>
 
                 <!-- Obstacle Config -->
@@ -501,8 +495,8 @@
                 <button id="telemetry-status-btn" class="hud-btn active rounded px-3 py-1.5 text-[11px] font-display uppercase tracking-[0.15em] text-cyan-200 transition-all">Status</button>
                 <button id="telemetry-radar-btn" class="hud-btn rounded px-3 py-1.5 text-[11px] font-display uppercase tracking-[0.15em] text-cyan-200 transition-all">Radar</button>
             </div>
-            <div id="telemetry-status-view" class="flex-1 min-h-0">
-                <ul id="drone-status-list" class="space-y-2.5 text-sm overflow-y-scroll terminal-scroll flex-1 min-h-0 pr-2"></ul>
+            <div id="telemetry-status-view" class="flex-1 min-h-0 flex flex-col">
+                <ul id="drone-status-list" class="space-y-2.5 text-sm overflow-y-auto terminal-scroll flex-1 min-h-0 pr-2"></ul>
             </div>
             <div id="telemetry-radar-view" class="hidden flex-1 min-h-0 flex flex-col gap-2 overflow-y-auto terminal-scroll pr-1">
                 <div class="flex items-center justify-between">
@@ -2722,6 +2716,9 @@
                         tick.signals.forEach((signal) => handleSimulationSignal(signal, 'live'));
                     }
 
+                    if (dangerMapVisible) {
+                        fetchAndRenderDangerMap();
+                    }
                     renderDroneStatus();
                 } catch (tickError) {
                     appendMissionLog(`Tick request failed: ${tickError.message}`);
