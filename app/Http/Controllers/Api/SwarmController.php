@@ -195,7 +195,7 @@ private function getAvailableMapsList(): array
             return response()->json(['ok' => false, 'message' => 'Swarm not initialized'], 400);
         }
 
-        $grid = $this->dangerMapService->generateDangerMap((array) $state);
+        $grid = $this->dangerMapService->generateDangerMap((array) $state, (array) Cache::get('swarm:runtime', []));
 
         return response()->json([
             'ok' => true,
