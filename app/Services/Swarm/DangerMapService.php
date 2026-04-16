@@ -2,133 +2,70 @@
 
 namespace App\Services\Swarm;
 
+use App\Services\Swarm\Risk\Contracts\RiskComponentStrategy;
+use App\Services\Swarm\Risk\RiskComponentResult;
+use App\Services\Swarm\Risk\Strategies\BatteryRiskStrategy;
+use App\Services\Swarm\Risk\Strategies\DangerZoneRiskStrategy;
+use App\Services\Swarm\Risk\Strategies\DroneDensityRiskStrategy;
+use App\Services\Swarm\Risk\Strategies\ObstacleRiskStrategy;
+use App\Services\Swarm\Risk\Strategies\SurvivorRiskStrategy;
+use App\Services\Swarm\Risk\Strategies\UnscannedRiskStrategy;
 use Illuminate\Support\Facades\Cache;
 
 class DangerMapService
 {
+    /** @var array<string, array<string, mixed>> */
+    private array $componentConfig;
+
+    /** @var array<int, RiskComponentStrategy> */
+    private array $strategies;
+
+    public function __construct()
+    {
+        $dangerConfig = (array) config('swarm.danger_map', []);
+        $this->componentConfig = (array) ($dangerConfig['components'] ?? []);
+        $this->strategies = [
+            new SurvivorRiskStrategy((array) ($this->componentConfig['survivor'] ?? [])),
+            new ObstacleRiskStrategy((array) ($this->componentConfig['obstacle'] ?? [])),
+            new DangerZoneRiskStrategy((array) ($this->componentConfig['danger_zone'] ?? [])),
+            new DroneDensityRiskStrategy((array) ($this->componentConfig['drone_density'] ?? [])),
+            new UnscannedRiskStrategy((array) ($this->componentConfig['unscanned'] ?? [])),
+            new BatteryRiskStrategy((array) ($this->componentConfig['battery'] ?? [])),
+        ];
+    }
+
     /**
      * Generate a danger matrix over the simulation map.
      * Evaluates discrete chunks calculating risk coefficients.
      */
     public function generateDangerMap(array $state, array $runtime = []): array
     {
-        $base = (array) data_get($state, 'base', ['x' => 0, 'z' => 0]);
-        $obstacles = collect(data_get($state, 'obstacles', []));
-        $survivors = collect(data_get($state, 'survivors', []));
-        $drones = collect($runtime);
+        $gridConfig = (array) config('swarm.danger_map.grid', []);
+        $min = (int) ($gridConfig['min'] ?? -48);
+        $max = (int) ($gridConfig['max'] ?? 48);
+        $step = max(1, (int) ($gridConfig['step'] ?? 3));
+        $emitMinScore = (int) ($gridConfig['emit_min_score'] ?? 5);
 
-        $scannedCells = collect(Cache::get('swarm:scanned_cells', []))
-            ->mapWithKeys(function($c) {
-                $z = array_key_exists('z', $c) ? $c['z'] : ($c['y'] ?? 0);
-                return [$c['x'] . ',' . $z => true];
-            });
+        $context = [
+            'survivors' => (array) data_get($state, 'survivors', []),
+            'obstacles' => (array) data_get($state, 'obstacles', []),
+            'danger_zones' => (array) data_get($state, 'danger_zones', []),
+            'drones' => $runtime,
+            'scanned_cells' => $this->buildScannedCellLookup((array) Cache::get('swarm:scanned_cells', [])),
+        ];
 
-        $min = -48;
-        $max = 48;
-        $step = 3;
-        
+        $activeScanDistance = (float) config('swarm.danger_map.status.active_scan_distance', 15);
+
         $grid = [];
         for ($x = $min; $x <= $max; $x += $step) {
             for ($z = $min; $z <= $max; $z += $step) {
-                
-                $mainThreat = 'None';
-                $nearestDroneDist = 999;
-                
-                // 1. Smooth Gradient: Survivor Proximity
-                $survivorScore = 0;
-                foreach ($survivors as $s) {
-                    $dist = hypot((float) data_get($s, 'x', 0) - $x, (float) data_get($s, 'z', 0) - $z);
-                    $scoreContribution = 100 / (1 + pow($dist / 6, 2)); // Inverse-square decay
-                    if ($scoreContribution > $survivorScore) {
-                        $survivorScore = $scoreContribution;
-                    }
-                }
-                if ($survivorScore > 30) {
-                    $mainThreat = 'Trapped Survivor / Rescue Zone';
-                }
+                $results = $this->evaluateStrategies($x, $z, $context);
+                $totalScore = $this->calculateTotalScore($results);
+                $level = $this->mapScoreToLevel($totalScore);
+                $mainThreat = $this->resolveMainThreat($results, $level);
+                $status = $this->resolveStatus($results, $activeScanDistance);
 
-                // 2. Smooth Gradient: Obstacle Proximity
-                $obstacleScore = 0;
-                foreach ($obstacles as $obs) {
-                    $dist = hypot((float) data_get($obs, 'x', 0) - $x, (float) data_get($obs, 'z', 0) - $z);
-                    $scoreContribution = 100 / (1 + pow($dist / 5, 2));
-                    if ($scoreContribution > $obstacleScore) {
-                        $obstacleScore = $scoreContribution;
-                    }
-                }
-                if ($obstacleScore > 40 && $obstacleScore > $survivorScore) {
-                    $mainThreat = 'Collision Hazard';
-                }
-
-                // 3 & 4. Drone Density & Battery Risk
-                $droneDensityScore = 0;
-                $criticalBatteryRisk = false;
-                
-                foreach ($drones as $d) {
-                    $dist = hypot((float) data_get($d, 'x', 0) - $x, (float) data_get($d, 'z', 0) - $z);
-                    if ($dist < $nearestDroneDist) {
-                        $nearestDroneDist = $dist;
-                    }
-                    
-                    if ($dist < 15) {
-                        $droneDensityScore += 100 / (1 + pow($dist / 8, 2));
-                    }
-                    
-                    if ($dist < 8 && (float) data_get($d, 'battery_percent', 100) < 15) {
-                        $criticalBatteryRisk = true;
-                    }
-                }
-                
-                if ($criticalBatteryRisk) {
-                    $mainThreat = 'Critical Power Failure Imminent';
-                } elseif ($droneDensityScore > 120) { // Multiple drones clustered
-                    $mainThreat = 'Swarm Collision Hazard';
-                }
-
-                // Unscanned Area Risk
-                $isScanned = $scannedCells->has(round($x).','.round($z)) || 
-                             $scannedCells->has(round($x+1).','.round($z)) ||
-                             $scannedCells->has(round($x-1).','.round($z));
-                $unscannedScore = $isScanned ? 0 : 35; 
-                
-                if ($unscannedScore > 0 && $mainThreat === 'None') {
-                    $mainThreat = 'Unmapped Territory';
-                }
-
-                // Total Score Weighted
-                $totalScore = round(
-                    ($survivorScore * 0.40) +
-                    ($obstacleScore * 0.35) +
-                    (min(100, $droneDensityScore) * 0.15) +
-                    ($unscannedScore * 0.10)
-                );
-                
-                // Boost for Critical Battery
-                if ($criticalBatteryRisk) {
-                    $totalScore += 50; 
-                }
-                
-                $totalScore = max(0, min(100, $totalScore));
-
-                $level = 'Safe';
-                if ($nearestDroneDist < 15) {
-                    $status = 'Active Scan';
-                } elseif ($isScanned) {
-                    $status = 'Monitored';
-                } else {
-                    $status = 'Unknown';
-                }
-                
-                if ($totalScore > 75) {
-                    $level = 'Critical';
-                    if ($mainThreat === 'None') $mainThreat = 'Extreme Hazard';
-                } elseif ($totalScore > 50) {
-                    $level = 'High Risk';
-                } elseif ($totalScore > 25) {
-                    $level = 'Caution';
-                }
-
-                if ($totalScore > 5) {
+                if ($totalScore > $emitMinScore) {
                     $grid[] = [
                         'x' => $x,
                         'z' => $z,
@@ -142,5 +79,130 @@ class DangerMapService
         }
 
         return $grid;
+    }
+
+    /**
+     * @return array<string, bool>
+     */
+    private function buildScannedCellLookup(array $cells): array
+    {
+        $lookup = [];
+        foreach ($cells as $cell) {
+            if (!is_array($cell)) {
+                continue;
+            }
+
+            $x = (int) round((float) ($cell['x'] ?? 0));
+            $zRaw = array_key_exists('z', $cell) ? $cell['z'] : ($cell['y'] ?? 0);
+            $z = (int) round((float) $zRaw);
+            $lookup[$x.','.$z] = true;
+        }
+
+        return $lookup;
+    }
+
+    /**
+     * @return array<string, RiskComponentResult>
+     */
+    private function evaluateStrategies(int $x, int $z, array $context): array
+    {
+        $results = [];
+        foreach ($this->strategies as $strategy) {
+            $results[$strategy->key()] = $strategy->evaluate($x, $z, $context);
+        }
+
+        return $results;
+    }
+
+    /**
+     * @param array<string, RiskComponentResult> $results
+     */
+    private function calculateTotalScore(array $results): int
+    {
+        $total = 0.0;
+        foreach ($results as $key => $result) {
+            $settings = (array) ($this->componentConfig[$key] ?? []);
+            $aggregation = (string) ($settings['aggregation'] ?? 'weighted');
+
+            if ($aggregation === 'boost') {
+                $total += max(0.0, $result->score);
+                continue;
+            }
+
+            $weight = (float) ($settings['weight'] ?? 0.0);
+            $cap = max(0.0, (float) ($settings['cap'] ?? 100.0));
+            $total += max(0.0, min($cap, $result->score)) * $weight;
+        }
+
+        return (int) max(0, min(100, (int) round($total)));
+    }
+
+    /**
+     * Pure mapping function from score to label.
+     */
+    private function mapScoreToLevel(int $score): string
+    {
+        $critical = (int) config('swarm.danger_map.classification.critical', 75);
+        $high = (int) config('swarm.danger_map.classification.high_risk', 50);
+        $caution = (int) config('swarm.danger_map.classification.caution', 25);
+
+        if ($score > $critical) {
+            return 'Critical';
+        }
+        if ($score > $high) {
+            return 'High Risk';
+        }
+        if ($score > $caution) {
+            return 'Caution';
+        }
+
+        return 'Safe';
+    }
+
+    /**
+     * @param array<string, RiskComponentResult> $results
+     */
+    private function resolveMainThreat(array $results, string $level): string
+    {
+        $topThreat = null;
+        $topContribution = -1.0;
+
+        foreach ($results as $key => $result) {
+            if ($result->threat === null) {
+                continue;
+            }
+
+            $settings = (array) ($this->componentConfig[$key] ?? []);
+            $aggregation = (string) ($settings['aggregation'] ?? 'weighted');
+            $contribution = $aggregation === 'boost'
+                ? max(0.0, $result->score)
+                : max(0.0, min(max(0.0, (float) ($settings['cap'] ?? 100.0)), $result->score)) * (float) ($settings['weight'] ?? 0.0);
+
+            if ($contribution > $topContribution) {
+                $topContribution = $contribution;
+                $topThreat = $result->threat;
+            }
+        }
+
+        if (is_string($topThreat) && $topThreat !== '') {
+            return $topThreat;
+        }
+
+        return $level === 'Critical' ? 'Extreme Hazard' : 'None';
+    }
+
+    /**
+     * @param array<string, RiskComponentResult> $results
+     */
+    private function resolveStatus(array $results, float $activeScanDistance): string
+    {
+        $nearestDroneDist = data_get($results, 'drone_density.meta.nearest_drone_dist');
+        $isScanned = (bool) data_get($results, 'unscanned.meta.is_scanned', false);
+
+        if (is_numeric($nearestDroneDist) && (float) $nearestDroneDist < $activeScanDistance) {
+            return 'Active Scan';
+        }
+
+        return $isScanned ? 'Monitored' : 'Unknown';
     }
 }

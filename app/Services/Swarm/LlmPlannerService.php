@@ -21,6 +21,8 @@ class LlmPlannerService
     {
         $provider = (string) env('LLM_PROVIDER', 'mock');
         $plannerDrones = $this->resolvePlannerDrones($state);
+        $activeDangerZones = $this->resolveActiveDangerZones($state);
+        $plannerDrones = $this->appendNearestDangerZoneTelemetry($plannerDrones, $activeDangerZones);
         $mapMin = -49.0;
         $mapMax = 49.0;
         $baseX = (float) data_get($state, 'base.x', 0.0);
@@ -45,13 +47,14 @@ class LlmPlannerService
         $vectorMaxDistance = max(1, $vectorMaxDistance);
         $ragContext = $this->normalizeRagContext((array) data_get($state, 'rag_context', []), 3, 220);
         $briefingState = $state;
+        $briefingState['runtime_drones'] = $plannerDrones;
         $briefingState['rag_context'] = $ragContext;
         $briefing = $this->simulation->buildTacticalBriefing($briefingState);
         $override = Cache::get('swarm:commander_override');
 
-        $system = 'You are the drone swarm planner. Output ONLY plain text commands, one per line.'
+        $system = 'You are the drone swarm commander. Output ONLY plain text commands, one per line.'
             .' Format: DRONE_ID(ACTION,DIRECTION,DISTANCE) or DRONE_ID(DIRECTION,DISTANCE) (defaults to MOVE).'
-            .' Valid actions: MOVE, SCAN.'
+            .' Valid actions: MOVE, SCAN, SEARCH_ZONE.'
             .' Valid directions: NORTH, NORTHEAST, EAST, SOUTHEAST, SOUTH, SOUTHWEST, WEST, NORTHWEST.'
             .' Distance must be an integer from 1 to '.$vectorMaxDistance.'.'
             .' Use only the drone IDs listed in SWARM STATUS. No JSON, no markdown, no explanations.'
@@ -59,6 +62,7 @@ class LlmPlannerService
             .' Use the mission history section to avoid repeating recent failures and to continue successful patterns.'
             .' You must obey all rules listed in the STANDING ORDERS section. These are permanent mission facts.'
             .' If HIGH PRIORITY DANGER ZONES are listed in the briefing, you MUST explicitly coordinate your drones to MOVE toward and SCAN those exact coordinates.'
+            .' TACTICAL PRIORITY: If a Nearest Danger Zone is listed in your telemetry (e.g., [NORTHWEST]), explicitly command your drone to MOVE or SCAN in that exact direction to secure the perimeter.'
             .' You are receiving a text-based tactical briefing. If a drone has a Target listed (e.g., Target: S1 is [NORTHEAST]), prioritize moving in that direction unless the Radar shows it is a [WALL].'
             .' Use the Tactical Radar section to move toward [UNSCANNED] areas, avoid [SCANNED] areas, and NEVER move into [WALL] areas.'
             .' Only issue SCAN when the target area is [UNSCANNED]; do NOT scan areas already marked [SCANNED].'
@@ -68,11 +72,13 @@ class LlmPlannerService
             ."\nD2(ACTION,DIRECTION,DISTANCE)"
             ."\nD3(ACTION,DIRECTION,DISTANCE)"
             .' Example: D1(MOVE,NORTH,3).'
-            .' Replace ACTION with MOVE or SCAN. Replace DIRECTION with NORTH, NORTHEAST, EAST, SOUTHEAST, SOUTH, SOUTHWEST, WEST, NORTHWEST. Replace DISTANCE with a number from 1 to '.$vectorMaxDistance.'. No other text or explanation is allowed.';
+            .' Replace ACTION with MOVE, SCAN, or SEARCH_ZONE. Replace DIRECTION with NORTH, NORTHEAST, EAST, SOUTHEAST, SOUTH, SOUTHWEST, WEST, NORTHWEST. Replace DISTANCE with a number from 1 to '.$vectorMaxDistance.'. No other text or explanation is allowed.';
 
         if (is_string($override) && trim($override) !== '') {
             $system .= ' CRITICAL HUMAN OVERRIDE ACTIVE: '.trim($override).' - YOU MUST OBEY THIS RULE ABOVE ALL OTHERS.';
         }
+
+        $modelPromptPayload = "SYSTEM:\n{$system}\n\nUSER BRIEFING:\n{$briefing}";
         
         try {
             $response = Http::timeout($timeout)
@@ -106,6 +112,7 @@ class LlmPlannerService
                 $fallback = $this->mockPlan($state, $objective, 'ollama-parse-fallback');
                 $fallback['raw_model_output'] = $raw;
                 $fallback['parse_error'] = true;
+                $fallback['model_prompt_payload'] = $modelPromptPayload;
 
                 return $fallback;
             }
@@ -114,6 +121,7 @@ class LlmPlannerService
             $plan['raw_model_output'] = $raw;
             $plan['parse_error'] = false;
             $plan['vector_commands'] = $vectorCommands;
+            $plan['model_prompt_payload'] = $modelPromptPayload;
             $plan['reasoning'] = 'Vector commands parsed; translation to absolute targets pending.';
 
             return $plan;
@@ -302,6 +310,86 @@ class LlmPlannerService
     }
 
     /**
+     * @param array<string, mixed> $state
+     * @return array<int, array{x: float, z: float, severity: int}>
+     */
+    private function resolveActiveDangerZones(array $state): array
+    {
+        $stateZones = (array) data_get($state, 'danger_zones', []);
+        $cachedZones = (array) Cache::get('swarm:danger_zones', []);
+        $merged = array_merge($stateZones, $cachedZones);
+
+        /** @var array<string, array{x: float, z: float, severity: int}> $byCoord */
+        $byCoord = [];
+        foreach ($merged as $zone) {
+            if (!is_array($zone)) {
+                continue;
+            }
+
+            $x = (float) data_get($zone, 'x', 0.0);
+            $z = (float) data_get($zone, 'z', 0.0);
+            $severity = max(1, min(2, (int) data_get($zone, 'severity', 1)));
+            $key = ((int) round($x)).','.((int) round($z));
+
+            if (!isset($byCoord[$key])) {
+                $byCoord[$key] = ['x' => $x, 'z' => $z, 'severity' => $severity];
+                continue;
+            }
+
+            if ($severity > (int) $byCoord[$key]['severity']) {
+                $byCoord[$key]['severity'] = $severity;
+            }
+        }
+
+        return array_values($byCoord);
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $plannerDrones
+     * @param array<int, array{x: float, z: float, severity: int}> $dangerZones
+     * @return array<int, array<string, mixed>>
+     */
+    private function appendNearestDangerZoneTelemetry(array $plannerDrones, array $dangerZones): array
+    {
+        $enriched = [];
+
+        foreach ($plannerDrones as $drone) {
+            $droneX = (float) data_get($drone, 'x', 0.0);
+            $droneZ = (float) data_get($drone, 'z', 0.0);
+            $status = trim((string) data_get($drone, 'status', 'unknown'));
+            $status = preg_replace('/\s*\|\s*Nearest Danger Zone(?: is)?\s*.*$/i', '', $status) ?? $status;
+
+            $telemetry = 'Nearest Danger Zone is [NONE], Distance: 0';
+
+            if (!empty($dangerZones)) {
+                $nearest = null;
+                $nearestDist = INF;
+
+                foreach ($dangerZones as $zone) {
+                    $dist = hypot(((float) $zone['x']) - $droneX, ((float) $zone['z']) - $droneZ);
+                    if ($dist < $nearestDist) {
+                        $nearestDist = $dist;
+                        $nearest = $zone;
+                    }
+                }
+
+                if (is_array($nearest)) {
+                    $telemetry = sprintf(
+                        'Nearest Danger Zone is [%s], Distance: %d',
+                        $this->resolveCompassDirection($droneX, $droneZ, (float) $nearest['x'], (float) $nearest['z']),
+                        $this->resolveCompassDistance($droneX, $droneZ, (float) $nearest['x'], (float) $nearest['z'])
+                    );
+                }
+            }
+
+            $drone['status'] = trim($status) === '' ? $telemetry : ($status.' | '.$telemetry);
+            $enriched[] = $drone;
+        }
+
+        return $enriched;
+    }
+
+    /**
      * @param array<int, string> $ids
      * @return array<string, array{x: float, z: float}>
      */
@@ -361,7 +449,7 @@ class LlmPlannerService
     /**
      * @param array<string, mixed> $state
      * @param array<string, array<string, mixed>> $runtime
-     * @return array<int, array{drone_id: string, action: string, direction: string, distance: int}>
+     * @return array<int, array<string, mixed>>
      */
     public function parseVectorCommandsText(string $raw, array $state, array $runtime, int $maxDistance = 5): array
     {
@@ -390,7 +478,7 @@ class LlmPlannerService
         }
 
         $allowedLookup = array_fill_keys($allowedIds, true);
-        $pattern = '/\b([A-Za-z0-9_-]+)\s*\(\s*(?:(SCAN|MOVE)\s*,\s*)?(NORTHEAST|NORTHWEST|SOUTHEAST|SOUTHWEST|NORTH|SOUTH|EAST|WEST)\s*,\s*([0-9]+(?:\.[0-9]+)?)\s*\)/i';
+        $pattern = '/\b([A-Za-z0-9_-]+)\s*\(\s*(?:(MOVE|SCAN|SEARCH_ZONE)\s*,\s*)?(NORTHEAST|NORTHWEST|SOUTHEAST|SOUTHWEST|NORTH|SOUTH|EAST|WEST)\s*,\s*([0-9]+(?:\.[0-9]+)?)\s*\)/i';
         $matches = [];
         preg_match_all($pattern, $raw, $matches, PREG_SET_ORDER);
 
@@ -433,7 +521,10 @@ class LlmPlannerService
                 continue;
             }
             $distance = min($maxDistance, $distance);
-            $action = in_array($actionToken, ['SCAN', 'MOVE'], true) ? $actionToken : 'MOVE';
+            $action = in_array($actionToken, ['SCAN', 'MOVE', 'SEARCH_ZONE'], true) ? $actionToken : 'MOVE';
+            if ($action === 'SEARCH_ZONE') {
+                $action = 'SCAN';
+            }
 
             $byId[$id] = [
                 'drone_id' => $id,
@@ -458,6 +549,48 @@ class LlmPlannerService
             'direction' => (string) ($cmd['direction'] ?? ''),
             'distance' => (int) ($cmd['distance'] ?? 0),
         ], $commands);
+    }
+
+    private function resolveCompassDirection(float $fromX, float $fromZ, float $toX, float $toZ): string
+    {
+        $dx = $toX - $fromX;
+        $dz = $toZ - $fromZ;
+
+        if (abs($dx) < 0.001 && abs($dz) < 0.001) {
+            return 'NORTH';
+        }
+
+        $angle = atan2($dz, $dx);
+        $deg = fmod((rad2deg($angle) + 360.0), 360.0);
+
+        if ($deg >= 337.5 || $deg < 22.5) {
+            return 'EAST';
+        }
+        if ($deg < 67.5) {
+            return 'NORTHEAST';
+        }
+        if ($deg < 112.5) {
+            return 'NORTH';
+        }
+        if ($deg < 157.5) {
+            return 'NORTHWEST';
+        }
+        if ($deg < 202.5) {
+            return 'WEST';
+        }
+        if ($deg < 247.5) {
+            return 'SOUTHWEST';
+        }
+        if ($deg < 292.5) {
+            return 'SOUTH';
+        }
+
+        return 'SOUTHEAST';
+    }
+
+    private function resolveCompassDistance(float $fromX, float $fromZ, float $toX, float $toZ): int
+    {
+        return max(0, (int) round(hypot($toX - $fromX, $toZ - $fromZ)));
     }
 
     /**

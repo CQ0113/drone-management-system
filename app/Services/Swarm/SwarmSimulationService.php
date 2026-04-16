@@ -162,9 +162,10 @@ class SwarmSimulationService
         if (empty($ids)) {
             $lines[] = 'NONE';
         } else {
-            foreach ($ids as $id) {
-                $battery = (int) round((float) data_get($runtime, $id.'.battery', 0));
-                $lines[] = sprintf('%s: Bat:%d%%', $id, $battery);
+            foreach ($runtime as $index => $drone) {
+                $droneId = $this->resolveBriefingDroneId($index, $drone);
+                $battery = (int) round((float) data_get($drone, 'battery', data_get($runtime, $droneId.'.battery', 0)));
+                $lines[] = sprintf('%s: Bat:%d%%', $droneId, $battery);
             }
         }
 
@@ -180,20 +181,21 @@ class SwarmSimulationService
         if (empty($ids)) {
             $lines[] = 'No active drones.';
         } else {
-            foreach ($ids as $id) {
-                $lower = strtolower((string) $id);
+            foreach ($runtime as $index => $drone) {
+                $id = $this->resolveBriefingDroneId($index, $drone);
+                $lower = strtolower($id);
                 $radar = $radarById[$lower] ?? [
                     'area' => 'UNKNOWN',
                     'radar' => 'NORTH[?], NORTHEAST[?], EAST[?], SOUTHEAST[?], SOUTH[?], SOUTHWEST[?], WEST[?], NORTHWEST[?]',
                 ];
-                $target = $this->closestSurvivorInfo((array) ($runtime[$id] ?? []), $survivors);
+                $target = $this->closestSurvivorInfo((array) $drone, $survivors);
                 $targetText = $target
                     ? sprintf('%s is [%s]', $target['label'], $target['direction'])
                     : 'NONE';
 
                 $lines[] = sprintf(
                     '%s: Area[%s] | Target: %s | Radar: %s',
-                    $lower,
+                    $id,
                     $radar['area'],
                     $targetText,
                     $radar['radar']
@@ -212,7 +214,7 @@ class SwarmSimulationService
             if ($summary === '') {
                 continue;
             }
-            $lines[] = 'Previous Tick: '.$summary;
+            $lines[] = 'Previous Tick: '.$this->sanitizeRagHistorySummary($summary);
             $ragLines++;
         }
         if ($ragLines === 0) {
@@ -226,6 +228,35 @@ class SwarmSimulationService
         }
 
         return implode("\n", $lines);
+    }
+
+    /**
+     * @param array<string, mixed>|int|string $index
+     * @param array<string, mixed> $drone
+     */
+    private function resolveBriefingDroneId($index, array $drone): string
+    {
+        $droneId = strtoupper(trim((string) data_get($drone, 'id', '')));
+        if ($droneId !== '') {
+            return $droneId;
+        }
+
+        if (is_string($index) && trim($index) !== '' && !is_numeric($index)) {
+            return strtoupper(trim($index));
+        }
+
+        return 'D'.(((int) $index) + 1);
+    }
+
+    private function sanitizeRagHistorySummary(string $summary): string
+    {
+        $summary = preg_replace('/\bactions\s*=\s*[^\s]+\([^\)]*\)/i', 'actions=D1: Executed previous move', $summary) ?? $summary;
+        $summary = preg_replace('/\bactions\s*=\s*[^\s]+:\s*move_to\([^\)]*\)/i', 'actions=D1: Executed previous move', $summary) ?? $summary;
+        $summary = preg_replace('/\bactions\s*=\s*[^\s]+:\s*scan_sector\([^\)]*\)/i', 'actions=D1: Executed previous scan', $summary) ?? $summary;
+        $summary = preg_replace('/\bmove_to\s*\([^\)]*\)/i', 'Executed previous move', $summary) ?? $summary;
+        $summary = preg_replace('/\bscan_sector\s*\([^\)]*\)/i', 'Executed previous scan', $summary) ?? $summary;
+
+        return trim($summary);
     }
 
     /**

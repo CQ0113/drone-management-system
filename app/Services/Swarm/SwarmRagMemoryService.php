@@ -36,11 +36,17 @@ class SwarmRagMemoryService
         $actionText = collect($actions)
             ->map(function ($action): string {
                 $id = (string) data_get($action, 'drone_id', 'unknown');
-                $type = (string) data_get($action, 'type', 'move_to');
-                $x = (float) data_get($action, 'target.x', 0);
-                $z = (float) data_get($action, 'target.z', 0);
+                $type = strtolower((string) data_get($action, 'type', 'move_to'));
 
-                return sprintf('%s:%s(%.1f,%.1f)', $id, $type, $x, $z);
+                if (str_contains($type, 'scan')) {
+                    return sprintf('%s: Executed previous scan', $id);
+                }
+
+                if (str_contains($type, 'move') || str_contains($type, 'return')) {
+                    return sprintf('%s: Executed previous move', $id);
+                }
+
+                return sprintf('%s: Executed previous action', $id);
             })
             ->implode(' | ');
 

@@ -201,7 +201,8 @@
         #ollama-raw-log,
         #debug-raw-actions-log,
         #debug-post-mcp-log,
-        #debug-validated-log {
+        #debug-validated-log,
+        #debug-model-prompt-log {
             background: linear-gradient(180deg, rgba(4, 10, 19, 0.88), rgba(2, 8, 16, 0.88));
             box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.08);
         }
@@ -545,9 +546,9 @@
             <div class="compass-title">Map Compass</div>
             <div class="compass-dial">
                 <span class="compass-letter n">N</span>
-                <span class="compass-letter e">E</span>
+                <span class="compass-letter e">W</span>
                 <span class="compass-letter s">S</span>
-                <span class="compass-letter w">W</span>
+                <span class="compass-letter w">E</span>
                 <div id="compass-needle" class="compass-needle"></div>
                 <div class="compass-center"></div>
             </div>
@@ -575,6 +576,11 @@
             <button id="danger-map-toggle-btn" class="hud-btn rounded-md px-4 py-1.5 text-[11px] font-display uppercase tracking-[0.12em] text-rose-300 border border-rose-800/60 bg-rose-950/20 active:bg-rose-900/50 hover:bg-rose-900/30 transition-all shadow-[0_0_10px_rgba(159,18,57,0.3)]">
                 Risk Layer: OFF
             </button>
+            <button id="run-toggle-btn" class="hud-btn inline-flex h-8 w-8 items-center justify-center rounded-md border border-rose-500/70 bg-rose-900/40 text-rose-100 transition-all shadow-[0_0_10px_rgba(225,29,72,0.45)] hover:bg-rose-800/60" aria-label="Stop simulation" title="Stop simulation">
+                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <rect x="6" y="6" width="12" height="12" rx="1"></rect>
+                </svg>
+            </button>
             <span id="planner-source-badge" class="rounded-full border border-cyan-600/60 bg-cyan-500/10 px-3 py-1 text-[10px] md:text-xs uppercase tracking-[0.16em] text-cyan-200">Source: Idle</span>
             <span class="text-xs md:text-sm uppercase tracking-[0.25em] text-slate-300">Decentralised Swarm Intelligence</span>
         </div>
@@ -598,12 +604,16 @@
                     <button id="btn-place-obstacle" class="hud-btn w-full rounded-md py-2.5 px-3 text-left font-medium text-sm flex items-center justify-between transition-colors duration-500" data-mode="obstacle">
                         <span>Place Obstacle</span>
                     </button>
+                    <button id="btn-place-danger-zone" class="hud-btn w-full rounded-md py-2.5 px-3 text-left font-medium text-sm flex items-center justify-between transition-colors duration-500" data-mode="danger-zone">
+                        <span>Place Danger Zone</span>
+                    </button>
                 </div>
                 <!-- Removal Tools -->
                 <div class="space-y-2.5 bg-rose-950/20 p-2 rounded-lg border border-rose-900/30">
                     <h3 class="text-[10px] uppercase tracking-widest text-rose-400 font-display mb-1 ml-1">Removal Tools</h3>
                     <button class="hud-btn w-full rounded-md py-2 px-3 text-left text-xs font-medium text-rose-300 hover:text-rose-200 hover:border-rose-500/50 hover:bg-rose-900/20" data-mode="delete-survivor">Delete Survivor</button>
                     <button class="hud-btn w-full rounded-md py-2 px-3 text-left text-xs font-medium text-rose-300 hover:text-rose-200 hover:border-rose-500/50 hover:bg-rose-900/20" data-mode="delete-obstacle">Delete Obstacle</button>
+                    <button class="hud-btn w-full rounded-md py-2 px-3 text-left text-xs font-medium text-rose-300 hover:text-rose-200 hover:border-rose-500/50 hover:bg-rose-900/20" data-mode="delete-danger-zone">Delete Danger Zone</button>
                 </div>
 
                 <!-- Obstacle Config -->
@@ -774,7 +784,7 @@
                         </div>
                     </div>
                 </div>
-                <div id="dashboard-debug-view" class="hidden grid h-full grid-cols-1 gap-3 auto-rows-fr lg:grid-cols-3">
+                <div id="dashboard-debug-view" class="hidden grid h-full grid-cols-1 gap-3 auto-rows-fr lg:grid-cols-4">
                     <div class="h-full flex flex-col">
                         <div class="flex items-center justify-between mb-2">
                             <h2 class="font-display text-sm uppercase tracking-[0.2em] text-fuchsia-300">Stage 1 Raw Model</h2>
@@ -795,6 +805,13 @@
                             <span class="text-xs uppercase tracking-[0.15em] text-slate-400">Executed</span>
                         </div>
                         <div id="debug-validated-log" class="terminal-scroll flex-1 min-h-0 whitespace-pre-wrap break-words rounded-md border border-emerald-900/60 bg-slate-950/70 px-3 py-2 text-xs md:text-sm leading-relaxed text-emerald-100 font-mono"></div>
+                    </div>
+                    <div class="h-full flex flex-col">
+                        <div class="flex items-center justify-between mb-2">
+                            <h2 class="font-display text-sm uppercase tracking-[0.2em] text-amber-300">Model Input Per Tick</h2>
+                            <span class="text-xs uppercase tracking-[0.15em] text-slate-400">System + Briefing</span>
+                        </div>
+                        <div id="debug-model-prompt-log" class="terminal-scroll flex-1 min-h-0 whitespace-pre-wrap break-words rounded-md border border-amber-900/60 bg-slate-950/70 px-3 py-2 text-xs md:text-sm leading-relaxed text-amber-100 font-mono"></div>
                     </div>
                 </div>
             </div>
@@ -967,6 +984,7 @@
         const deployBtn = document.getElementById('deploy-btn');
         const restartBtn = document.getElementById('restart-btn');
         const clearAllBtn = document.getElementById('clear-all-btn');
+        const runToggleBtn = document.getElementById('run-toggle-btn');
         const toggleDashboardBtn = document.getElementById('toggle-dashboard-btn');
         const dashboardOutputBtn = document.getElementById('dashboard-output-btn');
         const dashboardTuneBtn = document.getElementById('dashboard-tune-btn');
@@ -974,6 +992,7 @@
         const debugRawActionsLogEl = document.getElementById('debug-raw-actions-log');
         const debugPostMcpLogEl = document.getElementById('debug-post-mcp-log');
         const debugValidatedLogEl = document.getElementById('debug-validated-log');
+        const debugModelPromptLogEl = document.getElementById('debug-model-prompt-log');
         const telemetryStatusBtn = document.getElementById('telemetry-status-btn');
         const telemetryRadarBtn = document.getElementById('telemetry-radar-btn');
         const telemetryStatusViewEl = document.getElementById('telemetry-status-view');
@@ -1017,7 +1036,7 @@
         let scannedTileMaterial;
         const scannedTilesSeen = new Set();
         let compassNeedleAngle = null;
-        const dangerZoneAnimData = []; // Tracks {ring, startTime} for pulsing hazard rings
+        // Danger zones are data-only markers used by backend risk analysis.
         
         // Danger Map Layer Variables
         let dangerMapVisible = false;
@@ -1235,7 +1254,7 @@
             }
 
             // Normal hover logic
-            if (runtime.setupLocked || (runtime.activeMode !== 'delete-survivor' && runtime.activeMode !== 'delete-obstacle' && runtime.activeMode !== 'delete-danger-zone')) {
+            if (runtime.setupLocked || (runtime.activeMode !== 'delete-survivor' && runtime.activeMode !== 'delete-obstacle')) {
                 if (hoveredObject) {
                     resetHighlight(hoveredObject);
                     hoveredObject = null;
@@ -1246,7 +1265,6 @@
             let objectsToCheck = [];
             if (runtime.activeMode === 'delete-survivor') objectsToCheck = placementMeshes.survivors;
             else if (runtime.activeMode === 'delete-obstacle') objectsToCheck = placementMeshes.obstacles;
-            else if (runtime.activeMode === 'delete-danger-zone') objectsToCheck = placementMeshes.danger_zones;
 
             const intersects = raycaster.intersectObjects(objectsToCheck, true);
 
@@ -1298,7 +1316,9 @@
         function bindUI() {
             modeButtons.forEach((btn) => {
                 btn.addEventListener('click', () => {
-                    if (runtime.setupLocked) {
+                    const nextMode = btn.dataset.mode;
+                    const canEditDangerZones = nextMode === 'danger-zone' || nextMode === 'delete-danger-zone';
+                    if (runtime.setupLocked && !canEditDangerZones) {
                         return;
                     }
                     runtime.activeMode = btn.dataset.mode;
@@ -1363,7 +1383,9 @@
         
             modeButtons.forEach((btn) => {
                 btn.addEventListener('click', () => {
-                    if (runtime.setupLocked) {
+                    const nextMode = btn.dataset.mode;
+                    const canEditDangerZones = nextMode === 'danger-zone' || nextMode === 'delete-danger-zone';
+                    if (runtime.setupLocked && !canEditDangerZones) {
                         return;
                     }
                     runtime.activeMode = btn.dataset.mode;
@@ -1496,6 +1518,9 @@
             if (clearAllBtn) {
                 clearAllBtn.addEventListener('click', clearAllStuff);
             }
+            if (runToggleBtn) {
+                runToggleBtn.addEventListener('click', toggleRunState);
+            }
             if (toggleDashboardBtn) {
                 toggleDashboardBtn.addEventListener('click', toggleDashboardPanels);
             }
@@ -1557,6 +1582,9 @@
                         dangerMapToggleBtn.classList.replace('border-rose-800/60', 'border-rose-500');
                         dangerMapToggleBtn.classList.add('bg-rose-900/60');
                         if(dangerLegendEl) dangerLegendEl.classList.remove('hidden');
+                        if (!runtime.setupLocked) {
+                            await syncSetupStateForRiskLayer();
+                        }
                         await fetchAndRenderDangerMap();
                         appendMissionLog(`Danger Zone evaluation layer activated.`);
                     } else {
@@ -1572,6 +1600,52 @@
             }
 
             setTelemetryView('status');
+            updateRunToggleButton();
+        }
+
+        function isSimulationRunning() {
+            return Boolean(runtime.mockTimer) || Boolean(runtime.liveLoopActive) || Boolean(runtime.tickInFlight);
+        }
+
+        function updateRunToggleButton() {
+            if (!runToggleBtn) {
+                return;
+            }
+
+            const running = isSimulationRunning();
+            if (running) {
+                runToggleBtn.classList.remove('border-emerald-500/70', 'bg-emerald-900/30', 'text-emerald-100', 'hover:bg-emerald-800/50', 'shadow-[0_0_10px_rgba(16,185,129,0.35)]');
+                runToggleBtn.classList.add('border-rose-500/70', 'bg-rose-900/40', 'text-rose-100', 'hover:bg-rose-800/60', 'shadow-[0_0_10px_rgba(225,29,72,0.45)]');
+                runToggleBtn.setAttribute('aria-label', 'Stop simulation');
+                runToggleBtn.setAttribute('title', 'Stop simulation');
+                runToggleBtn.innerHTML = '<svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="1"></rect></svg>';
+            } else {
+                runToggleBtn.classList.remove('border-rose-500/70', 'bg-rose-900/40', 'text-rose-100', 'hover:bg-rose-800/60', 'shadow-[0_0_10px_rgba(225,29,72,0.45)]');
+                runToggleBtn.classList.add('border-emerald-500/70', 'bg-emerald-900/30', 'text-emerald-100', 'hover:bg-emerald-800/50', 'shadow-[0_0_10px_rgba(16,185,129,0.35)]');
+                runToggleBtn.setAttribute('aria-label', 'Resume simulation');
+                runToggleBtn.setAttribute('title', 'Resume simulation');
+                runToggleBtn.innerHTML = '<svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"></path></svg>';
+            }
+        }
+
+        function toggleRunState() {
+            if (isSimulationRunning()) {
+                stopAllSimulation();
+            } else {
+                resumeSimulation();
+            }
+        }
+
+        async function syncSetupStateForRiskLayer() {
+            if (runtime.setupLocked) {
+                return;
+            }
+
+            try {
+                await sendInitSwarm();
+            } catch (error) {
+                appendMissionLog(`Risk-layer setup sync failed: ${error.message}`);
+            }
         }
 
         async function fetchAndRenderDangerMap() {
@@ -1726,7 +1800,8 @@
         }
 
         function onCanvasClick(event) {
-            if (runtime.setupLocked) {
+            const canEditDangerZones = runtime.activeMode === 'danger-zone' || runtime.activeMode === 'delete-danger-zone';
+            if (runtime.setupLocked && !canEditDangerZones) {
                 return;
             }
 
@@ -1746,11 +1821,10 @@
             raycaster.setFromCamera(pointer, camera);
             const groundHits = raycaster.intersectObject(ground);
 
-            if (runtime.activeMode === 'delete-survivor' || runtime.activeMode === 'delete-obstacle' || runtime.activeMode === 'delete-danger-zone') {
+            if (runtime.activeMode === 'delete-survivor' || runtime.activeMode === 'delete-obstacle') {
                 let objectsToCheck = [];
                 if (runtime.activeMode === 'delete-survivor') objectsToCheck = placementMeshes.survivors;
                 else if (runtime.activeMode === 'delete-obstacle') objectsToCheck = placementMeshes.obstacles;
-                else if (runtime.activeMode === 'delete-danger-zone') objectsToCheck = placementMeshes.danger_zones;
                 
                 const hits = raycaster.intersectObjects(objectsToCheck, true);
                 
@@ -1771,14 +1845,6 @@
                             placementMeshes.obstacles.splice(index, 1);
                             state.obstacles.splice(index, 1);
                             appendMissionLog(`Obstacle ${index + 1} deleted`);
-                        } else if (runtime.activeMode === 'delete-danger-zone') {
-                            placementMeshes.danger_zones.splice(index, 1);
-                            state.danger_zones.splice(index, 1);
-                            // Also remove from animation tracker to avoid dangling references.
-                            if (index < dangerZoneAnimData.length) {
-                                dangerZoneAnimData.splice(index, 1);
-                            }
-                            appendMissionLog(`Danger Zone ${index + 1} deleted`);
                         }
                         
                         if (hoveredObject === hitObject || hoveredObject === rootObject) {
@@ -1815,6 +1881,34 @@
                 const rotation = currentRotation || 0;
                 const type = currentObstacleType || 'square';
                 placeObstacle(snapped.x, snapped.z, rotation, type);
+                return;
+            }
+
+            if (runtime.activeMode === 'delete-danger-zone') {
+                const threshold = 2;
+                let closestIndex = -1;
+                let closestDist = Infinity;
+
+                state.danger_zones.forEach((zone, index) => {
+                    const dist = Math.hypot((Number(zone.x) || 0) - snapped.x, (Number(zone.z) || 0) - snapped.z);
+                    if (dist < closestDist) {
+                        closestDist = dist;
+                        closestIndex = index;
+                    }
+                });
+
+                if (closestIndex !== -1 && closestDist <= threshold) {
+                    state.danger_zones.splice(closestIndex, 1);
+                    appendMissionLog(`Danger Zone ${closestIndex + 1} deleted`);
+                    if (!runtime.setupLocked) {
+                        void syncSetupStateForRiskLayer().then(() => {
+                            if (dangerMapVisible) {
+                                return fetchAndRenderDangerMap();
+                            }
+                            return null;
+                        });
+                    }
+                }
                 return;
             }
 
@@ -2306,64 +2400,40 @@
         }
 
         function placeDangerZone(x, z, autoDetected = false) {
-            const group = new THREE.Group();
-            group.userData.kind = 'danger_zone';
+            const zoneX = snapCoord(x);
+            const zoneZ = snapCoord(z);
+            const existingIndex = state.danger_zones.findIndex((zone) => Number(zone.x) === zoneX && Number(zone.z) === zoneZ);
+            let logMsg = '';
 
-            // --- Core hazard block (larger & more dramatic) ---
-            const coreGeo = new THREE.BoxGeometry(3.5, 0.6, 3.5);
-            const coreMat = new THREE.MeshStandardMaterial({
-                color: 0xff1a1a,
-                transparent: true,
-                opacity: 0.65,
-                emissive: new THREE.Color(0xff1a1a),
-                emissiveIntensity: 1.2,
-                depthWrite: false
-            });
-            const coreMesh = new THREE.Mesh(coreGeo, coreMat);
-            coreMesh.position.y = 0.3;
-            coreMesh.userData.root = group;
-            group.add(coreMesh);
-
-            // --- Pulsing outer ring (flat torus on Y plane) ---
-            const ringGeo = new THREE.TorusGeometry(3.8, 0.22, 8, 40);
-            const ringMat = new THREE.MeshStandardMaterial({
-                color: 0xff4500,
-                transparent: true,
-                opacity: 0.9,
-                emissive: new THREE.Color(0xff4500),
-                emissiveIntensity: 2.0,
-                depthWrite: false
-            });
-            const ringMesh = new THREE.Mesh(ringGeo, ringMat);
-            ringMesh.rotation.x = Math.PI / 2; // lay flat
-            ringMesh.position.y = 0.05;
-            ringMesh.userData.root = group;
-            group.add(ringMesh);
-
-            // --- CSS2D floating label ---
-            if (window.CSS2DObject) {
-                const labelDiv = document.createElement('div');
-                labelDiv.className = 'text-[11px] font-bold font-mono px-2 py-0.5 rounded border animate-pulse';
-                labelDiv.style.cssText = 'background:rgba(180,0,0,0.85);color:#ff8080;border-color:#ff2020;box-shadow:0 0 10px rgba(255,30,30,0.7);white-space:nowrap;pointer-events:none;';
-                labelDiv.textContent = '⚠ HAZARD';
-                const labelObj = new window.CSS2DObject(labelDiv);
-                labelObj.position.set(0, 4.0, 0);
-                group.add(labelObj);
+            if (existingIndex === -1) {
+                state.danger_zones.push({ x: zoneX, z: zoneZ, severity: 1 });
+                logMsg = autoDetected
+                    ? `⚠ HAZARD CONFIRMED at X:${zoneX}, Z:${zoneZ} — Included in risk-layer analysis.`
+                    : `Danger Zone recorded at X:${zoneX}, Z:${zoneZ} (YELLOW risk). Click same zone again to upgrade to RED.`;
+            } else {
+                const zone = state.danger_zones[existingIndex] || {};
+                const currentSeverity = Number(zone.severity) >= 2 ? 2 : 1;
+                if (currentSeverity < 2) {
+                    zone.severity = 2;
+                    zone.x = zoneX;
+                    zone.z = zoneZ;
+                    state.danger_zones[existingIndex] = zone;
+                    logMsg = `Danger Zone at X:${zoneX}, Z:${zoneZ} upgraded to RED risk.`;
+                } else {
+                    logMsg = `Danger Zone at X:${zoneX}, Z:${zoneZ} is already RED risk.`;
+                }
             }
 
-            group.position.set(x, 0, z);
-            scene.add(group);
-
-            // Track for animation
-            dangerZoneAnimData.push({ ring: ringMesh, mat: ringMat, startTime: performance.now() / 1000 });
-
-            placementMeshes.danger_zones.push(group);
-            state.danger_zones.push({ x, z });
-
-            const logMsg = autoDetected
-                ? `⚠ HAZARD CONFIRMED at X:${Math.round(x)}, Z:${Math.round(z)} — Marking on tactical map.`
-                : `Danger Zone placed at X:${x}, Z:${z}.`;
             appendMissionLog(logMsg);
+
+            if (!runtime.setupLocked && !autoDetected) {
+                void syncSetupStateForRiskLayer().then(() => {
+                    if (dangerMapVisible) {
+                        return fetchAndRenderDangerMap();
+                    }
+                    return null;
+                });
+            }
         }
 
         function deploySwarm() {
@@ -2486,11 +2556,9 @@
             }
             placementMeshes.survivors.forEach((mesh) => scene.remove(mesh));
             placementMeshes.obstacles.forEach((mesh) => scene.remove(mesh));
-            placementMeshes.danger_zones.forEach((mesh) => scene.remove(mesh));
             placementMeshes.survivors = [];
             placementMeshes.obstacles = [];
             placementMeshes.danger_zones = [];
-            dangerZoneAnimData.length = 0; // Clear hazard animation trackers
 
             clearScannedTiles();
             clearRadarDiagnostics();
@@ -2559,6 +2627,78 @@
                 runtime.websocket.close();
                 runtime.websocket = null;
             }
+            updateRunToggleButton();
+        }
+
+        function stopAllSimulation() {
+            stopRuntimeLoops();
+            runtime.tickInFlight = false;
+
+            Object.keys(runtime.drones).forEach((id) => {
+                const drone = runtime.drones[id];
+                if (!drone || !drone.mesh) {
+                    return;
+                }
+
+                const x = Number(drone.mesh.position.x) || 0;
+                const z = Number(drone.mesh.position.z) || 0;
+                drone.targetX = x;
+                drone.targetZ = z;
+                drone.scanActive = false;
+
+                if (dronePanelState[id]) {
+                    dronePanelState[id].status = 'Stopped by operator';
+                }
+            });
+
+            renderDroneStatus();
+            appendMissionLog('All simulation loops stopped by operator.');
+            appendDecisionLog('Operator stop-all issued: tick and simulation loops halted.');
+            setPlannerSourceBadge('stopped', null);
+            updateRunToggleButton();
+        }
+
+        function resumeSimulation() {
+            if (!state.base) {
+                appendMissionLog('Resume blocked: place one base before resuming simulation.');
+                return;
+            }
+
+            if (runtime.benchmarkRunning) {
+                appendMissionLog('Resume blocked: battery trial currently running.');
+                return;
+            }
+
+            const hasDrones = Array.isArray(runtime.droneIds) && runtime.droneIds.length > 0;
+            if (!hasDrones) {
+                appendMissionLog('Resume blocked: no drones available. Launch swarm first.');
+                return;
+            }
+
+            const alreadyRunning = Boolean(runtime.mockTimer) || runtime.liveLoopActive;
+            if (alreadyRunning) {
+                appendMissionLog('Resume skipped: simulation already running.');
+                return;
+            }
+
+            runtime.tickInFlight = false;
+
+            Object.keys(runtime.drones).forEach((id) => {
+                if (dronePanelState[id]) {
+                    dronePanelState[id].status = 'Resuming mission';
+                }
+            });
+            renderDroneStatus();
+
+            if (USE_MOCK_DATA) {
+                startMockSimulation();
+            } else {
+                startLivePipeline(true);
+            }
+
+            appendMissionLog('Simulation resumed by operator.');
+            appendDecisionLog('Operator resume issued: tick loop restarted.');
+            updateRunToggleButton();
         }
 
         function createOrResetDronesAtBase(ids = []) {
@@ -2700,6 +2840,8 @@
             if (runtime.mockTimer) {
                 clearInterval(runtime.mockTimer);
             }
+
+            updateRunToggleButton();
 
             appendMissionLog('Mock mode enabled. No backend dependency required.');
             appendDecisionLog('Mock planner active. Decisions are procedurally generated.');
@@ -2896,6 +3038,9 @@
                     if (tick.model && typeof tick.model.raw_output === 'string' && tick.model.raw_output.trim().length) {
                         appendOllamaRawLog(tick.model.raw_output);
                     }
+                    if (tick.model && typeof tick.model.prompt_payload === 'string' && tick.model.prompt_payload.trim().length) {
+                        appendModelPromptLog(tick.model.prompt_payload, tick.source || 'unknown');
+                    }
                     appendActionStageDebug(tick);
                     if (tick.model && tick.model.parse_error) {
                         appendDecisionLog('Model parse fallback triggered; check raw output terminal.');
@@ -3087,8 +3232,27 @@
             appendStageLog(debugValidatedLogEl, 'Stage 3 validated actions', validatedActions);
         }
 
+        function appendModelPromptLog(payload, source = 'unknown') {
+            if (!debugModelPromptLogEl || typeof payload !== 'string' || payload.trim() === '') {
+                return;
+            }
+
+            const now = new Date();
+            const stamp = now.toLocaleTimeString();
+            const block = document.createElement('div');
+            block.className = 'mb-2 pb-2 border-b border-amber-900/40';
+            block.textContent = `[${stamp}] source=${source}\n${payload}`;
+            debugModelPromptLogEl.appendChild(block);
+
+            while (debugModelPromptLogEl.children.length > 40) {
+                debugModelPromptLogEl.removeChild(debugModelPromptLogEl.firstChild);
+            }
+
+            debugModelPromptLogEl.scrollTop = debugModelPromptLogEl.scrollHeight;
+        }
+
         function clearActionStageDebug() {
-            [debugRawActionsLogEl, debugPostMcpLogEl, debugValidatedLogEl].forEach((el) => {
+            [debugRawActionsLogEl, debugPostMcpLogEl, debugValidatedLogEl, debugModelPromptLogEl].forEach((el) => {
                 if (el) {
                     el.innerHTML = '';
                 }
@@ -4429,17 +4593,6 @@
                 if (drone.id) {
                     emitScanRadiusSignals(drone.id, drone, 'ui-scan');
                 }
-            });
-
-            // Pulse animated danger zone rings
-            dangerZoneAnimData.forEach((entry) => {
-                if (!entry || !entry.ring || !entry.mat) return;
-                const elapsed = nowSec - (entry.startTime || 0);
-                const pulse = 0.6 + 0.4 * Math.abs(Math.sin(elapsed * 2.8));
-                entry.mat.opacity = 0.35 + 0.65 * pulse;
-                entry.mat.emissiveIntensity = 1.5 + 1.5 * pulse;
-                const scale = 0.88 + 0.22 * Math.abs(Math.sin(elapsed * 2.2));
-                entry.ring.scale.set(scale, 1, scale);
             });
 
             tickBillboards();

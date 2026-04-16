@@ -45,6 +45,10 @@ class SwarmController extends Controller
         'obstacles.*.x' => ['required_with:obstacles', 'numeric'],
         'obstacles.*.z' => ['required_with:obstacles', 'numeric'],
         'obstacles.*.height' => ['nullable', 'numeric'],
+        'danger_zones' => ['nullable', 'array'],
+        'danger_zones.*.x' => ['required_with:danger_zones', 'numeric'],
+        'danger_zones.*.z' => ['required_with:danger_zones', 'numeric'],
+        'danger_zones.*.severity' => ['nullable', 'integer', 'min:1', 'max:2'],
         'use_default_map' => ['nullable', 'string', 'in:map1,map2,map3,map4,map5,map6'],  
         ]);
 
@@ -73,7 +77,14 @@ class SwarmController extends Controller
                     ])
                     ->values()
                     ->all(),
-                'danger_zones' => [],
+                'danger_zones' => collect($validated['danger_zones'] ?? [])
+                    ->map(fn (array $point): array => [
+                        'x' => (float) $point['x'],
+                        'z' => (float) $point['z'],
+                        'severity' => (int) ($point['severity'] ?? 1),
+                    ])
+                    ->values()
+                    ->all(),
                 'map_name' => $mapConfig['name'],
                 'map_description' => $mapConfig['description'],
                 'created_at' => now()->toIso8601String(),
@@ -100,7 +111,14 @@ class SwarmController extends Controller
                     ])
                     ->values()
                     ->all(),
-                'danger_zones' => [],
+                'danger_zones' => collect($validated['danger_zones'] ?? [])
+                    ->map(fn (array $point): array => [
+                        'x' => (float) $point['x'],
+                        'z' => (float) $point['z'],
+                        'severity' => (int) ($point['severity'] ?? 1),
+                    ])
+                    ->values()
+                    ->all(),
                 'created_at' => now()->toIso8601String(),
             ];
         }
@@ -115,8 +133,8 @@ class SwarmController extends Controller
         Cache::put('swarm:scanned_cells', [], $ttl);
         Cache::put('swarm:mission_learnings', [], $ttl);
         Cache::put('swarm:survivor_profiles', $survivorProfiles, $ttl);
-        Cache::put('swarm:hidden_hazards', $this->generateHiddenHazards($state), $ttl);
-        Cache::put('swarm:danger_zones', [], $ttl);
+        Cache::put('swarm:hidden_hazards', [], $ttl);
+        Cache::put('swarm:danger_zones', (array) data_get($state, 'danger_zones', []), $ttl);
         Cache::forget('swarm:drone_pos_history');
         Cache::forget('swarm:mission_state');
         Cache::forget('swarm_state');
@@ -194,6 +212,19 @@ private function getAvailableMapsList(): array
         if (empty($state)) {
             return response()->json(['ok' => false, 'message' => 'Swarm not initialized'], 400);
         }
+
+        $stateDangerZones = (array) data_get($state, 'danger_zones', []);
+        $runtimeDangerZones = (array) Cache::get('swarm:danger_zones', []);
+        $mergedDangerZones = collect(array_merge($stateDangerZones, $runtimeDangerZones))
+            ->map(fn ($zone) => [
+                'x' => (float) data_get($zone, 'x', 0),
+                'z' => (float) data_get($zone, 'z', 0),
+            ])
+            ->unique(fn (array $zone) => ((int) round($zone['x'])).','.((int) round($zone['z'])))
+            ->values()
+            ->all();
+
+        $state['danger_zones'] = $mergedDangerZones;
 
         $grid = $this->dangerMapService->generateDangerMap((array) $state, (array) Cache::get('swarm:runtime', []));
 
@@ -534,6 +565,7 @@ private function getAvailableMapsList(): array
             'model' => [
                 'raw_output' => (string) ($plan['raw_model_output'] ?? ''),
                 'parse_error' => (bool) ($plan['parse_error'] ?? false),
+                'prompt_payload' => (string) ($plan['model_prompt_payload'] ?? ''),
             ],
             'debug' => [
                 'planner_actions' => $plannerActions,
