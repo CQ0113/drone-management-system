@@ -56,6 +56,8 @@
             --swarm-success: #22c55e;
             --swarm-danger: #ff2d2d;
             --swarm-ink: #0b1220;
+            --swarm-surface-a: rgba(8, 15, 24, 0.88);
+            --swarm-surface-b: rgba(5, 10, 18, 0.82);
         }
 
         #scene-container {
@@ -63,22 +65,58 @@
             inset: 0;
         }
 
+        .ambient-orb {
+            position: fixed;
+            border-radius: 999px;
+            pointer-events: none;
+            filter: blur(60px);
+            opacity: 0.38;
+            z-index: 1;
+        }
+
+        .ambient-orb-a {
+            width: 420px;
+            height: 420px;
+            top: -140px;
+            right: -110px;
+            background: radial-gradient(circle, rgba(34, 211, 238, 0.35), rgba(34, 211, 238, 0));
+        }
+
+        .ambient-orb-b {
+            width: 360px;
+            height: 360px;
+            bottom: 140px;
+            left: -120px;
+            background: radial-gradient(circle, rgba(16, 185, 129, 0.24), rgba(16, 185, 129, 0));
+        }
+
         .glass-panel {
-            background: linear-gradient(140deg, rgba(8, 15, 24, 0.88), rgba(4, 8, 15, 0.8));
-            border: 1px solid rgba(34, 211, 238, 0.2);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 0 20px rgba(34, 211, 238, 0.05);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
+            position: relative;
+            background: linear-gradient(155deg, var(--swarm-surface-a), var(--swarm-surface-b));
+            border: 1px solid rgba(125, 211, 252, 0.2);
+            box-shadow: 0 16px 44px rgba(2, 6, 12, 0.62), inset 0 0 24px rgba(34, 211, 238, 0.06);
+            backdrop-filter: blur(14px) saturate(130%);
+            -webkit-backdrop-filter: blur(14px) saturate(130%);
+            overflow: hidden;
+        }
+
+        .glass-panel::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            background: linear-gradient(140deg, rgba(34, 211, 238, 0.12), rgba(34, 211, 238, 0) 30%, rgba(250, 204, 21, 0.06));
+            opacity: 0.45;
         }
 
         .hud-btn {
             border: 1px solid rgba(59, 130, 246, 0.35);
-            background: rgba(15, 23, 42, 0.72);
+            background: linear-gradient(180deg, rgba(17, 26, 44, 0.84), rgba(10, 17, 30, 0.84));
             transition: all 0.18s ease;
         }
 
         .hud-btn:hover {
-            transform: translateY(-1px);
+            transform: translateY(-1px) scale(1.01);
             border-color: rgba(34, 211, 238, 0.8);
             box-shadow: 0 0 16px rgba(34, 211, 238, 0.18);
         }
@@ -140,6 +178,67 @@
 
         .terminal-scroll::-webkit-scrollbar-thumb:hover {
             background-color: rgba(34, 211, 238, 0.7);
+        }
+
+        #hud-title {
+            text-shadow: 0 0 20px rgba(34, 211, 238, 0.28);
+            letter-spacing: 0.14em;
+        }
+
+        #planner-source-badge {
+            box-shadow: inset 0 0 10px rgba(34, 211, 238, 0.16), 0 0 14px rgba(34, 211, 238, 0.12);
+        }
+
+        #dashboard-section {
+            border-width: 1px;
+            border-color: rgba(34, 211, 238, 0.24);
+            box-shadow: 0 18px 46px rgba(2, 6, 12, 0.72), inset 0 1px 0 rgba(186, 230, 253, 0.12);
+        }
+
+        #mission-log,
+        #llm-decision-log,
+        #found-survivor-list,
+        #ollama-raw-log,
+        #debug-raw-actions-log,
+        #debug-post-mcp-log,
+        #debug-validated-log {
+            background: linear-gradient(180deg, rgba(4, 10, 19, 0.88), rgba(2, 8, 16, 0.88));
+            box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.08);
+        }
+
+        #override-message,
+        #model-check-every,
+        #battery-move-input,
+        #battery-scan-input,
+        #map-select {
+            box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.12);
+        }
+
+        #override-message:focus,
+        #model-check-every:focus,
+        #battery-move-input:focus,
+        #battery-scan-input:focus,
+        #map-select:focus {
+            box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.35);
+        }
+
+        @media (max-width: 768px) {
+            .ambient-orb-a {
+                width: 300px;
+                height: 300px;
+                top: -110px;
+            }
+
+            .ambient-orb-b {
+                width: 260px;
+                height: 260px;
+                bottom: 200px;
+            }
+
+            #hud-title {
+                font-size: 1.05rem;
+                letter-spacing: 0.08em;
+            }
         }
 
         .heading-row {
@@ -342,6 +441,70 @@
             50% { transform: scale(1.08); }
         }
 
+        .connection-indicator {
+            position: fixed;
+            top: 14px;
+            right: 14px;
+            z-index: 40;
+            pointer-events: auto;
+        }
+
+        .connection-indicator-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 999px;
+            border: 1px solid rgba(125, 211, 252, 0.42);
+            background: linear-gradient(180deg, rgba(10, 18, 30, 0.92), rgba(5, 10, 18, 0.92));
+            color: #a5f3fc;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 10px 22px rgba(2, 6, 12, 0.58), inset 0 0 12px rgba(34, 211, 238, 0.12);
+            transition: transform 0.16s ease, box-shadow 0.16s ease;
+        }
+
+        .connection-indicator-btn svg {
+            width: 17px;
+            height: 17px;
+        }
+
+        .connection-indicator:hover .connection-indicator-btn {
+            transform: translateY(-1px);
+            box-shadow: 0 12px 24px rgba(2, 6, 12, 0.62), inset 0 0 12px rgba(34, 211, 238, 0.16);
+        }
+
+        .connection-indicator.offline .connection-indicator-btn {
+            border-color: rgba(248, 113, 113, 0.62);
+            color: #fca5a5;
+            box-shadow: 0 10px 22px rgba(69, 10, 10, 0.45), inset 0 0 12px rgba(248, 113, 113, 0.14);
+        }
+
+        .connection-indicator-tooltip {
+            position: absolute;
+            top: calc(100% + 8px);
+            right: 0;
+            min-width: 240px;
+            max-width: min(72vw, 320px);
+            padding: 8px 10px;
+            border-radius: 10px;
+            border: 1px solid rgba(248, 113, 113, 0.55);
+            background: rgba(69, 10, 10, 0.94);
+            color: #fee2e2;
+            font-size: 11px;
+            line-height: 1.4;
+            opacity: 0;
+            transform: translateY(-4px);
+            pointer-events: none;
+            transition: opacity 0.16s ease, transform 0.16s ease;
+            box-shadow: 0 12px 28px rgba(69, 10, 10, 0.38);
+        }
+
+        .connection-indicator:hover .connection-indicator-tooltip,
+        .connection-indicator:focus-within .connection-indicator-tooltip {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
         @keyframes holdPulse {
             0%, 100% { opacity: 0.45; }
             50% { opacity: 0.95; }
@@ -349,6 +512,19 @@
     </style>
 </head>
 <body>
+    <div id="connection-indicator" class="connection-indicator hidden" role="status" aria-live="polite" aria-hidden="true">
+        <div class="connection-indicator-btn" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M2 8.5C7.5 4.2 16.5 4.2 22 8.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+                <path d="M5 12C9.1 8.9 14.9 8.9 19 12" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+                <path d="M8.5 15.6C10.6 14 13.4 14 15.5 15.6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+                <circle cx="12" cy="18.6" r="1.7" fill="currentColor"/>
+            </svg>
+        </div>
+        <div id="connection-indicator-tooltip" class="connection-indicator-tooltip">No internet connection. Swarm UI will keep using local state and fallback data.</div>
+    </div>
+    <div class="ambient-orb ambient-orb-a"></div>
+    <div class="ambient-orb ambient-orb-b"></div>
     <div id="scene-container"></div>
     <div class="scanline-overlay"></div>
     <div id="survivor-alert" class="hidden fixed top-20 left-1/2 -translate-x-1/2 z-20 pointer-events-none rounded-lg border border-amber-300/70 bg-amber-500/20 px-5 py-3 text-amber-100 font-display tracking-wide text-sm md:text-base"></div>
@@ -670,6 +846,40 @@
             , 16);
         }
 
+        function isLikelyNetworkFailure(error) {
+            const message = String(error && error.message ? error.message : error || '');
+            return error instanceof TypeError || /failed to fetch|networkerror|load failed|connection/i.test(message);
+        }
+
+        function setConnectionBannerVisible(isVisible, detailText = '') {
+            if (!connectionIndicatorEl) {
+                return;
+            }
+
+            if (connectionIndicatorTooltipEl) {
+                connectionIndicatorTooltipEl.textContent = detailText
+                    ? detailText
+                    : 'No internet connection. Swarm UI will keep using local state and fallback data.';
+            }
+
+            connectionIndicatorEl.classList.toggle('hidden', !isVisible);
+            connectionIndicatorEl.classList.toggle('offline', isVisible);
+            connectionIndicatorEl.setAttribute('aria-hidden', isVisible ? 'false' : 'true');
+        }
+
+        function syncConnectionBanner() {
+            setConnectionBannerVisible(!navigator.onLine);
+        }
+
+        function markConnectionFailure(error) {
+            if (!isLikelyNetworkFailure(error)) {
+                return;
+            }
+
+            const detailText = String(error && error.message ? error.message : 'Network request failed.');
+            setConnectionBannerVisible(true, detailText);
+        }
+
         const UI_THEME = Object.freeze({
             accent: cssHexToNumber(readCssHexVar('--swarm-accent', '#22d3ee')),
             warning: cssHexToNumber(readCssHexVar('--swarm-warning', '#f59e0b')),
@@ -790,6 +1000,8 @@
         const batterySettingsStatusEl = document.getElementById('battery-settings-status');
         const batteryTrialSummaryEl = document.getElementById('battery-trial-summary');
         const batteryUsageChartEl = document.getElementById('battery-usage-chart');
+        const connectionIndicatorEl = document.getElementById('connection-indicator');
+        const connectionIndicatorTooltipEl = document.getElementById('connection-indicator-tooltip');
         const modeButtons = Array.from(document.querySelectorAll('[data-mode]'));
 
         let renderer;
@@ -821,6 +1033,9 @@
 
         ensureThreeLoaded()
             .then(() => {
+                syncConnectionBanner();
+                window.addEventListener('online', syncConnectionBanner);
+                window.addEventListener('offline', syncConnectionBanner);
                 initScene();
                 animate();
 
@@ -1269,6 +1484,7 @@
                     appendMissionLog(`❌ Map load failed: ${data.message}`);  
                 }
             } catch (error) {
+                markConnectionFailure(error);
                 appendMissionLog(`❌ Map load error: ${error.message}`); 
             } finally {
                 loadMapBtn.disabled = false;
@@ -1407,6 +1623,7 @@
                     });
                 }
             } catch (e) {
+                markConnectionFailure(e);
                 console.error("Failed to fetch danger map grid:", e);
                 appendMissionLog("Failed to fetch analytical Danger Zone Map layer.");
             }
@@ -2946,6 +3163,7 @@
                 appendDecisionLog('Commander override injected into tactical briefing.');
                 appendDecisionLog('Override queued: forcing replan on next tick.');
             } catch (error) {
+                markConnectionFailure(error);
                 setOverrideStatus(`Transmit failed: ${error.message}`, 'error');
                 appendMissionLog(`Commander override failed: ${error.message}`);
             } finally {
@@ -2977,6 +3195,7 @@
                 appendMissionLog('Commander override cleared.');
                 appendDecisionLog('Commander override cleared.');
             } catch (error) {
+                markConnectionFailure(error);
                 setOverrideStatus(`Clear failed: ${error.message}`, 'error');
                 appendMissionLog(`Commander override clear failed: ${error.message}`);
             } finally {
@@ -2998,6 +3217,7 @@
                     throw new Error(`Request timed out after ${Math.round(timeoutMs / 1000)}s`);
                 }
 
+                markConnectionFailure(error);
                 throw error;
             } finally {
                 clearTimeout(timer);
@@ -3006,22 +3226,27 @@
 
         async function sendInitSwarm() {
             const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
-            const response = await fetch('/api/init-swarm', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {})
-                },
-                body: JSON.stringify(state)
-            });
+            try {
+                const response = await fetch('/api/init-swarm', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {})
+                    },
+                    body: JSON.stringify(state)
+                });
 
-            const payload = await response.json().catch(() => ({}));
-            if (payload && payload.ok) {
-                clearScannedTiles();
-                clearRadarDiagnostics();
+                const payload = await response.json().catch(() => ({}));
+                if (payload && payload.ok) {
+                    clearScannedTiles();
+                    clearRadarDiagnostics();
+                }
+                return payload;
+            } catch (error) {
+                markConnectionFailure(error);
+                throw error;
             }
-            return payload;
         }
 
         async function loadBatterySettings() {
@@ -3037,6 +3262,7 @@
                     batterySettingsStatusEl.textContent = 'Runtime battery settings loaded from API.';
                 }
             } catch (error) {
+                markConnectionFailure(error);
                 if (batterySettingsStatusEl) {
                     batterySettingsStatusEl.textContent = `Using env defaults. Settings load failed: ${error.message}`;
                 }
@@ -3099,6 +3325,7 @@
                 appendMissionLog(`Battery settings updated. Move=1%/${operatorSettings.battery.movementUnitsPerPercent.toFixed(1)}u Scan=${operatorSettings.battery.scanDrain.toFixed(1)}.`);
                 appendDecisionLog('Runtime battery tuning updated from dashboard.');
             } catch (error) {
+                markConnectionFailure(error);
                 if (batterySettingsStatusEl) {
                     batterySettingsStatusEl.textContent = `Battery settings update failed: ${error.message}`;
                 }
@@ -4263,8 +4490,7 @@
                     }
                     
                     appendMissionLog(`Current map: ${data.state.map_name || 'Unknown'}`);
-                    
-                
+
                     const titleEl = document.getElementById('hud-title');
                     if (titleEl && data.state.map_name) {
                         titleEl.textContent = `Swarm Command Center - ${data.state.map_name}`;
@@ -4277,6 +4503,7 @@
                 }
             }
         } catch (error) {
+            markConnectionFailure(error);
             console.error('Failed to load map state:', error);
         }
     }
