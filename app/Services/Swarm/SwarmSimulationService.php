@@ -133,7 +133,6 @@ class SwarmSimulationService
     public function buildTacticalBriefing(array $state): string
     {
         $runtime = (array) data_get($state, 'runtime_drones', []);
-        $survivors = (array) data_get($state, 'survivors', []);
         $ragContext = (array) data_get($state, 'rag_context', []);
         $radarPing = (string) data_get($state, 'radar_ping', '');
         $learnings = Cache::get('swarm:mission_learnings', []);
@@ -149,12 +148,8 @@ class SwarmSimulationService
         
         if (!empty($dangerZones)) {
             $lines[] = '=== HIGH PRIORITY DANGER ZONES ===';
-            $lines[] = 'These coordinations represent confirmed Danger Zones. You MUST prioritize scanning these locations immediately.';
-            foreach ($dangerZones as $index => $zone) {
-                $dzx = (float) data_get($zone, 'x', 0);
-                $dzz = (float) data_get($zone, 'z', 0);
-                $lines[] = sprintf('%d. Danger Zone at X:%.2f, Z:%.2f', $index + 1, $dzx, $dzz);
-            }
+            $lines[] = 'Confirmed danger zones exist. Use the nearest danger-zone direction shown in each drone telemetry and scan there first.';
+            $lines[] = 'Do not rely on exact coordinates; act only on relative direction and distance from the drone.';
             $lines[] = '';
         }
         
@@ -165,7 +160,11 @@ class SwarmSimulationService
             foreach ($runtime as $index => $drone) {
                 $droneId = $this->resolveBriefingDroneId($index, $drone);
                 $battery = (int) round((float) data_get($drone, 'battery', data_get($runtime, $droneId.'.battery', 0)));
-                $lines[] = sprintf('%s: Bat:%d%%', $droneId, $battery);
+                $danger = $this->nearestDangerZoneInfo((array) $drone, $dangerZones);
+                $dangerText = $danger
+                    ? sprintf(' | Danger:%s %dm', $danger['direction'], (int) round((float) $danger['dist']))
+                    : ' | Danger:NONE';
+                $lines[] = sprintf('%s: Bat:%d%%%s', $droneId, $battery, $dangerText);
             }
         }
 
@@ -188,16 +187,15 @@ class SwarmSimulationService
                     'area' => 'UNKNOWN',
                     'radar' => 'NORTH[?], NORTHEAST[?], EAST[?], SOUTHEAST[?], SOUTH[?], SOUTHWEST[?], WEST[?], NORTHWEST[?]',
                 ];
-                $target = $this->closestSurvivorInfo((array) $drone, $survivors);
-                $targetText = $target
-                    ? sprintf('%s is [%s]', $target['label'], $target['direction'])
-                    : 'NONE';
-
+                $danger = $this->nearestDangerZoneInfo((array) $drone, $dangerZones);
+                $dangerText = $danger
+                    ? sprintf(' | Danger:%s %dm', $danger['direction'], (int) round((float) $danger['dist']))
+                    : ' | Danger:NONE';
                 $lines[] = sprintf(
-                    '%s: Area[%s] | Target: %s | Radar: %s',
+                    '%s: Area[%s]%s | Radar: %s',
                     $id,
                     $radar['area'],
-                    $targetText,
+                    $dangerText,
                     $radar['radar']
                 );
             }
@@ -250,9 +248,9 @@ class SwarmSimulationService
 
     private function sanitizeRagHistorySummary(string $summary): string
     {
-        $summary = preg_replace('/\bactions\s*=\s*[^\s]+\([^\)]*\)/i', 'actions=D1: Executed previous move', $summary) ?? $summary;
-        $summary = preg_replace('/\bactions\s*=\s*[^\s]+:\s*move_to\([^\)]*\)/i', 'actions=D1: Executed previous move', $summary) ?? $summary;
-        $summary = preg_replace('/\bactions\s*=\s*[^\s]+:\s*scan_sector\([^\)]*\)/i', 'actions=D1: Executed previous scan', $summary) ?? $summary;
+        $summary = preg_replace('/\bactions\s*=\s*[^\s]+\([^\)]*\)/i', 'actions=Executed previous move', $summary) ?? $summary;
+        $summary = preg_replace('/\bactions\s*=\s*[^\s]+:\s*move_to\([^\)]*\)/i', 'actions=Executed previous move', $summary) ?? $summary;
+        $summary = preg_replace('/\bactions\s*=\s*[^\s]+:\s*scan_sector\([^\)]*\)/i', 'actions=Executed previous scan', $summary) ?? $summary;
         $summary = preg_replace('/\bmove_to\s*\([^\)]*\)/i', 'Executed previous move', $summary) ?? $summary;
         $summary = preg_replace('/\bscan_sector\s*\([^\)]*\)/i', 'Executed previous scan', $summary) ?? $summary;
 
@@ -561,6 +559,48 @@ class SwarmSimulationService
             $bestDistSq = $distSq;
             $best = [
                 'label' => 'S'.($index + 1),
+                'direction' => $direction,
+                'dist' => sqrt($distSq),
+            ];
+        }
+
+        return $best;
+    }
+
+    /**
+     * @param array<string, mixed> $drone
+     * @param array<int, array{x: float, z: float, severity: int}> $dangerZones
+     * @return array{direction: string, dist: float}|null
+     */
+    private function nearestDangerZoneInfo(array $drone, array $dangerZones): ?array
+    {
+        if (empty($dangerZones)) {
+            return null;
+        }
+
+        $fromX = (float) data_get($drone, 'x', 0.0);
+        $fromZ = (float) data_get($drone, 'z', 0.0);
+        $bestDistSq = PHP_FLOAT_MAX;
+        $best = null;
+
+        foreach ($dangerZones as $zone) {
+            $toX = (float) data_get($zone, 'x', 0.0);
+            $toZ = (float) data_get($zone, 'z', 0.0);
+            $dx = $toX - $fromX;
+            $dz = $toZ - $fromZ;
+            $distSq = ($dx * $dx) + ($dz * $dz);
+
+            if ($distSq >= $bestDistSq) {
+                continue;
+            }
+
+            $direction = $this->getRelativeDirection($fromX, $fromZ, $toX, $toZ);
+            if ($direction === null) {
+                continue;
+            }
+
+            $bestDistSq = $distSq;
+            $best = [
                 'direction' => $direction,
                 'dist' => sqrt($distSq),
             ];

@@ -787,8 +787,8 @@
                     </div>
                     <div class="h-full flex flex-col">
                         <div class="flex items-center justify-between mb-2">
-                            <h2 class="font-display text-sm uppercase tracking-[0.2em] text-fuchsia-300">Ollama Raw Output</h2>
-                            <span class="text-xs uppercase tracking-[0.15em] text-slate-400">Complete</span>
+                            <h2 class="font-display text-sm uppercase tracking-[0.2em] text-fuchsia-300">Model Raw Output</h2>
+                            <span class="text-xs uppercase tracking-[0.15em] text-slate-400">Raw + normalized</span>
                         </div>
                         <div id="ollama-raw-log" class="terminal-scroll flex-1 min-h-0 whitespace-pre-wrap break-words rounded-md border border-fuchsia-900/60 bg-slate-950/70 px-3 py-2 text-xs md:text-sm leading-relaxed text-fuchsia-100 font-mono"></div>
                     </div>
@@ -3212,6 +3212,17 @@
                         renderScannedCells(tick.scanned_cells);
                     }
 
+                    if (Array.isArray(tick.danger_zones)) {
+                        state.danger_zones = tick.danger_zones.map((zone) => ({
+                            x: snapCoord(Number(zone?.x) || 0),
+                            z: snapCoord(Number(zone?.z) || 0),
+                            severity: Number(zone?.severity) >= 2 ? 2 : 1
+                        }));
+                        if (dangerMapVisible) {
+                            await fetchAndRenderDangerMap();
+                        }
+                    }
+
                     if (tick.mcp && Array.isArray(tick.mcp.discovered_drones) && tick.mcp.discovered_drones.length) {
                         const discoveredIds = tick.mcp.discovered_drones
                             .map((entry) => entry && entry.id)
@@ -3231,7 +3242,10 @@
                         });
                     }
                     if (tick.model && typeof tick.model.raw_output === 'string' && tick.model.raw_output.trim().length) {
-                        appendOllamaRawLog(tick.model.raw_output);
+                        const normalizedActions = tick && tick.debug && Array.isArray(tick.debug.validated_actions)
+                            ? tick.debug.validated_actions
+                            : (Array.isArray(tick.actions) ? tick.actions : []);
+                        appendOllamaRawLog(tick.model.raw_output, normalizedActions, Boolean(tick.model.parse_error), tick.source || 'unknown');
                     }
                     if (tick.model && typeof tick.model.prompt_payload === 'string' && tick.model.prompt_payload.trim().length) {
                         appendModelPromptLog(tick.model.prompt_payload, tick.source || 'unknown');
@@ -3988,6 +4002,8 @@
                 const dotColor = item.battery > 25 ? '#22c55e' : '#f43f5e';
                 const headingData = getDroneHeadingData(id);
                 const headingMarkup = headingData ? buildHeadingMarkup(headingData) : '';
+                const dangerData = getDroneDangerData(item.status);
+                const dangerMarkup = dangerData ? buildDangerMarkup(dangerData) : '';
 
                 return `
                     <li class="rounded-md border border-cyan-900/60 bg-slate-900/80 p-3">
@@ -3998,10 +4014,42 @@
                         <div class="text-xs text-slate-300 mt-1">
                             <span class="status-dot" style="background:${dotColor}"></span>${item.status}
                         </div>
+                        ${dangerMarkup}
                         ${headingMarkup}
                     </li>
                 `;
             }).join('');
+        }
+
+        function getDroneDangerData(status) {
+            const text = String(status || '');
+            const match = text.match(/Nearest Danger Zone is \[([A-Z]+)\],\s*Distance:\s*(\d+)/i);
+            if (!match) {
+                return null;
+            }
+
+            return {
+                direction: String(match[1] || '').toUpperCase(),
+                distance: Number(match[2]) || 0
+            };
+        }
+
+        function buildDangerMarkup(danger) {
+            if (!danger || typeof danger !== 'object') {
+                return '';
+            }
+
+            const direction = String(danger.direction || 'UNKNOWN');
+            const distance = Number.isFinite(Number(danger.distance)) ? Math.max(0, Math.round(Number(danger.distance))) : 0;
+
+            return `
+                <div class="mt-2 flex items-center gap-2 rounded-md border border-rose-500/30 bg-rose-950/25 px-2 py-1 text-[10px] uppercase tracking-[0.16em] text-rose-200">
+                    <span class="h-2 w-2 rounded-full bg-rose-400 shadow-[0_0_10px_rgba(248,113,113,0.65)]"></span>
+                    <span>Danger</span>
+                    <span class="text-rose-100">${direction}</span>
+                    <span class="text-slate-400">/ ${distance}m</span>
+                </div>
+            `;
         }
 
         function getDroneHeadingData(id) {
@@ -4317,16 +4365,21 @@
             llmDecisionLogEl.scrollTop = llmDecisionLogEl.scrollHeight;
         }
 
-        function appendOllamaRawLog(rawOutput) {
+        function appendOllamaRawLog(rawOutput, normalizedActions = [], parseError = false, source = 'unknown') {
             if (!ollamaRawLogEl || typeof rawOutput !== 'string' || rawOutput.trim() === '') {
                 return;
             }
 
             const now = new Date();
             const stamp = now.toLocaleTimeString();
+            const safeActions = Array.isArray(normalizedActions) ? normalizedActions : [];
+            const actionLines = safeActions.length
+                ? safeActions.slice(0, 3).map((action) => `- ${actionToLine(action)}`)
+                : ['- (normalized commands unavailable)'];
+            const parseStatus = parseError ? 'parse fallback triggered' : 'parsed successfully';
             const block = document.createElement('div');
             block.className = 'mb-2 pb-2 border-b border-fuchsia-900/40';
-            block.textContent = `[${stamp}]\n${rawOutput}`;
+            block.textContent = `[${stamp}] source=${source} | ${parseStatus}\nRAW:\n${rawOutput.trim()}\n\nNORMALIZED:\n${actionLines.join('\n')}`;
             ollamaRawLogEl.appendChild(block);
 
             while (ollamaRawLogEl.children.length > 40) {
@@ -4861,6 +4914,17 @@
                     const titleEl = document.getElementById('hud-title');
                     if (titleEl && data.state.map_name) {
                         titleEl.textContent = `Swarm Command Center - ${data.state.map_name}`;
+                    }
+                }
+
+                if (Array.isArray(data.state.danger_zones)) {
+                    state.danger_zones = data.state.danger_zones.map((zone) => ({
+                        x: snapCoord(Number(zone?.x) || 0),
+                        z: snapCoord(Number(zone?.z) || 0),
+                        severity: Number(zone?.severity) >= 2 ? 2 : 1
+                    }));
+                    if (dangerMapVisible) {
+                        await fetchAndRenderDangerMap();
                     }
                 }
 

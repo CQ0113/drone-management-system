@@ -57,11 +57,14 @@ class LlmPlannerService
         $briefing = $this->simulation->buildTacticalBriefing($briefingState);
         $override = Cache::get('swarm:commander_override');
 
-        $system = 'You are the drone swarm commander. Output only plain text commands.'
-            .' Return exactly 3 lines, one line each for D1, D2, D3 using: DRONE_ID(ACTION,DIRECTION,DISTANCE).'
+        $system = 'You are the drone swarm commander. CRITICAL: Output EXACTLY 3 commands, one per line, numbered 1-3 below.'
+            .' Line 1: D1(ACTION,DIRECTION,DISTANCE)'
+            .' Line 2: D2(ACTION,DIRECTION,DISTANCE)'
+            .' Line 3: D3(ACTION,DIRECTION,DISTANCE)'
+            .' Each drone ID must appear EXACTLY ONCE. NO EXCEPTIONS. Do not output fewer than 3 lines.'
             .' Valid actions: MOVE, SCAN, SEARCH_ZONE. Valid directions: NORTH, NORTHEAST, EAST, SOUTHEAST, SOUTH, SOUTHWEST, WEST, NORTHWEST.'
             .' DISTANCE must be an integer from 1 to '.$vectorMaxDistance.'.'
-            .' Use only drone IDs present in SWARM STATUS. No JSON, markdown, commentary, or extra text.'
+            .' Use only drone IDs present in SWARM STATUS. Output ONLY the 3 command lines. No JSON, markdown, commentary, or extra text.'
             .' Follow STANDING ORDERS, avoid WALL sectors, prioritize UNSCANNED sectors, and prioritize nearest/high-priority danger zones.'
             .' If SEARCH_ZONE is used, treat it as a scan operation.';
 
