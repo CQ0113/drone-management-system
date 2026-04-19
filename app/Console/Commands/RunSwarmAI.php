@@ -26,6 +26,12 @@ class RunSwarmAI extends Command
         $endpoint = $this->resolveTickEndpoint();
         $requestTimeout = $this->resolveRequestTimeout();
         $sleepMicros = $this->resolveSleepMicros();
+        $fallbackBackoffStepMicros = max(0, (int) env('SWARM_AI_LOOP_FALLBACK_BACKOFF_STEP_MS', 500)) * 1000;
+        $fallbackBackoffMaxMicros = max(0, (int) env('SWARM_AI_LOOP_FALLBACK_BACKOFF_MAX_MS', 6000)) * 1000;
+        $connectionBackoffMicros = max(0, (int) env('SWARM_AI_LOOP_CONNECTION_BACKOFF_MS', 2000)) * 1000;
+        $http429BackoffMicros = max(0, (int) env('SWARM_AI_LOOP_HTTP429_BACKOFF_MS', 5000)) * 1000;
+        $forceReplanEveryTicks = max(2, (int) env('SWARM_AI_FORCE_REPLAN_EVERY_TICKS', 6));
+        $consecutiveFallbackTicks = 0;
 
         $this->line(sprintf('Using endpoint=%s timeout=%ds sleep=%dms', $endpoint, $requestTimeout, (int) ($sleepMicros / 1000)));
 
@@ -39,7 +45,7 @@ class RunSwarmAI extends Command
 
         while ($this->shouldContinueLoop($tickCount, $maxTicks)) {
             $tickCount++;
-            $forceReplan = ($tickCount % 4) === 0;
+            $forceReplan = ($tickCount % $forceReplanEveryTicks) === 0;
 
             try {
                 $response = Http::connectTimeout(4)
@@ -54,7 +60,11 @@ class RunSwarmAI extends Command
 
                 if (!$response->successful()) {
                     $this->error('Tick request failed with HTTP '.$response->status());
-                    usleep(max(100000, $sleepMicros));
+                    $statusBackoff = $response->status() === 429 ? max(100000, $http429BackoffMicros) : max(100000, $sleepMicros);
+                    if ($response->status() === 429) {
+                        $this->warn(sprintf('[tick %d] HTTP 429 detected. Cooling down for %dms.', $tickCount, (int) ($statusBackoff / 1000)));
+                    }
+                    usleep($statusBackoff);
 
                     continue;
                 }
@@ -103,15 +113,41 @@ class RunSwarmAI extends Command
                     (string) ($payload['source'] ?? 'unknown'),
                     (string) data_get($payload, 'timings.total_ms', 'n/a')
                 ));
+
+                $source = strtolower((string) ($payload['source'] ?? 'unknown'));
+                if (str_contains($source, 'fallback')) {
+                    $consecutiveFallbackTicks++;
+                } else {
+                    $consecutiveFallbackTicks = 0;
+                }
             } catch (ConnectionException $e) {
                 $this->error(sprintf('[tick %d] Request timeout/connection error: %s', $tickCount, $e->getMessage()));
-                usleep(max(200000, $sleepMicros));
+                $cooldown = max(max(200000, $sleepMicros), $connectionBackoffMicros);
+                $this->warn(sprintf('[tick %d] Connection cooldown for %dms.', $tickCount, (int) ($cooldown / 1000)));
+                usleep($cooldown);
             } catch (\Throwable $e) {
                 $this->error('Loop error: '.$e->getMessage());
             }
 
-            if ($sleepMicros > 0) {
-                usleep($sleepMicros);
+            $adaptiveFallbackBackoff = 0;
+            if ($consecutiveFallbackTicks > 0 && $fallbackBackoffStepMicros > 0) {
+                $adaptiveFallbackBackoff = min(
+                    $fallbackBackoffMaxMicros,
+                    $consecutiveFallbackTicks * $fallbackBackoffStepMicros
+                );
+            }
+
+            $finalSleepMicros = max($sleepMicros, $adaptiveFallbackBackoff);
+            if ($finalSleepMicros > 0) {
+                if ($adaptiveFallbackBackoff > 0) {
+                    $this->line(sprintf(
+                        '[tick %d] adaptive-backoff=%dms (fallback streak=%d)',
+                        $tickCount,
+                        (int) ($adaptiveFallbackBackoff / 1000),
+                        $consecutiveFallbackTicks
+                    ));
+                }
+                usleep($finalSleepMicros);
             }
         }
 

@@ -1638,6 +1638,7 @@
 
         async function syncSetupStateForRiskLayer() {
             if (runtime.setupLocked) {
+                await syncDangerZonesLive();
                 return;
             }
 
@@ -1645,6 +1646,40 @@
                 await sendInitSwarm();
             } catch (error) {
                 appendMissionLog(`Risk-layer setup sync failed: ${error.message}`);
+            }
+        }
+
+        async function syncDangerZonesLive() {
+            const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
+            const zones = Array.isArray(state.danger_zones)
+                ? state.danger_zones.map((zone) => ({
+                    x: snapCoord(Number(zone?.x) || 0),
+                    z: snapCoord(Number(zone?.z) || 0),
+                    severity: Number(zone?.severity) >= 2 ? 2 : 1
+                }))
+                : [];
+
+            const response = await fetch('/api/swarm/danger-zones', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {})
+                },
+                body: JSON.stringify({ danger_zones: zones })
+            });
+
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok || !payload.ok) {
+                throw new Error(payload.message || 'Live danger-zone sync failed.');
+            }
+
+            if (Array.isArray(payload.danger_zones)) {
+                state.danger_zones = payload.danger_zones.map((zone) => ({
+                    x: snapCoord(Number(zone?.x) || 0),
+                    z: snapCoord(Number(zone?.z) || 0),
+                    severity: Number(zone?.severity) >= 2 ? 2 : 1
+                }));
             }
         }
 
@@ -4149,14 +4184,35 @@
             const text = String(source || 'unknown');
             const lower = text.toLowerCase();
             let visual = 'cache';
-            if (lower.includes('fallback') || lower.includes('stale') || lower.includes('mock')) {
+            let label = 'Cache/Other';
+
+            if (lower.includes('gemini')) {
+                visual = 'cloud';
+                label = 'Cloud Gemini';
+            } else if (lower.includes('anthropic') || lower.includes('claude')) {
+                visual = 'cloud';
+                label = 'Cloud Anthropic';
+            } else if (lower.includes('ollama') && lower.includes('fallback')) {
                 visual = 'fallback';
-            } else if (lower.includes('ollama') && !lower.includes('cache')) {
+                label = 'Fallback Local Ollama';
+            } else if (lower.includes('ollama')) {
                 visual = 'ollama';
+                label = 'Local Ollama';
+            } else if (lower.includes('fallback') || lower.includes('stale') || lower.includes('mock')) {
+                visual = 'fallback';
+                label = 'Fallback/Mock';
+            } else if (lower.includes('external')) {
+                visual = 'cache';
+                label = 'External Input';
+            } else if (lower.includes('stopped') || lower.includes('idle')) {
+                visual = 'cache';
+                label = 'Idle';
             }
 
             let classes = 'rounded-full border px-3 py-1 text-[10px] md:text-xs uppercase tracking-[0.16em]';
-            if (visual === 'ollama') {
+            if (visual === 'cloud') {
+                classes += ' border-sky-400/70 bg-sky-500/15 text-sky-100';
+            } else if (visual === 'ollama') {
                 classes += ' border-emerald-400/70 bg-emerald-500/15 text-emerald-200';
             } else if (visual === 'fallback') {
                 classes += ' border-amber-400/70 bg-amber-500/15 text-amber-100';
@@ -4168,7 +4224,8 @@
 
             const ms = Number(timings && timings.total_ms);
             const latency = Number.isFinite(ms) ? ` | ${Math.round(ms)}ms` : '';
-            plannerSourceBadgeEl.textContent = `Source: ${text}${latency}`;
+            plannerSourceBadgeEl.textContent = `Model: ${label}${latency}`;
+            plannerSourceBadgeEl.title = `route=${text}`;
         }
 
         function createScanRadiusMesh(radius) {

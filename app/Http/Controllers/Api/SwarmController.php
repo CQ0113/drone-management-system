@@ -235,6 +235,46 @@ private function getAvailableMapsList(): array
         ]);
     }
 
+    public function updateDangerZones(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'danger_zones' => ['required', 'array'],
+            'danger_zones.*.x' => ['required', 'numeric'],
+            'danger_zones.*.z' => ['required', 'numeric'],
+            'danger_zones.*.severity' => ['nullable', 'integer', 'min:1', 'max:2'],
+        ]);
+
+        $state = Cache::get('swarm:setup', []);
+        if (empty($state) || !is_array($state)) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Swarm not initialized',
+            ], 400);
+        }
+
+        $zones = collect((array) ($validated['danger_zones'] ?? []))
+            ->map(fn (array $zone): array => [
+                'x' => (float) data_get($zone, 'x', 0),
+                'z' => (float) data_get($zone, 'z', 0),
+                'severity' => max(1, min(2, (int) data_get($zone, 'severity', 1))),
+            ])
+            ->unique(fn (array $zone): string => ((int) round($zone['x'])).','.((int) round($zone['z'])))
+            ->values()
+            ->all();
+
+        $ttl = now()->addHours(6);
+        $state['danger_zones'] = $zones;
+        Cache::put('swarm:setup', $state, $ttl);
+        Cache::put('swarm:danger_zones', $zones, $ttl);
+
+        return response()->json([
+            'ok' => true,
+            'danger_zones' => $zones,
+            'message' => 'Danger zones updated.',
+            'generated_at' => now()->toIso8601String(),
+        ]);
+    }
+
     public function updateSettings(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -520,6 +560,7 @@ private function getAvailableMapsList(): array
             $scanRadius
         );
         $mergedScannedCells = $this->radar->mergeScannedCells($scannedCells, $newScannedCells);
+        $remainingDangerZones = $this->pruneScannedDangerZones($liveDangerZones, $mergedScannedCells);
 
         $ragStoreStartedAt = microtime(true);
         $this->ragMemory->storeTickMemory(
@@ -536,6 +577,9 @@ private function getAvailableMapsList(): array
         Cache::put('swarm:runtime', $step['runtime'], now()->addHours(6));
         Cache::put('swarm:found_survivors', (array) ($step['found_survivors'] ?? []), now()->addHours(6));
         Cache::put('swarm:scanned_cells', $mergedScannedCells, now()->addHours(6));
+        Cache::put('swarm:danger_zones', $remainingDangerZones, now()->addHours(6));
+        $state['danger_zones'] = $remainingDangerZones;
+        Cache::put('swarm:setup', $state, now()->addHours(6));
         $timings['total_ms'] = round((microtime(true) - $tickStartedAt) * 1000, 2);
 
         return response()->json([
@@ -560,6 +604,7 @@ private function getAvailableMapsList(): array
             'logs' => $step['logs'],
             'signals' => $step['signals'] ?? [],
             'found_survivors' => $step['found_survivors'] ?? [],
+            'danger_zones' => $remainingDangerZones,
             'scanned_cells' => array_values($mergedScannedCells),
             'timings' => $timings,
             'model' => [
@@ -1056,7 +1101,7 @@ public function getDefaultMap(string $mapId): JsonResponse
         if ($forceReplan && $nonBlockingForceReplan) {
             $cached = Cache::get($cacheKey);
             if (is_array($cached) && !empty($cached['actions'])) {
-                $cached['source'] = 'ollama-cache-patrol';
+                $cached['source'] = 'planner-cache-patrol';
                 $cached = $this->constrainPlanToRuntime($cached, $runtime, true);
                 $cached = $this->reanchorStaleActions($cached, $runtime);
 
@@ -1065,7 +1110,7 @@ public function getDefaultMap(string $mapId): JsonResponse
 
             $stale = Cache::get($lastSuccessKey);
             if (is_array($stale) && !empty($stale['actions'])) {
-                $stale['source'] = 'ollama-stale-cache';
+                $stale['source'] = 'planner-stale-cache';
                 $stale = $this->constrainPlanToRuntime($stale, $runtime, true);
                 $stale = $this->reanchorStaleActions($stale, $runtime);
 
@@ -1076,7 +1121,7 @@ public function getDefaultMap(string $mapId): JsonResponse
         if ($ttl <= 0 || $forceReplan) {
             $fresh = $this->planner->generatePlan($plannerState, $objective);
             $fresh = $this->constrainPlanToRuntime(is_array($fresh) ? $fresh : [], $runtime);
-            if ($this->isPlannerSuccess($fresh)) {
+            if ($this->isPlannerCacheable($fresh)) {
                 if ($ttl > 0) {
                     Cache::put($cacheKey, $fresh, now()->addSeconds($ttl));
                 }
@@ -1084,7 +1129,7 @@ public function getDefaultMap(string $mapId): JsonResponse
             } else {
                 $stale = Cache::get($lastSuccessKey);
                 if (is_array($stale) && !empty($stale['actions']) && $staleFallbackWindowSeconds > 0) {
-                    $stale['source'] = 'ollama-stale-cache';
+                    $stale['source'] = 'planner-stale-cache';
                     $stale = $this->constrainPlanToRuntime($stale, $runtime, true);
                     $stale = $this->reanchorStaleActions($stale, $runtime);
 
@@ -1093,7 +1138,7 @@ public function getDefaultMap(string $mapId): JsonResponse
             }
 
             if ($forceReplan && is_array($fresh) && !$this->isPlannerFallback($fresh)) {
-                $fresh['source'] = 'ollama-refresh';
+                $fresh['source'] = 'planner-refresh';
             }
 
             return $fresh;
@@ -1101,7 +1146,7 @@ public function getDefaultMap(string $mapId): JsonResponse
 
         $cached = Cache::get($cacheKey);
         if (is_array($cached) && !empty($cached['actions'])) {
-            $cached['source'] = 'ollama-cache';
+            $cached['source'] = 'planner-cache';
             $cached = $this->constrainPlanToRuntime($cached, $runtime, true);
 
             return $cached;
@@ -1109,7 +1154,7 @@ public function getDefaultMap(string $mapId): JsonResponse
 
         $fresh = $this->planner->generatePlan($plannerState, $objective);
         $fresh = $this->constrainPlanToRuntime(is_array($fresh) ? $fresh : [], $runtime);
-        if ($this->isPlannerSuccess($fresh)) {
+        if ($this->isPlannerCacheable($fresh)) {
             Cache::put($cacheKey, $fresh, now()->addSeconds($ttl));
             Cache::put($lastSuccessKey, $fresh, now()->addSeconds($staleFallbackWindowSeconds));
 
@@ -1118,7 +1163,7 @@ public function getDefaultMap(string $mapId): JsonResponse
 
         $stale = Cache::get($lastSuccessKey);
         if (is_array($stale) && !empty($stale['actions']) && $staleFallbackWindowSeconds > 0) {
-            $stale['source'] = 'ollama-stale-cache';
+            $stale['source'] = 'planner-stale-cache';
             $stale = $this->constrainPlanToRuntime($stale, $runtime, true);
             $stale = $this->reanchorStaleActions($stale, $runtime);
 
@@ -1133,13 +1178,18 @@ public function getDefaultMap(string $mapId): JsonResponse
      */
     private function plannerCacheKey(string $objective, array $runtime): string
     {
+        $keyMode = strtolower((string) env('SWARM_PLAN_CACHE_KEY_MODE', 'objective'));
+        if ($keyMode === 'objective') {
+            return 'swarm:planner-cache:'.md5(strtolower(trim($objective)).'|objective');
+        }
+
+        $positionBucketSize = max(1.0, (float) env('SWARM_PLAN_CACHE_POSITION_BUCKET', 8.0));
         $snapshot = collect($runtime)
             ->map(fn ($drone, $id) => [
                 'id' => (string) $id,
-                'x' => round((float) data_get($drone, 'x', 0.0), 1),
-                'z' => round((float) data_get($drone, 'z', 0.0), 1),
+                'x_bucket' => (int) floor(((float) data_get($drone, 'x', 0.0)) / $positionBucketSize),
+                'z_bucket' => (int) floor(((float) data_get($drone, 'z', 0.0)) / $positionBucketSize),
                 'battery_band' => (int) floor(max(0.0, min(100.0, (float) data_get($drone, 'battery', 100.0))) / 10),
-                'status' => (string) data_get($drone, 'status', ''),
             ])
             ->sortBy('id')
             ->values()
@@ -1151,6 +1201,61 @@ public function getDefaultMap(string $mapId): JsonResponse
     private function plannerLastSuccessKey(string $objective): string
     {
         return 'swarm:planner-last-success:'.md5(strtolower(trim($objective)));
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $dangerZones
+     * @param array<int, array<string, mixed>> $scannedCells
+     * @return array<int, array{x: float, z: float, severity: int}>
+     */
+    private function pruneScannedDangerZones(array $dangerZones, array $scannedCells): array
+    {
+        if (empty($dangerZones) || empty($scannedCells)) {
+            return array_values(array_filter(array_map(function ($zone): ?array {
+                if (!is_array($zone)) {
+                    return null;
+                }
+
+                return [
+                    'x' => (float) data_get($zone, 'x', 0.0),
+                    'z' => (float) data_get($zone, 'z', 0.0),
+                    'severity' => max(1, min(2, (int) data_get($zone, 'severity', 1))),
+                ];
+            }, $dangerZones)));
+        }
+
+        $scannedLookup = [];
+        foreach ($scannedCells as $cell) {
+            if (!is_array($cell)) {
+                continue;
+            }
+
+            $x = (int) round((float) data_get($cell, 'x', 0.0));
+            $y = (int) round((float) (array_key_exists('y', $cell) ? $cell['y'] : data_get($cell, 'z', 0.0)));
+            $scannedLookup[$x.','.$y] = true;
+        }
+
+        $remaining = [];
+        foreach ($dangerZones as $zone) {
+            if (!is_array($zone)) {
+                continue;
+            }
+
+            $x = (float) data_get($zone, 'x', 0.0);
+            $z = (float) data_get($zone, 'z', 0.0);
+            $key = ((int) round($x)).','.((int) round($z));
+            if (isset($scannedLookup[$key])) {
+                continue;
+            }
+
+            $remaining[] = [
+                'x' => $x,
+                'z' => $z,
+                'severity' => max(1, min(2, (int) data_get($zone, 'severity', 1))),
+            ];
+        }
+
+        return $remaining;
     }
 
     /**
@@ -1173,6 +1278,14 @@ public function getDefaultMap(string $mapId): JsonResponse
         }
 
         return !$this->isPlannerFallback($plan);
+    }
+
+    /**
+     * @param array<string, mixed> $plan
+     */
+    private function isPlannerCacheable(array $plan): bool
+    {
+        return !empty($plan['actions']) && is_array($plan['actions']);
     }
 
     /**

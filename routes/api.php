@@ -10,6 +10,7 @@ Route::get('/llm/health', [SwarmController::class, 'llmHealth']);
 Route::get('/swarm/settings', [SwarmController::class, 'getSettings']);
 Route::post('/swarm/settings', [SwarmController::class, 'updateSettings']);
 Route::post('/swarm/tick', [SwarmController::class, 'tick']);
+Route::post('/swarm/danger-zones', [SwarmController::class, 'updateDangerZones']);
 
 // Lightweight endpoint for reading shared state produced by background runner.
 Route::get('/swarm/state', function () {
@@ -30,6 +31,7 @@ Route::prefix('swarm')->group(function () {
     Route::post('mock-plan', [SwarmController::class, 'mockPlan']);
     Route::get('settings', [SwarmController::class, 'getSettings']);
     Route::post('settings', [SwarmController::class, 'updateSettings']);
+    Route::post('danger-zones', [SwarmController::class, 'updateDangerZones']);
     Route::get('llm-health', [SwarmController::class, 'llmHealth']);
     Route::get('danger-map', [SwarmController::class, 'getDangerMap']);
     

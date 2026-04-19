@@ -5,10 +5,19 @@ namespace App\Services\Swarm;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use RuntimeException;
 use Throwable;
 
 class LlmPlannerService
 {
+    private const OLLAMA_CIRCUIT_FAILURES_KEY = 'swarm:ollama:circuit_failures';
+    private const OLLAMA_CIRCUIT_OPEN_UNTIL_KEY = 'swarm:ollama:circuit_open_until';
+    private const OLLAMA_CIRCUIT_FAILURE_THRESHOLD = 3;
+    private const OLLAMA_CIRCUIT_OPEN_SECONDS = 45;
+    private const CLOUD_PLAN_CACHE_PREFIX = 'swarm:cloud:plan:';
+    private const CLOUD_COOLDOWN_UNTIL_PREFIX = 'swarm:cloud:cooldown_until:';
+    private const CLOUD_LAST_ATTEMPT_PREFIX = 'swarm:cloud:last_attempt:';
+
     public function __construct(
         private readonly SwarmSimulationService $simulation,
     ) {}
@@ -19,7 +28,8 @@ class LlmPlannerService
      */
     public function generatePlan(array $state, string $objective = 'search_and_rescue'): array
     {
-        $provider = (string) env('LLM_PROVIDER', 'mock');
+        $provider = strtolower((string) env('LLM_PROVIDER', 'cloud'));
+        $primaryCloudProvider = strtolower((string) env('LLM_PRIMARY_PROVIDER', 'anthropic'));
         $plannerDrones = $this->resolvePlannerDrones($state);
         $activeDangerZones = $this->resolveActiveDangerZones($state);
         $plannerDrones = $this->appendNearestDangerZoneTelemetry($plannerDrones, $activeDangerZones);
@@ -29,7 +39,7 @@ class LlmPlannerService
         $baseZ = (float) data_get($state, 'base.z', 0.0);
         $maxDistanceFromBase = $this->maxDistanceFromBaseToMapEnd($baseX, $baseZ, $mapMin, $mapMax);
 
-        if ($provider !== 'ollama') {
+        if ($provider === 'mock') {
             return $this->mockPlan($state, $objective, 'mock-provider');
         }
 
@@ -38,11 +48,6 @@ class LlmPlannerService
             @set_time_limit((int) config('services.ollama.timeout', 120) + 30);
         }
 
-        $baseUrl = rtrim((string) config('services.ollama.base_url', 'http://127.0.0.1:11434'), '/');
-        $model = (string) config('services.ollama.model', 'qwen2.5:7b-instruct');
-        $timeout = (int) config('services.ollama.timeout', 30);
-        $temperature = max(0.15, min(2.0, (float) config('services.ollama.temperature', 0.45)));
-        $topP = max(0.0, min(1.0, (float) config('services.ollama.top_p', 0.9)));
         $vectorMaxDistance = (int) env('SWARM_VECTOR_MAX_DISTANCE', 5);
         $vectorMaxDistance = max(1, $vectorMaxDistance);
         $ragContext = $this->normalizeRagContext((array) data_get($state, 'rag_context', []), 3, 220);
@@ -52,27 +57,13 @@ class LlmPlannerService
         $briefing = $this->simulation->buildTacticalBriefing($briefingState);
         $override = Cache::get('swarm:commander_override');
 
-        $system = 'You are the drone swarm commander. Output ONLY plain text commands, one per line.'
-            .' Format: DRONE_ID(ACTION,DIRECTION,DISTANCE) or DRONE_ID(DIRECTION,DISTANCE) (defaults to MOVE).'
-            .' Valid actions: MOVE, SCAN, SEARCH_ZONE.'
-            .' Valid directions: NORTH, NORTHEAST, EAST, SOUTHEAST, SOUTH, SOUTHWEST, WEST, NORTHWEST.'
-            .' Distance must be an integer from 1 to '.$vectorMaxDistance.'.'
-            .' Use only the drone IDs listed in SWARM STATUS. No JSON, no markdown, no explanations.'
-            .' MISSION: '.$objective.'.'
-            .' Use the mission history section to avoid repeating recent failures and to continue successful patterns.'
-            .' You must obey all rules listed in the STANDING ORDERS section. These are permanent mission facts.'
-            .' If HIGH PRIORITY DANGER ZONES are listed in the briefing, you MUST explicitly coordinate your drones to MOVE toward and SCAN those exact coordinates.'
-            .' TACTICAL PRIORITY: If a Nearest Danger Zone is listed in your telemetry (e.g., [NORTHWEST]), explicitly command your drone to MOVE or SCAN in that exact direction to secure the perimeter.'
-            .' You are receiving a text-based tactical briefing. If a drone has a Target listed (e.g., Target: S1 is [NORTHEAST]), prioritize moving in that direction unless the Radar shows it is a [WALL].'
-            .' Use the Tactical Radar section to move toward [UNSCANNED] areas, avoid [SCANNED] areas, and NEVER move into [WALL] areas.'
-            .' Only issue SCAN when the target area is [UNSCANNED]; do NOT scan areas already marked [SCANNED].'
-            .' Always give command to 3 Drones D1,D2,D3.'
-            .' CRITICAL SYNTAX RULE: You must output exactly three lines, following this exact template:'
-            ."\nD1(ACTION,DIRECTION,DISTANCE)"
-            ."\nD2(ACTION,DIRECTION,DISTANCE)"
-            ."\nD3(ACTION,DIRECTION,DISTANCE)"
-            .' Example: D1(MOVE,NORTH,3).'
-            .' Replace ACTION with MOVE, SCAN, or SEARCH_ZONE. Replace DIRECTION with NORTH, NORTHEAST, EAST, SOUTHEAST, SOUTH, SOUTHWEST, WEST, NORTHWEST. Replace DISTANCE with a number from 1 to '.$vectorMaxDistance.'. No other text or explanation is allowed.';
+        $system = 'You are the drone swarm commander. Output only plain text commands.'
+            .' Return exactly 3 lines, one line each for D1, D2, D3 using: DRONE_ID(ACTION,DIRECTION,DISTANCE).'
+            .' Valid actions: MOVE, SCAN, SEARCH_ZONE. Valid directions: NORTH, NORTHEAST, EAST, SOUTHEAST, SOUTH, SOUTHWEST, WEST, NORTHWEST.'
+            .' DISTANCE must be an integer from 1 to '.$vectorMaxDistance.'.'
+            .' Use only drone IDs present in SWARM STATUS. No JSON, markdown, commentary, or extra text.'
+            .' Follow STANDING ORDERS, avoid WALL sectors, prioritize UNSCANNED sectors, and prioritize nearest/high-priority danger zones.'
+            .' If SEARCH_ZONE is used, treat it as a scan operation.';
 
         if (is_string($override) && trim($override) !== '') {
             $system .= ' CRITICAL HUMAN OVERRIDE ACTIVE: '.trim($override).' - YOU MUST OBEY THIS RULE ABOVE ALL OTHERS.';
@@ -80,6 +71,219 @@ class LlmPlannerService
 
         $modelPromptPayload = "SYSTEM:\n{$system}\n\nUSER BRIEFING:\n{$briefing}";
         
+        try {
+            $raw = '';
+            $responseSource = '';
+            $cloudProvider = $primaryCloudProvider === 'gemini' ? 'gemini' : 'anthropic';
+
+            if ($provider === 'ollama') {
+                $raw = $this->callOllama($system, $briefing);
+                $responseSource = 'ollama-primary';
+            } else {
+                $cachedCloudPlan = $this->getCachedCloudPlan($cloudProvider);
+
+                if ($cachedCloudPlan !== null && $this->isCloudCooldownActive($cloudProvider)) {
+                    return $this->withCachedSource(
+                        $cachedCloudPlan,
+                        $cloudProvider.'-cooldown-cache',
+                        'Reused cached cloud plan while provider cooldown is active.'
+                    );
+                }
+
+                if ($cachedCloudPlan !== null && $this->isCloudReplanThrottled($cloudProvider)) {
+                    return $this->withCachedSource(
+                        $cachedCloudPlan,
+                        $cloudProvider.'-replan-throttled-cache',
+                        'Reused cached cloud plan to avoid over-frequent prompt bursts.'
+                    );
+                }
+
+                $this->noteCloudAttempt($cloudProvider);
+
+                try {
+                    if ($primaryCloudProvider === 'gemini') {
+                        $raw = $this->callGemini($system, $briefing);
+                        $responseSource = 'gemini-primary';
+                    } else {
+                        $raw = $this->callAnthropic($system, $briefing);
+                        $responseSource = 'anthropic-primary';
+                    }
+                } catch (Throwable $cloudError) {
+                    Log::warning('Cloud planner request failed; falling back to local Ollama.', [
+                        'provider' => $primaryCloudProvider,
+                        'error' => $cloudError->getMessage(),
+                    ]);
+
+                    if ($this->isHttp429Error($cloudError)) {
+                        $this->markCloudCooldown($cloudProvider);
+                        if ($cachedCloudPlan !== null) {
+                            return $this->withCachedSource(
+                                $cachedCloudPlan,
+                                $cloudProvider.'-429-cache',
+                                'Reused cached cloud plan after HTTP 429 rate-limit response.'
+                            );
+                        }
+                    }
+
+                    $raw = $this->callOllama($system, $briefing);
+                    $responseSource = 'ollama-fallback';
+                }
+            }
+
+            Log::info("LLM RAW OUTPUT ({$responseSource}): \n".$raw);
+            $vectorCommands = $this->parseVectorCommands($raw, $plannerDrones, $vectorMaxDistance);
+            Log::info("PARSED COMMANDS: \n".json_encode($vectorCommands));
+
+            if (empty($vectorCommands)) {
+                $fallback = $this->mockPlan($state, $objective, $responseSource.'-parse-fallback');
+                $fallback['raw_model_output'] = $raw;
+                $fallback['parse_error'] = true;
+                $fallback['model_prompt_payload'] = $modelPromptPayload;
+
+                return $fallback;
+            }
+
+            $plan = $this->mockPlan($state, $objective, $responseSource.'-vector-staged');
+            $plan['raw_model_output'] = $raw;
+            $plan['parse_error'] = false;
+            $plan['vector_commands'] = $vectorCommands;
+            $plan['model_prompt_payload'] = $modelPromptPayload;
+            $plan['reasoning'] = 'Vector commands parsed; translation to absolute targets pending.';
+
+            if ($provider !== 'ollama' && str_contains($responseSource, '-primary')) {
+                $this->cacheCloudPlan($cloudProvider, $plan);
+            }
+
+            return $plan;
+        } catch (Throwable $exception) {
+            Log::error('Planner request failed and fallback was unavailable.', [
+                'provider' => $provider,
+                'primary_cloud' => $primaryCloudProvider,
+                'error' => $exception->getMessage(),
+            ]);
+
+            $fallback = $this->mockPlan($state, $objective, 'ollama-exception-fallback');
+            $fallback['parse_error'] = true;
+            $fallback['model_prompt_payload'] = $modelPromptPayload;
+
+            return $fallback;
+        }
+    }
+
+    private function callAnthropic(string $systemPrompt, string $userPrompt): string
+    {
+        $apiKey = trim((string) env('ANTHROPIC_API_KEY', ''));
+        if ($apiKey === '') {
+            throw new RuntimeException('ANTHROPIC_API_KEY is missing.');
+        }
+
+        $model = (string) env('ANTHROPIC_MODEL', 'claude-3-5-haiku-latest');
+        $response = Http::timeout(3)
+            ->acceptJson()
+            ->asJson()
+            ->withHeaders([
+                'x-api-key' => $apiKey,
+                'anthropic-version' => '2023-06-01',
+            ])
+            ->post('https://api.anthropic.com/v1/messages', [
+                'model' => $model,
+                'max_tokens' => 300,
+                'system' => $systemPrompt,
+                'messages' => [
+                    ['role' => 'user', 'content' => $userPrompt],
+                ],
+            ]);
+
+        if (!$response->successful()) {
+            throw new RuntimeException('Anthropic request failed with HTTP '.$response->status().'.');
+        }
+
+        $raw = trim((string) data_get($response->json(), 'content.0.text', ''));
+        if ($raw === '') {
+            throw new RuntimeException('Anthropic response did not include text content.');
+        }
+
+        return $raw;
+    }
+
+    private function callGemini(string $systemPrompt, string $userPrompt): string
+    {
+        $apiKey = trim((string) env('GEMINI_API_KEY', ''));
+        if ($apiKey === '') {
+            throw new RuntimeException('GEMINI_API_KEY is missing.');
+        }
+
+        $model = (string) env('GEMINI_MODEL', 'gemini-2.5-flash');
+        $timeout = max(3, (int) env('GEMINI_TIMEOUT', 10));
+        $retryAttempts = max(0, (int) env('GEMINI_RETRY_ATTEMPTS', 0));
+        $retryDelayMs = max(0, (int) env('GEMINI_RETRY_DELAY_MS', 250));
+        $maxOutputTokens = max(64, (int) env('GEMINI_MAX_OUTPUT_TOKENS', 320));
+        $verifySsl = filter_var(env('GEMINI_SSL_VERIFY', true), FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE);
+        if ($verifySsl === null) {
+            $verifySsl = true;
+        }
+
+        $endpoint = 'https://generativelanguage.googleapis.com/v1beta/models/'
+            .$model
+            .':generateContent';
+
+        $request = Http::connectTimeout(5)
+            ->timeout($timeout)
+            ->withOptions(['verify' => $verifySsl])
+            ->acceptJson()
+            ->asJson()
+            ->withHeaders([
+                'x-goog-api-key' => $apiKey,
+            ]);
+
+        if ($retryAttempts > 0) {
+            $request = $request->retry($retryAttempts + 1, $retryDelayMs);
+        }
+
+        $response = $request
+            ->post($endpoint, [
+                'system_instruction' => [
+                    'parts' => [
+                        ['text' => $systemPrompt],
+                    ],
+                ],
+                'contents' => [
+                    [
+                        'role' => 'user',
+                        'parts' => [
+                            ['text' => $userPrompt],
+                        ],
+                    ],
+                ],
+                'generationConfig' => [
+                    'maxOutputTokens' => $maxOutputTokens,
+                ],
+            ]);
+
+        if (!$response->successful()) {
+            throw new RuntimeException('Gemini request failed with HTTP '.$response->status().'.');
+        }
+
+        $raw = trim((string) data_get($response->json(), 'candidates.0.content.parts.0.text', ''));
+        if ($raw === '') {
+            throw new RuntimeException('Gemini response did not include candidate text.');
+        }
+
+        return $raw;
+    }
+
+    private function callOllama(string $systemPrompt, string $userPrompt): string
+    {
+        if ($this->isOllamaCircuitOpen()) {
+            throw new RuntimeException('Ollama circuit breaker is open.');
+        }
+
+        $baseUrl = rtrim((string) config('services.ollama.base_url', 'http://127.0.0.1:11434'), '/');
+        $model = (string) config('services.ollama.model', 'qwen2.5:7b-instruct');
+        $timeout = (int) config('services.ollama.timeout', 30);
+        $temperature = max(0.15, min(2.0, (float) config('services.ollama.temperature', 0.45)));
+        $topP = max(0.0, min(1.0, (float) config('services.ollama.top_p', 0.9)));
+
         try {
             $response = Http::timeout($timeout)
                 ->acceptJson()
@@ -94,40 +298,126 @@ class LlmPlannerService
                         'num_ctx' => 2048,
                     ],
                     'messages' => [
-                        ['role' => 'system', 'content' => $system],
-                        ['role' => 'user', 'content' => $briefing],
+                        ['role' => 'system', 'content' => $systemPrompt],
+                        ['role' => 'user', 'content' => $userPrompt],
                     ],
                 ]);
 
             if (!$response->successful()) {
-                return $this->mockPlan($state, $objective, 'ollama-http-fallback');
+                throw new RuntimeException('Ollama request failed with HTTP '.$response->status().'.');
             }
 
-            $raw = (string) data_get($response->json(), 'message.content', '');
-            Log::info("OLLAMA RAW OUTPUT: \n".$raw);
-            $vectorCommands = $this->parseVectorCommands($raw, $plannerDrones, $vectorMaxDistance);
-            Log::info("PARSED COMMANDS: \n".json_encode($vectorCommands));
-
-            if (empty($vectorCommands)) {
-                $fallback = $this->mockPlan($state, $objective, 'ollama-parse-fallback');
-                $fallback['raw_model_output'] = $raw;
-                $fallback['parse_error'] = true;
-                $fallback['model_prompt_payload'] = $modelPromptPayload;
-
-                return $fallback;
+            $raw = trim((string) data_get($response->json(), 'message.content', ''));
+            if ($raw === '') {
+                throw new RuntimeException('Ollama response did not include text content.');
             }
 
-            $plan = $this->mockPlan($state, $objective, 'ollama-vector-staged');
-            $plan['raw_model_output'] = $raw;
-            $plan['parse_error'] = false;
-            $plan['vector_commands'] = $vectorCommands;
-            $plan['model_prompt_payload'] = $modelPromptPayload;
-            $plan['reasoning'] = 'Vector commands parsed; translation to absolute targets pending.';
+            $this->resetOllamaCircuit();
 
-            return $plan;
-        } catch (Throwable) {
-            return $this->mockPlan($state, $objective, 'ollama-exception-fallback');
+            return $raw;
+        } catch (Throwable $exception) {
+            $this->registerOllamaFailure();
+            throw $exception;
         }
+    }
+
+    private function isOllamaCircuitOpen(): bool
+    {
+        $openUntil = (int) Cache::get(self::OLLAMA_CIRCUIT_OPEN_UNTIL_KEY, 0);
+        return $openUntil > time();
+    }
+
+    private function registerOllamaFailure(): void
+    {
+        $failures = ((int) Cache::get(self::OLLAMA_CIRCUIT_FAILURES_KEY, 0)) + 1;
+        Cache::put(self::OLLAMA_CIRCUIT_FAILURES_KEY, $failures, now()->addMinutes(10));
+
+        if ($failures >= self::OLLAMA_CIRCUIT_FAILURE_THRESHOLD) {
+            Cache::put(
+                self::OLLAMA_CIRCUIT_OPEN_UNTIL_KEY,
+                time() + self::OLLAMA_CIRCUIT_OPEN_SECONDS,
+                now()->addMinutes(10)
+            );
+        }
+    }
+
+    private function resetOllamaCircuit(): void
+    {
+        Cache::forget(self::OLLAMA_CIRCUIT_FAILURES_KEY);
+        Cache::forget(self::OLLAMA_CIRCUIT_OPEN_UNTIL_KEY);
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function getCachedCloudPlan(string $provider): ?array
+    {
+        $cached = Cache::get(self::CLOUD_PLAN_CACHE_PREFIX.$provider);
+        return is_array($cached) ? $cached : null;
+    }
+
+    /**
+     * @param array<string, mixed> $plan
+     */
+    private function cacheCloudPlan(string $provider, array $plan): void
+    {
+        $ttlSeconds = max(5, (int) env('SWARM_CLOUD_PLAN_CACHE_SECONDS', 20));
+        Cache::put(self::CLOUD_PLAN_CACHE_PREFIX.$provider, $plan, now()->addSeconds($ttlSeconds));
+    }
+
+    private function isCloudCooldownActive(string $provider): bool
+    {
+        $openUntil = (int) Cache::get(self::CLOUD_COOLDOWN_UNTIL_PREFIX.$provider, 0);
+        return $openUntil > time();
+    }
+
+    private function markCloudCooldown(string $provider): void
+    {
+        $cooldownSeconds = max(1, (int) env('SWARM_CLOUD_429_COOLDOWN_SECONDS', 20));
+        Cache::put(
+            self::CLOUD_COOLDOWN_UNTIL_PREFIX.$provider,
+            time() + $cooldownSeconds,
+            now()->addSeconds($cooldownSeconds + 30)
+        );
+    }
+
+    private function isCloudReplanThrottled(string $provider): bool
+    {
+        $minSeconds = max(0, (int) env('SWARM_CLOUD_MIN_REPLAN_SECONDS', 2));
+        if ($minSeconds <= 0) {
+            return false;
+        }
+
+        $lastAttempt = (int) Cache::get(self::CLOUD_LAST_ATTEMPT_PREFIX.$provider, 0);
+        if ($lastAttempt <= 0) {
+            return false;
+        }
+
+        return (time() - $lastAttempt) < $minSeconds;
+    }
+
+    private function noteCloudAttempt(string $provider): void
+    {
+        Cache::put(self::CLOUD_LAST_ATTEMPT_PREFIX.$provider, time(), now()->addMinutes(30));
+    }
+
+    private function isHttp429Error(Throwable $exception): bool
+    {
+        return str_contains($exception->getMessage(), 'HTTP 429');
+    }
+
+    /**
+     * @param array<string, mixed> $plan
+     * @return array<string, mixed>
+     */
+    private function withCachedSource(array $plan, string $source, string $reasoning): array
+    {
+        $cached = $plan;
+        $cached['source'] = $source;
+        $cached['reasoning'] = $reasoning;
+        $cached['cached_plan'] = true;
+
+        return $cached;
     }
 
     /**
@@ -543,12 +833,65 @@ class LlmPlannerService
         $commands = array_values($byId);
         usort($commands, fn (array $a, array $b): int => ($a['sequence'] ?? 0) <=> ($b['sequence'] ?? 0));
 
-        return array_map(static fn (array $cmd): array => [
+        $normalized = array_map(static fn (array $cmd): array => [
             'drone_id' => (string) ($cmd['drone_id'] ?? ''),
             'action' => (string) ($cmd['action'] ?? 'MOVE'),
             'direction' => (string) ($cmd['direction'] ?? ''),
             'distance' => (int) ($cmd['distance'] ?? 0),
         ], $commands);
+
+        return $this->ensureDroneCommandCoverage($normalized, $allowedIds, $maxDistance);
+    }
+
+    /**
+     * @param array<int, array{drone_id: string, action: string, direction: string, distance: int}> $commands
+     * @param array<int, string> $allowedIds
+     * @return array<int, array{drone_id: string, action: string, direction: string, distance: int}>
+     */
+    private function ensureDroneCommandCoverage(array $commands, array $allowedIds, int $maxDistance): array
+    {
+        if (empty($allowedIds)) {
+            return $commands;
+        }
+
+        $byId = [];
+        foreach ($commands as $command) {
+            $id = strtoupper((string) ($command['drone_id'] ?? ''));
+            if ($id === '') {
+                continue;
+            }
+
+            $byId[$id] = [
+                'drone_id' => $id,
+                'action' => in_array((string) ($command['action'] ?? 'MOVE'), ['MOVE', 'SCAN'], true)
+                    ? (string) ($command['action'] ?? 'MOVE')
+                    : 'MOVE',
+                'direction' => (string) ($command['direction'] ?? 'U'),
+                'distance' => max(1, min($maxDistance, (int) ($command['distance'] ?? 1))),
+            ];
+        }
+
+        $fallbackDirections = ['U', 'R', 'D', 'L', 'UR', 'RD', 'LD', 'LU'];
+        $fallbackDistance = max(1, min($maxDistance, 2));
+        foreach ($allowedIds as $index => $id) {
+            $normalizedId = strtoupper((string) $id);
+            if (isset($byId[$normalizedId])) {
+                continue;
+            }
+
+            $byId[$normalizedId] = [
+                'drone_id' => $normalizedId,
+                'action' => 'MOVE',
+                'direction' => $fallbackDirections[$index % count($fallbackDirections)],
+                'distance' => $fallbackDistance,
+            ];
+        }
+
+        $order = array_flip(array_map(static fn (string $id): string => strtoupper($id), $allowedIds));
+        $filled = array_values($byId);
+        usort($filled, static fn (array $a, array $b): int => ($order[$a['drone_id']] ?? 999) <=> ($order[$b['drone_id']] ?? 999));
+
+        return $filled;
     }
 
     private function resolveCompassDirection(float $fromX, float $fromZ, float $toX, float $toZ): string
