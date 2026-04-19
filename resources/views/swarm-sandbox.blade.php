@@ -344,12 +344,15 @@
 
         .compass-hud {
             position: fixed;
-            top: 86px;
-            left: 50%;
-            transform: translateX(-50%);
+            top: 120px;
+            right: 420px;
+            left: auto;
+            transform: none;
             z-index: 18;
             pointer-events: none;
             text-align: center;
+            opacity: 0.84;
+            transition: opacity 0.18s ease, transform 0.18s ease;
         }
 
         .compass-shell {
@@ -359,6 +362,15 @@
             border: 1px solid rgba(34, 211, 238, 0.35);
             box-shadow: 0 10px 26px rgba(3, 8, 16, 0.6), inset 0 0 10px rgba(34, 211, 238, 0.12);
             backdrop-filter: blur(10px);
+            pointer-events: auto;
+            cursor: grab;
+            touch-action: none;
+            user-select: none;
+        }
+
+        .compass-hud.dragging .compass-shell {
+            cursor: grabbing;
+            box-shadow: 0 12px 30px rgba(3, 8, 16, 0.68), inset 0 0 12px rgba(34, 211, 238, 0.2);
         }
 
         .compass-title {
@@ -425,6 +437,41 @@
             color: rgba(165, 243, 252, 0.9);
             letter-spacing: 0.12em;
             text-transform: uppercase;
+        }
+
+        .dashboard-expanded .compass-hud {
+            opacity: 0.64;
+            transform: scale(0.92);
+        }
+
+        .risk-legend {
+            bottom: 1.15rem;
+            transition: bottom 0.2s ease, right 0.2s ease, left 0.2s ease, transform 0.2s ease;
+        }
+
+        .risk-legend.docked {
+            left: auto;
+            right: 1rem;
+            transform: none;
+            bottom: var(--risk-legend-bottom, 325px);
+            max-width: min(96vw, 780px);
+        }
+
+        @media (max-width: 768px) {
+            .compass-hud {
+                top: 72px;
+                left: 10px;
+                right: auto;
+                transform: scale(0.86);
+                transform-origin: top left;
+                opacity: 0.72;
+            }
+
+            .risk-legend.docked {
+                right: 0.6rem;
+                left: 0.6rem;
+                max-width: none;
+            }
         }
 
         @keyframes survivorPulse {
@@ -534,7 +581,7 @@
         <div id="danger-cell-tooltip-info"></div>
     </div>
 
-    <div id="danger-legend" class="hidden pointer-events-auto fixed bottom-6 left-1/2 -translate-x-1/2 z-20 glass-panel border border-rose-900/40 p-2 px-4 rounded-lg flex items-center gap-4">
+    <div id="danger-legend" class="risk-legend hidden pointer-events-auto fixed left-1/2 -translate-x-1/2 z-20 glass-panel border border-rose-900/40 p-2 px-4 rounded-lg flex items-center gap-4">
         <span class="text-[10px] font-display uppercase tracking-widest text-slate-300 pr-2 border-r border-slate-700">Risk Scale</span>
         <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded-sm bg-emerald-500 opacity-80 shadow shadow-emerald-500"></div><span class="text-[10px] uppercase font-bold text-slate-300 tracking-wider">Safe</span></div>
         <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded-sm bg-yellow-400 opacity-80 shadow shadow-yellow-500"></div><span class="text-[10px] uppercase font-bold text-slate-300 tracking-wider">Caution</span></div>
@@ -1036,6 +1083,12 @@
         let scannedTileMaterial;
         const scannedTilesSeen = new Set();
         let compassNeedleAngle = null;
+        const compassDrag = {
+            active: false,
+            pointerId: null,
+            offsetX: 0,
+            offsetY: 0,
+        };
         // Danger zones are data-only markers used by backend risk analysis.
         
         // Danger Map Layer Variables
@@ -1313,7 +1366,87 @@
             }
         }
 
+        function clampCompassPosition(left, top) {
+            if (!compassHudEl) {
+                return { left, top };
+            }
+
+            const margin = 8;
+            const rect = compassHudEl.getBoundingClientRect();
+            const maxLeft = Math.max(margin, window.innerWidth - rect.width - margin);
+            const maxTop = Math.max(margin, window.innerHeight - rect.height - margin);
+
+            return {
+                left: Math.min(maxLeft, Math.max(margin, left)),
+                top: Math.min(maxTop, Math.max(margin, top)),
+            };
+        }
+
+        function setCompassPosition(left, top) {
+            if (!compassHudEl) {
+                return;
+            }
+
+            const clamped = clampCompassPosition(left, top);
+            compassHudEl.style.left = `${clamped.left}px`;
+            compassHudEl.style.top = `${clamped.top}px`;
+            compassHudEl.style.right = 'auto';
+            compassHudEl.style.transform = 'none';
+        }
+
+        function bindCompassDrag() {
+            if (!compassHudEl) {
+                return;
+            }
+
+            const handle = compassHudEl.querySelector('.compass-shell') || compassHudEl;
+
+            handle.addEventListener('pointerdown', (event) => {
+                if (event.pointerType === 'mouse' && event.button !== 0) {
+                    return;
+                }
+
+                const rect = compassHudEl.getBoundingClientRect();
+                compassDrag.active = true;
+                compassDrag.pointerId = event.pointerId;
+                compassDrag.offsetX = event.clientX - rect.left;
+                compassDrag.offsetY = event.clientY - rect.top;
+                compassHudEl.classList.add('dragging');
+
+                if (typeof handle.setPointerCapture === 'function') {
+                    handle.setPointerCapture(event.pointerId);
+                }
+
+                event.preventDefault();
+                event.stopPropagation();
+            });
+
+            window.addEventListener('pointermove', (event) => {
+                if (!compassDrag.active || compassDrag.pointerId !== event.pointerId) {
+                    return;
+                }
+
+                setCompassPosition(event.clientX - compassDrag.offsetX, event.clientY - compassDrag.offsetY);
+                event.preventDefault();
+            });
+
+            const endDrag = (event) => {
+                if (!compassDrag.active || compassDrag.pointerId !== event.pointerId) {
+                    return;
+                }
+
+                compassDrag.active = false;
+                compassDrag.pointerId = null;
+                compassHudEl.classList.remove('dragging');
+            };
+
+            window.addEventListener('pointerup', endDrag);
+            window.addEventListener('pointercancel', endDrag);
+        }
+
         function bindUI() {
+            bindCompassDrag();
+
             modeButtons.forEach((btn) => {
                 btn.addEventListener('click', () => {
                     const nextMode = btn.dataset.mode;
@@ -1582,6 +1715,7 @@
                         dangerMapToggleBtn.classList.replace('border-rose-800/60', 'border-rose-500');
                         dangerMapToggleBtn.classList.add('bg-rose-900/60');
                         if(dangerLegendEl) dangerLegendEl.classList.remove('hidden');
+                        updateRiskLegendDocking(!dashboardPanelsEl?.classList.contains('hidden'));
                         if (!runtime.setupLocked) {
                             await syncSetupStateForRiskLayer();
                         }
@@ -1591,7 +1725,10 @@
                         dangerMapToggleBtn.textContent = 'Risk Layer: OFF';
                         dangerMapToggleBtn.classList.replace('border-rose-500', 'border-rose-800/60');
                         dangerMapToggleBtn.classList.remove('bg-rose-900/60');
-                        if(dangerLegendEl) dangerLegendEl.classList.add('hidden');
+                        if(dangerLegendEl) {
+                            dangerLegendEl.classList.add('hidden');
+                            updateRiskLegendDocking(false);
+                        }
                         const tooltipEl = document.getElementById('danger-cell-tooltip');
                         if (tooltipEl) tooltipEl.classList.add('hidden');
                         appendMissionLog(`Danger Zone evaluation layer deactivated.`);
@@ -1792,6 +1929,21 @@
             setDashboardOpen(isOpen);
         }
 
+        function updateRiskLegendDocking(isDashboardOpen) {
+            if (!dangerLegendEl || !dashboardSectionEl) {
+                return;
+            }
+
+            const shouldDock = Boolean(isDashboardOpen) && !dangerLegendEl.classList.contains('hidden');
+            dangerLegendEl.classList.toggle('docked', shouldDock);
+            if (shouldDock) {
+                const dashboardHeight = Math.max(120, dashboardSectionEl.offsetHeight || 300);
+                dangerLegendEl.style.setProperty('--risk-legend-bottom', `${dashboardHeight + 14}px`);
+            } else {
+                dangerLegendEl.style.removeProperty('--risk-legend-bottom');
+            }
+        }
+
         function setDashboardOpen(isOpen) {
             if (!dashboardPanelsEl || !toggleDashboardBtn || !dashboardSectionEl) {
                 return;
@@ -1807,6 +1959,9 @@
                 dashboardSectionEl.classList.remove('h-[350px]', 'sm:h-[360px]', 'md:h-[300px]');
                 dashboardSectionEl.classList.add('h-auto');
             }
+
+            document.body.classList.toggle('dashboard-expanded', isOpen);
+            updateRiskLegendDocking(isOpen);
 
         }
 
@@ -1831,6 +1986,11 @@
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
             if (labelRenderer) labelRenderer.setSize(window.innerWidth, window.innerHeight);
+            if (compassHudEl && compassHudEl.style.left) {
+                const rect = compassHudEl.getBoundingClientRect();
+                setCompassPosition(rect.left, rect.top);
+            }
+            updateRiskLegendDocking(!dashboardPanelsEl?.classList.contains('hidden'));
             renderBatteryChart();
         }
 
