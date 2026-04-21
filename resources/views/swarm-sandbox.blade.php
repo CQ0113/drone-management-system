@@ -152,28 +152,29 @@
             overflow-y: auto !important;
             overflow-x: hidden;
             overscroll-behavior: contain;
-            scrollbar-width: thin;
-            scrollbar-color: rgba(34, 211, 238, 0.8) rgba(8, 18, 30, 0.8);
+            scrollbar-width: auto;
+            scrollbar-color: rgba(34, 211, 238, 0.9) rgba(8, 18, 30, 0.9);
         }
 
         .terminal-scroll::-webkit-scrollbar {
-            width: 6px;
+            width: 10px;
         }
 
         .terminal-scroll::-webkit-scrollbar-track {
-            background: rgba(8, 18, 30, 0.8);
-            border-radius: 10px;
+            background: rgba(8, 18, 30, 0.95);
+            border-radius: 4px;
+            border-left: 1px solid rgba(34, 211, 238, 0.1);
         }
 
         .terminal-scroll::-webkit-scrollbar-thumb {
-            background: rgba(34, 211, 238, 0.7);
-            border-radius: 10px;
-            border: 1px solid rgba(8, 18, 30, 0.5);
+            background: rgba(34, 211, 238, 0.8);
+            border-radius: 4px;
+            border: 2px solid rgba(8, 18, 30, 0.9);
         }
 
         .terminal-scroll::-webkit-scrollbar-thumb:hover {
             background-color: rgba(34, 211, 238, 1.0);
-            box-shadow: 0 0 10px rgba(34, 211, 238, 0.5);
+            box-shadow: 0 0 15px rgba(34, 211, 238, 0.6);
         }
 
         #hud-title {
@@ -797,7 +798,7 @@
                         <div id="ollama-raw-log" class="terminal-scroll flex-1 min-h-0 overflow-y-auto bg-slate-950/40 rounded border border-white/5 px-2 py-1.5 text-[11px] leading-relaxed text-fuchsia-100/90 font-mono break-all"></div>
                     </div>
                 </div>
-                <div id="dashboard-tune-view" class="hidden grid h-full grid-cols-1 gap-3 auto-rows-fr lg:grid-cols-[minmax(280px,340px)_minmax(0,1fr)] overflow-y-auto terminal-scroll">
+                <div id="dashboard-tune-view" class="hidden grid h-full grid-cols-1 gap-3 auto-rows-fr lg:grid-cols-[minmax(280px,340px)_minmax(0,1fr)]">
                     <div class="flex h-full min-h-0 flex-col rounded-md border border-cyan-900/60 bg-slate-950/70 p-3 text-slate-100">
                         <div class="flex items-center justify-between mb-3">
                             <h2 class="font-display text-sm uppercase tracking-[0.2em] text-cyan-300">Planner Tuning</h2>
@@ -835,7 +836,7 @@
                         </div>
                     </div>
                 </div>
-                <div id="dashboard-debug-view" class="hidden grid h-full grid-cols-1 gap-3 auto-rows-fr lg:grid-cols-4 overflow-y-auto terminal-scroll">
+                <div id="dashboard-debug-view" class="hidden grid h-full grid-cols-1 gap-3 auto-rows-fr lg:grid-cols-4">
                     <div class="h-full flex flex-col">
                         <div class="flex items-center justify-between mb-2">
                             <h2 class="font-display text-sm uppercase tracking-[0.2em] text-fuchsia-300">Stage 1 Raw Model</h2>
