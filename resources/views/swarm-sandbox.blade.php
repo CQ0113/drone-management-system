@@ -798,9 +798,9 @@
                         <div id="ollama-raw-log" class="terminal-scroll flex-1 min-h-0 overflow-y-auto bg-slate-950/40 rounded border border-white/5 px-2 py-1.5 text-[11px] leading-relaxed text-fuchsia-100/90 font-mono break-all"></div>
                     </div>
                 </div>
-                <div id="dashboard-tune-view" class="hidden grid h-full grid-cols-1 gap-4 lg:grid-cols-[minmax(300px,360px)_1fr]">
+                <div id="dashboard-tune-view" class="hidden grid grid-cols-1 gap-6 lg:grid-cols-[minmax(300px,360px)_1fr] min-h-0 w-full">
                     <!-- Left: Planner Tuning -->
-                    <div class="flex h-full min-h-0 flex-col rounded-lg border border-cyan-500/20 bg-slate-900/50 p-4 shadow-xl">
+                    <div class="flex flex-col rounded-lg border border-cyan-500/20 bg-slate-900/50 p-4 shadow-xl overflow-hidden">
                         <div class="flex items-center justify-between mb-4 border-b border-cyan-900/30 pb-3">
                             <div class="flex items-center gap-2">
                                 <div class="w-1.5 h-1.5 rounded-full bg-cyan-400"></div>
@@ -823,7 +823,7 @@
                     </div>
 
                     <!-- Right: Battery Lab -->
-                    <div class="flex h-full min-h-0 flex-col rounded-lg border border-sky-500/20 bg-slate-900/50 p-4 shadow-xl">
+                    <div class="flex flex-col rounded-lg border border-sky-500/20 bg-slate-900/50 p-4 shadow-xl overflow-hidden">
                         <div class="flex items-center justify-between mb-4 border-b border-sky-900/30 pb-3">
                             <div class="flex items-center gap-2">
                                 <div class="w-1.5 h-1.5 rounded-full bg-sky-400"></div>
