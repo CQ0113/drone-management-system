@@ -643,7 +643,7 @@
                 <!-- Primary Placement -->
                 <div class="space-y-2">
                     <button class="hud-btn active w-full rounded-md py-2 px-3 text-left font-medium text-xs flex items-center justify-between" data-mode="base">
-                        <span class="flex items-center gap-2"><svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg> Home Base</span> 
+                        <span class="flex items-center gap-2"><svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 2l9 4.5V17.5L12 22l-9-4.5V6.5L12 2zM12 12m-3 0a3 3 0 10 6 0 3 3 0 10-6 0M12 7v10M7 12h10" /></svg> Place Base</span> 
                         <span class="text-[9px] text-cyan-500 bg-cyan-950/40 px-1 py-0.5 rounded border border-cyan-800/30">1/1</span>
                     </button>
                     <button id="btn-place-survivor" class="hud-btn w-full rounded-md py-2 px-3 text-left font-medium text-xs flex items-center gap-2" data-mode="survivor">
