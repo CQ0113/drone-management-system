@@ -45,7 +45,8 @@
             margin: 0;
             width: 100%;
             height: 100%;
-            overflow: hidden;
+            overflow-y: auto;
+            overflow-x: hidden;
             background: radial-gradient(circle at 20% 10%, #0d1a26 0%, #050a0f 45%, #020408 100%);
             color: #e2f3ff;
             font-family: 'Inter', system-ui, -apple-system, sans-serif;
@@ -554,7 +555,7 @@
         }
     </style>
 </head>
-<body>
+<body class="terminal-scroll">
     <div id="connection-indicator" class="connection-indicator hidden" role="status" aria-live="polite" aria-hidden="true">
         <div class="connection-indicator-btn" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
