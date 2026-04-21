@@ -560,7 +560,7 @@ private function getAvailableMapsList(): array
             $scanRadius
         );
         $mergedScannedCells = $this->radar->mergeScannedCells($scannedCells, $newScannedCells);
-        $remainingDangerZones = $this->pruneScannedDangerZones($liveDangerZones, $mergedScannedCells);
+        $remainingDangerZones = $this->pruneScannedDangerZones($liveDangerZones, $mergedScannedCells, $step['runtime']);
 
         $ragStoreStartedAt = microtime(true);
         $this->ragMemory->storeTickMemory(
@@ -1208,31 +1208,38 @@ public function getDefaultMap(string $mapId): JsonResponse
      * @param array<int, array<string, mixed>> $scannedCells
      * @return array<int, array{x: float, z: float, severity: int}>
      */
-    private function pruneScannedDangerZones(array $dangerZones, array $scannedCells): array
+    private function pruneScannedDangerZones(array $dangerZones, array $scannedCells, array $runtime = []): array
     {
-        if (empty($dangerZones) || empty($scannedCells)) {
-            return array_values(array_filter(array_map(function ($zone): ?array {
-                if (!is_array($zone)) {
-                    return null;
-                }
-
-                return [
-                    'x' => (float) data_get($zone, 'x', 0.0),
-                    'z' => (float) data_get($zone, 'z', 0.0),
-                    'severity' => max(1, min(2, (int) data_get($zone, 'severity', 1))),
-                ];
-            }, $dangerZones)));
+        if (empty($dangerZones)) {
+            return [];
         }
 
+        // Build lookup of scanned cells
         $scannedLookup = [];
-        foreach ($scannedCells as $cell) {
-            if (!is_array($cell)) {
-                continue;
-            }
+        if (!empty($scannedCells)) {
+            foreach ($scannedCells as $cell) {
+                if (!is_array($cell)) {
+                    continue;
+                }
 
-            $x = (int) round((float) data_get($cell, 'x', 0.0));
-            $y = (int) round((float) (array_key_exists('y', $cell) ? $cell['y'] : data_get($cell, 'z', 0.0)));
-            $scannedLookup[$x.','.$y] = true;
+                $x = (int) round((float) data_get($cell, 'x', 0.0));
+                $y = (int) round((float) (array_key_exists('y', $cell) ? $cell['y'] : data_get($cell, 'z', 0.0)));
+                $scannedLookup[$x.','.$y] = true;
+            }
+        }
+
+        // Build lookup of drone positions (within 2 units of danger zone)
+        $dronePositions = [];
+        if (!empty($runtime)) {
+            foreach ($runtime as $drone) {
+                if (!is_array($drone)) {
+                    continue;
+                }
+
+                $x = (float) data_get($drone, 'x', 0.0);
+                $z = (float) data_get($drone, 'z', 0.0);
+                $dronePositions[] = ['x' => $x, 'z' => $z];
+            }
         }
 
         $remaining = [];
@@ -1243,9 +1250,25 @@ public function getDefaultMap(string $mapId): JsonResponse
 
             $x = (float) data_get($zone, 'x', 0.0);
             $z = (float) data_get($zone, 'z', 0.0);
+
+            // Check if scanned
             $key = ((int) round($x)).','.((int) round($z));
             if (isset($scannedLookup[$key])) {
-                continue;
+                continue; // Remove if scanned
+            }
+
+            // Check if any drone is within 2 units (close enough to "solve" it)
+            $droneNearby = false;
+            foreach ($dronePositions as $dronePos) {
+                $distance = hypot($x - $dronePos['x'], $z - $dronePos['z']);
+                if ($distance <= 2.0) {
+                    $droneNearby = true;
+                    break;
+                }
+            }
+
+            if ($droneNearby) {
+                continue; // Remove if drone is nearby (solved)
             }
 
             $remaining[] = [
