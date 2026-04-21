@@ -718,14 +718,16 @@
             </div>
         </aside>
 
-        <aside class="pointer-events-auto mx-4 mt-4 glass-panel rounded-xl p-4 md:absolute md:top-[115px] md:bottom-[330px] md:left-auto md:right-4 md:mt-0 md:w-[320px] md:max-w-[92vw] md:mx-0 flex flex-col shadow-2xl shadow-cyan-900/20">
-            <div class="flex items-center gap-2 mb-4 shrink-0 border-b border-cyan-800/50 pb-3">
-                <div class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
-                <h2 class="font-display text-sm uppercase tracking-[0.2em] text-cyan-300">Swarm Telemetry</h2>
+        <aside class="pointer-events-auto mx-4 mt-4 glass-panel rounded-xl p-4 md:absolute md:top-[100px] md:bottom-[330px] md:left-auto md:right-4 md:mt-0 md:w-[320px] md:max-w-[92vw] md:mx-0 flex flex-col shadow-2xl">
+            <div class="flex items-center justify-between mb-4 shrink-0 border-b border-white/5 pb-3">
+                <div class="flex items-center gap-2">
+                    <div class="w-1.5 h-1.5 rounded-full bg-emerald-400"></div>
+                    <h2 class="font-display text-[11px] uppercase tracking-[0.2em] text-slate-400 font-bold">Swarm Telemetry</h2>
+                </div>
             </div>
-            <div class="mb-3 flex rounded-md bg-slate-900/80 p-1 border border-cyan-900/50 shadow-inner">
-                <button id="telemetry-status-btn" class="hud-btn active rounded px-3 py-1.5 text-[11px] font-display uppercase tracking-[0.15em] text-cyan-200 transition-all">Status</button>
-                <button id="telemetry-radar-btn" class="hud-btn rounded px-3 py-1.5 text-[11px] font-display uppercase tracking-[0.15em] text-cyan-200 transition-all">Radar</button>
+            <div class="mb-3 flex rounded bg-slate-950/60 p-1 border border-white/10 shadow-inner w-full">
+                <button id="telemetry-status-btn" class="hud-btn active rounded-sm flex-1 py-1.5 text-[10px] font-display uppercase tracking-widest transition-all">Status</button>
+                <button id="telemetry-radar-btn" class="hud-btn rounded-sm flex-1 py-1.5 text-[10px] font-display uppercase tracking-widest transition-all">Radar</button>
             </div>
             <div id="telemetry-status-view" class="flex-1 min-h-0 flex flex-col">
                 <ul id="drone-status-list" class="space-y-2.5 text-sm overflow-y-auto terminal-scroll flex-1 min-h-0 pr-2"></ul>
