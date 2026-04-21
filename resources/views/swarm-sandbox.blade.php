@@ -8,7 +8,7 @@
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;500;700;800&family=Orbitron:wght@500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Orbitron:wght@500;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -16,7 +16,8 @@
                 extend: {
                     fontFamily: {
                         display: ['Orbitron', 'sans-serif'],
-                        body: ['Exo 2', 'sans-serif']
+                        body: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace']
                     },
                     colors: {
                         panel: '#0b121a',
@@ -45,19 +46,20 @@
             width: 100%;
             height: 100%;
             overflow: hidden;
-            background: radial-gradient(circle at 20% 10%, #122434 0%, #060b11 45%, #02050a 100%);
-            color: #d1ecff;
-            font-family: 'Exo 2', sans-serif;
+            background: radial-gradient(circle at 20% 10%, #0d1a26 0%, #050a0f 45%, #020408 100%);
+            color: #e2f3ff;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            -webkit-font-smoothing: antialiased;
         }
 
         :root {
             --swarm-accent: #22d3ee;
-            --swarm-warning: #f59e0b;
-            --swarm-success: #22c55e;
-            --swarm-danger: #ff2d2d;
-            --swarm-ink: #0b1220;
-            --swarm-surface-a: rgba(8, 15, 24, 0.88);
-            --swarm-surface-b: rgba(5, 10, 18, 0.82);
+            --swarm-accent-glow: rgba(34, 211, 238, 0.3);
+            --swarm-warning: #fbbf24;
+            --swarm-success: #10b981;
+            --swarm-danger: #f43f5e;
+            --swarm-surface: rgba(10, 20, 32, 0.75);
+            --swarm-border: rgba(125, 211, 252, 0.15);
         }
 
         #scene-container {
@@ -69,62 +71,55 @@
             position: fixed;
             border-radius: 999px;
             pointer-events: none;
-            filter: blur(60px);
-            opacity: 0.38;
+            filter: blur(80px);
+            opacity: 0.25;
             z-index: 1;
         }
 
         .ambient-orb-a {
-            width: 420px;
-            height: 420px;
-            top: -140px;
-            right: -110px;
-            background: radial-gradient(circle, rgba(34, 211, 238, 0.35), rgba(34, 211, 238, 0));
+            width: 500px;
+            height: 500px;
+            top: -150px;
+            right: -100px;
+            background: radial-gradient(circle, var(--swarm-accent), transparent);
         }
 
         .ambient-orb-b {
-            width: 360px;
-            height: 360px;
-            bottom: 140px;
-            left: -120px;
-            background: radial-gradient(circle, rgba(16, 185, 129, 0.24), rgba(16, 185, 129, 0));
+            width: 400px;
+            height: 400px;
+            bottom: 100px;
+            left: -100px;
+            background: radial-gradient(circle, var(--swarm-success), transparent);
         }
 
         .glass-panel {
-            position: relative;
-            background: linear-gradient(155deg, var(--swarm-surface-a), var(--swarm-surface-b));
-            border: 1px solid rgba(125, 211, 252, 0.2);
-            box-shadow: 0 16px 44px rgba(2, 6, 12, 0.62), inset 0 0 24px rgba(34, 211, 238, 0.06);
-            backdrop-filter: blur(14px) saturate(130%);
-            -webkit-backdrop-filter: blur(14px) saturate(130%);
-            overflow: hidden;
-        }
-
-        .glass-panel::before {
-            content: '';
-            position: absolute;
-            inset: 0;
-            pointer-events: none;
-            background: linear-gradient(140deg, rgba(34, 211, 238, 0.12), rgba(34, 211, 238, 0) 30%, rgba(250, 204, 21, 0.06));
-            opacity: 0.45;
+            background: var(--swarm-surface);
+            border: 1px solid var(--swarm-border);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), inset 0 0 32px rgba(34, 211, 238, 0.05);
+            backdrop-filter: blur(16px) saturate(160%);
+            -webkit-backdrop-filter: blur(16px) saturate(160%);
         }
 
         .hud-btn {
-            border: 1px solid rgba(59, 130, 246, 0.35);
-            background: linear-gradient(180deg, rgba(17, 26, 44, 0.84), rgba(10, 17, 30, 0.84));
-            transition: all 0.18s ease;
+            border: 1px solid rgba(125, 211, 252, 0.2);
+            background: rgba(15, 23, 42, 0.6);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            font-weight: 500;
+            letter-spacing: 0.02em;
         }
 
         .hud-btn:hover {
-            transform: translateY(-1px) scale(1.01);
-            border-color: rgba(34, 211, 238, 0.8);
-            box-shadow: 0 0 16px rgba(34, 211, 238, 0.18);
+            border-color: var(--swarm-accent);
+            background: rgba(15, 23, 42, 0.8);
+            box-shadow: 0 0 20px var(--swarm-accent-glow);
+            transform: translateY(-1px);
         }
 
         .hud-btn.active {
-            background: rgba(8, 47, 73, 0.9);
-            border-color: rgba(34, 211, 238, 0.95);
-            color: #a5f3fc;
+            background: rgba(34, 211, 238, 0.1);
+            border-color: var(--swarm-accent);
+            color: var(--swarm-accent);
+            box-shadow: 0 0 15px var(--swarm-accent-glow);
         }
 
         .scanline-overlay {
@@ -133,14 +128,12 @@
             inset: 0;
             background: repeating-linear-gradient(
                 to bottom,
-                rgba(255, 255, 255, 0.02),
-                rgba(255, 255, 255, 0.02) 1px,
-                rgba(0, 0, 0, 0) 2px,
-                rgba(0, 0, 0, 0) 4px
+                rgba(255, 255, 255, 0.01),
+                rgba(255, 255, 255, 0.01) 1px,
+                transparent 2px
             );
-            mix-blend-mode: soft-light;
-            opacity: 0.5;
             z-index: 5;
+            opacity: 0.3;
         }
 
         .status-dot {
@@ -605,62 +598,68 @@
 
     <div class="fixed inset-0 z-10 pointer-events-none overflow-y-auto overscroll-contain md:overflow-hidden">
         <div class="relative min-h-[1040px] pb-4 pt-4 md:min-h-full md:pb-0 md:pt-0">
-        <header class="pointer-events-auto mx-4 glass-panel rounded-xl px-5 py-3 flex flex-col gap-2 md:absolute md:top-4 md:left-4 md:right-4 md:mx-0 md:flex-row md:items-center md:justify-between">
-        <h1 id="hud-title" class="font-display text-xl md:text-2xl tracking-widest text-cyan-300">[V2] Swarm Command Center - Setup Mode</h1>
-        <div class="flex flex-wrap items-center gap-3">
+        <header class="pointer-events-auto mx-4 glass-panel rounded-xl px-5 py-2.5 flex flex-col gap-2 md:absolute md:top-4 md:left-4 md:right-4 md:mx-0 md:flex-row md:items-center md:justify-between">
+        <div class="flex items-center gap-4">
+            <div class="flex flex-col">
+                <h1 id="hud-title" class="font-display text-lg md:text-xl tracking-widest text-cyan-300 uppercase">[V2] Swarm Command Center</h1>
+                <span class="text-[10px] uppercase tracking-[0.25em] text-slate-400 font-medium">Decentralised Intelligence Network</span>
+            </div>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
             <!-- Map selection dropdown -->
-            <select id="map-select" class="hud-btn rounded-md px-3 py-1.5 text-xs font-display uppercase tracking-[0.12em] text-cyan-100 bg-slate-900/80 border border-cyan-800/60">
-                <option value="">-- Select Default Map --</option>
-                <option value="map1">Map 1: Training Ground (3 survivors)</option>
-                <option value="map2">Map 2: Urban Ruins (5 survivors)</option>
-                <option value="map3">Map 3: Maze Challenge (4 survivors)</option>
-                <option value="map4">Map 4: Open Terrain (4 survivors)</option>
-                <option value="map5">Map 5: Night Search (6 survivors)</option>
+            <select id="map-select" class="hud-btn rounded-md px-3 py-1.5 text-[10px] font-display uppercase tracking-widest text-cyan-100 bg-slate-900/60 border border-cyan-800/40 outline-none">
+                <option value="">-- Select Grid --</option>
+                <option value="map1">Training Ground</option>
+                <option value="map2">Urban Ruins</option>
+                <option value="map3">Maze Challenge</option>
+                <option value="map4">Open Terrain</option>
+                <option value="map5">Night Search</option>
             </select>
-            <button id="load-map-btn" class="hud-btn rounded-md px-3 py-1.5 text-xs font-display uppercase tracking-[0.12em] text-emerald-100 border border-emerald-800/60">
-                Load Map
+            <button id="load-map-btn" class="hud-btn rounded-md px-3 py-1.5 text-[10px] font-display uppercase tracking-widest text-emerald-100 border border-emerald-800/40">
+                Sync Map
             </button>
-            <button id="danger-map-toggle-btn" class="hud-btn rounded-md px-4 py-1.5 text-[11px] font-display uppercase tracking-[0.12em] text-rose-300 border border-rose-800/60 bg-rose-950/20 active:bg-rose-900/50 hover:bg-rose-900/30 transition-all shadow-[0_0_10px_rgba(159,18,57,0.3)]">
+            <div class="h-6 w-[1px] bg-white/10 mx-1 hidden md:block"></div>
+            <button id="danger-map-toggle-btn" class="hud-btn rounded-md px-4 py-1.5 text-[10px] font-display uppercase tracking-widest text-slate-400 border border-slate-700 hover:text-rose-400 hover:border-rose-500/50 transition-all">
                 Risk Layer: OFF
             </button>
-            <button id="run-toggle-btn" class="hud-btn inline-flex h-8 w-8 items-center justify-center rounded-md border border-rose-500/70 bg-rose-900/40 text-rose-100 transition-all shadow-[0_0_10px_rgba(225,29,72,0.45)] hover:bg-rose-800/60" aria-label="Stop simulation" title="Stop simulation">
+            <button id="run-toggle-btn" class="hud-btn inline-flex h-8 w-8 items-center justify-center rounded-md border border-rose-500/50 bg-rose-900/20 text-rose-300 transition-all" aria-label="Stop simulation" title="Stop simulation">
                 <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                     <rect x="6" y="6" width="12" height="12" rx="1"></rect>
                 </svg>
             </button>
-            <span id="planner-source-badge" class="rounded-full border border-cyan-600/60 bg-cyan-500/10 px-3 py-1 text-[10px] md:text-xs uppercase tracking-[0.16em] text-cyan-200">Source: Idle</span>
-            <span class="text-xs md:text-sm uppercase tracking-[0.25em] text-slate-300">Decentralised Swarm Intelligence</span>
+            <span id="planner-source-badge" class="rounded-full border border-cyan-600/30 bg-cyan-500/5 px-3 py-1 text-[10px] uppercase tracking-widest text-cyan-400">Status: Idle</span>
         </div>
         </header>
 
-        <aside class="pointer-events-auto mx-4 mt-4 glass-panel rounded-xl p-4 md:absolute md:top-[115px] md:bottom-[330px] md:left-4 md:right-auto md:mt-0 md:w-[300px] md:max-w-[90vw] md:mx-0 flex flex-col shadow-2xl shadow-cyan-900/20">
-            <div class="flex items-center gap-2 mb-4 shrink-0 border-b border-cyan-800/50 pb-3">
-                <div class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></div>
-                <h2 class="font-display text-sm uppercase tracking-[0.2em] text-cyan-300">Tactical Deploy</h2>
+        <aside class="pointer-events-auto mx-4 mt-4 glass-panel rounded-xl p-4 md:absolute md:top-[100px] md:bottom-[330px] md:left-4 md:right-auto md:mt-0 md:w-[280px] md:max-w-[90vw] md:mx-0 flex flex-col shadow-2xl">
+            <div class="flex items-center gap-2 mb-4 shrink-0 border-b border-white/5 pb-3">
+                <div class="w-1.5 h-1.5 rounded-full bg-cyan-400"></div>
+                <h2 class="font-display text-[11px] uppercase tracking-[0.2em] text-slate-400 font-bold">Tactical Deployment</h2>
             </div>
             
-            <div class="flex-1 min-h-0 overflow-y-scroll terminal-scroll pr-2 space-y-5">
+            <div class="flex-1 min-h-0 overflow-y-auto terminal-scroll pr-2 space-y-4">
                 <!-- Primary Placement -->
-                <div class="space-y-2.5">
-                    <button class="hud-btn active w-full rounded-md py-2.5 px-3 text-left font-medium text-sm flex items-center justify-between" data-mode="base">
-                        <span>Place Base</span> <span class="text-[10px] text-cyan-500 bg-cyan-950/50 px-1.5 py-0.5 rounded">MAX 1</span>
+                <div class="space-y-2">
+                    <button class="hud-btn active w-full rounded-md py-2 px-3 text-left font-medium text-xs flex items-center justify-between" data-mode="base">
+                        <span class="flex items-center gap-2"><svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg> Home Base</span> 
+                        <span class="text-[9px] text-cyan-500 bg-cyan-950/40 px-1 py-0.5 rounded border border-cyan-800/30">1/1</span>
                     </button>
-                    <button id="btn-place-survivor" class="hud-btn w-full rounded-md py-2.5 px-3 text-left font-medium text-sm flex items-center justify-between transition-colors duration-500" data-mode="survivor">
-                        <span>Place Survivor</span>
+                    <button id="btn-place-survivor" class="hud-btn w-full rounded-md py-2 px-3 text-left font-medium text-xs flex items-center gap-2" data-mode="survivor">
+                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg> Place Survivor
                     </button>
-                    <button id="btn-place-obstacle" class="hud-btn w-full rounded-md py-2.5 px-3 text-left font-medium text-sm flex items-center justify-between transition-colors duration-500" data-mode="obstacle">
-                        <span>Place Obstacle</span>
+                    <button id="btn-place-obstacle" class="hud-btn w-full rounded-md py-2 px-3 text-left font-medium text-xs flex items-center gap-2" data-mode="obstacle">
+                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg> Place Obstacle
                     </button>
-                    <button id="btn-place-danger-zone" class="hud-btn w-full rounded-md py-2.5 px-3 text-left font-medium text-sm flex items-center justify-between transition-colors duration-500" data-mode="danger-zone">
-                        <span>Place Danger Zone</span>
+                    <button id="btn-place-danger-zone" class="hud-btn w-full rounded-md py-2 px-3 text-left font-medium text-xs flex items-center gap-2" data-mode="danger-zone">
+                        <svg class="w-3.5 h-3.5 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> Danger Zone
                     </button>
                 </div>
                 <!-- Removal Tools -->
-                <div class="space-y-2.5 bg-rose-950/20 p-2 rounded-lg border border-rose-900/30">
-                    <h3 class="text-[10px] uppercase tracking-widest text-rose-400 font-display mb-1 ml-1">Removal Tools</h3>
-                    <button class="hud-btn w-full rounded-md py-2 px-3 text-left text-xs font-medium text-rose-300 hover:text-rose-200 hover:border-rose-500/50 hover:bg-rose-900/20" data-mode="delete-survivor">Delete Survivor</button>
-                    <button class="hud-btn w-full rounded-md py-2 px-3 text-left text-xs font-medium text-rose-300 hover:text-rose-200 hover:border-rose-500/50 hover:bg-rose-900/20" data-mode="delete-obstacle">Delete Obstacle</button>
-                    <button class="hud-btn w-full rounded-md py-2 px-3 text-left text-xs font-medium text-rose-300 hover:text-rose-200 hover:border-rose-500/50 hover:bg-rose-900/20" data-mode="delete-danger-zone">Delete Danger Zone</button>
+                <div class="space-y-1.5">
+                    <h3 class="text-[9px] uppercase tracking-widest text-slate-500 font-bold mb-1 ml-1">Cleanup Controls</h3>
+                    <button class="hud-btn w-full rounded-md py-1.5 px-3 text-left text-[11px] text-rose-300/80 hover:text-rose-300" data-mode="delete-survivor">Delete Survivor</button>
+                    <button class="hud-btn w-full rounded-md py-1.5 px-3 text-left text-[11px] text-rose-300/80 hover:text-rose-300" data-mode="delete-obstacle">Delete Obstacle</button>
+                    <button class="hud-btn w-full rounded-md py-1.5 px-3 text-left text-[11px] text-rose-300/80 hover:text-rose-300" data-mode="delete-danger-zone">Delete Danger Zone</button>
                 </div>
 
                 <!-- Obstacle Config -->
@@ -762,35 +761,35 @@
                 </div>
                 <button id="toggle-dashboard-btn" class="hud-btn rounded-md px-4 py-1.5 text-[11px] font-display uppercase tracking-[0.15em] text-cyan-300 border border-cyan-700/50 hover:bg-cyan-900/40 transition-all">Collapse ▽</button>
             </div>
-            <div id="dashboard-panels" class="h-[calc(100%-2rem)]">
-                <div id="dashboard-output-view" class="grid h-full grid-cols-1 gap-3 auto-rows-fr sm:grid-cols-2 xl:grid-cols-4">
-                    <div class="h-full flex flex-col">
-                        <div class="flex items-center justify-between mb-2">
-                            <h2 class="font-display text-sm uppercase tracking-[0.2em] text-cyan-300">Mission Log</h2>
-                            <span class="text-xs uppercase tracking-[0.15em] text-slate-400">Live Feed</span>
+            <div id="dashboard-panels" class="h-[calc(100%-2.5rem)] mt-2">
+                <div id="dashboard-output-view" class="grid h-full grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                    <div class="h-full flex flex-col bg-slate-900/40 rounded-lg p-2 border border-white/5">
+                        <div class="flex items-center justify-between mb-2 px-1">
+                            <h2 class="font-display text-[10px] uppercase tracking-widest text-cyan-400 font-bold">Mission Log</h2>
+                            <span class="text-[9px] uppercase tracking-widest text-slate-500">Live Feed</span>
                         </div>
-                        <div id="mission-log" class="terminal-scroll flex-1 min-h-0 rounded-md border border-cyan-900/60 bg-slate-950/70 px-3 py-2 text-xs md:text-sm leading-relaxed text-slate-200 font-mono"></div>
+                        <div id="mission-log" class="terminal-scroll flex-1 min-h-0 bg-slate-950/40 rounded border border-white/5 px-2 py-1.5 text-[11px] leading-relaxed text-slate-300 font-mono"></div>
                     </div>
-                    <div class="h-full flex flex-col">
-                        <div class="flex items-center justify-between mb-2">
-                            <h2 class="font-display text-sm uppercase tracking-[0.2em] text-emerald-300">LLM Decision Terminal</h2>
-                            <span class="text-xs uppercase tracking-[0.15em] text-slate-400">Reasoning</span>
+                    <div class="h-full flex flex-col bg-slate-900/40 rounded-lg p-2 border border-white/5">
+                        <div class="flex items-center justify-between mb-2 px-1">
+                            <h2 class="font-display text-[10px] uppercase tracking-widest text-emerald-400 font-bold">Strategy</h2>
+                            <span class="text-[9px] uppercase tracking-widest text-slate-500">Reasoning</span>
                         </div>
-                        <div id="llm-decision-log" class="terminal-scroll flex-1 min-h-0 rounded-md border border-emerald-900/60 bg-slate-950/70 px-3 py-2 text-xs md:text-sm leading-relaxed text-emerald-100 font-mono"></div>
+                        <div id="llm-decision-log" class="terminal-scroll flex-1 min-h-0 bg-slate-950/40 rounded border border-white/5 px-2 py-1.5 text-[11px] leading-relaxed text-emerald-100/90 font-mono"></div>
                     </div>
-                    <div class="h-full flex flex-col">
-                        <div class="flex items-center justify-between mb-2">
-                            <h2 class="font-display text-sm uppercase tracking-[0.2em] text-amber-300">Found Survivors</h2>
-                            <span class="text-xs uppercase tracking-[0.15em] text-slate-400">Registry</span>
+                    <div class="h-full flex flex-col bg-slate-900/40 rounded-lg p-2 border border-white/5">
+                        <div class="flex items-center justify-between mb-2 px-1">
+                            <h2 class="font-display text-[10px] uppercase tracking-widest text-amber-400 font-bold">Registry</h2>
+                            <span class="text-[9px] uppercase tracking-widest text-slate-500">Survivors</span>
                         </div>
-                        <div id="found-survivor-list" class="terminal-scroll flex-1 min-h-0 rounded-md border border-amber-900/60 bg-slate-950/70 px-3 py-2 text-xs md:text-sm leading-relaxed text-amber-100 font-mono"></div>
+                        <div id="found-survivor-list" class="terminal-scroll flex-1 min-h-0 bg-slate-950/40 rounded border border-white/5 px-2 py-1.5 text-[11px] leading-relaxed text-amber-100/90 font-mono"></div>
                     </div>
-                    <div class="h-full flex flex-col">
-                        <div class="flex items-center justify-between mb-2">
-                            <h2 class="font-display text-sm uppercase tracking-[0.2em] text-fuchsia-300">Model Raw Output</h2>
-                            <span class="text-xs uppercase tracking-[0.15em] text-slate-400">Raw + normalized</span>
+                    <div class="h-full flex flex-col bg-slate-900/40 rounded-lg p-2 border border-white/5">
+                        <div class="flex items-center justify-between mb-2 px-1">
+                            <h2 class="font-display text-[10px] uppercase tracking-widest text-fuchsia-400 font-bold">Telemetry</h2>
+                            <span class="text-[9px] uppercase tracking-widest text-slate-500">Raw Data</span>
                         </div>
-                        <div id="ollama-raw-log" class="terminal-scroll flex-1 min-h-0 whitespace-pre-wrap break-words rounded-md border border-fuchsia-900/60 bg-slate-950/70 px-3 py-2 text-xs md:text-sm leading-relaxed text-fuchsia-100 font-mono"></div>
+                        <div id="ollama-raw-log" class="terminal-scroll flex-1 min-h-0 bg-slate-950/40 rounded border border-white/5 px-2 py-1.5 text-[11px] leading-relaxed text-fuchsia-100/90 font-mono break-all"></div>
                     </div>
                 </div>
                 <div id="dashboard-tune-view" class="hidden grid h-full grid-cols-1 gap-3 auto-rows-fr lg:grid-cols-[minmax(280px,340px)_minmax(0,1fr)]">
@@ -1712,8 +1711,8 @@
                     dangerMapGroup.visible = dangerMapVisible;
                     if (dangerMapVisible) {
                         dangerMapToggleBtn.textContent = 'Risk Layer: ON';
-                        dangerMapToggleBtn.classList.replace('border-rose-800/60', 'border-rose-500');
-                        dangerMapToggleBtn.classList.add('bg-rose-900/60');
+                        dangerMapToggleBtn.classList.remove('text-slate-400', 'border-slate-700');
+                        dangerMapToggleBtn.classList.add('text-rose-400', 'border-rose-500/70', 'bg-rose-500/10');
                         if(dangerLegendEl) dangerLegendEl.classList.remove('hidden');
                         updateRiskLegendDocking(!dashboardPanelsEl?.classList.contains('hidden'));
                         if (!runtime.setupLocked) {
@@ -1723,8 +1722,8 @@
                         appendMissionLog(`Danger Zone evaluation layer activated.`);
                     } else {
                         dangerMapToggleBtn.textContent = 'Risk Layer: OFF';
-                        dangerMapToggleBtn.classList.replace('border-rose-500', 'border-rose-800/60');
-                        dangerMapToggleBtn.classList.remove('bg-rose-900/60');
+                        dangerMapToggleBtn.classList.add('text-slate-400', 'border-slate-700');
+                        dangerMapToggleBtn.classList.remove('text-rose-400', 'border-rose-500/70', 'bg-rose-500/10');
                         if(dangerLegendEl) {
                             dangerLegendEl.classList.add('hidden');
                             updateRiskLegendDocking(false);
@@ -3992,28 +3991,37 @@
         function renderDroneStatus() {
             const ids = Object.keys(dronePanelState).sort();
             if (!ids.length) {
-                droneStatusListEl.innerHTML = '<li class="rounded-md border border-cyan-900/60 bg-slate-900/80 p-3 text-slate-400">No drones active.</li>';
+                droneStatusListEl.innerHTML = '<li class="rounded-lg border border-white/5 bg-slate-900/40 p-4 text-slate-500 text-[11px] text-center italic uppercase tracking-widest">Awaiting Link...</li>';
                 return;
             }
 
             droneStatusListEl.innerHTML = ids.map((id) => {
                 const item = dronePanelState[id] || { battery: 0, status: 'Offline' };
-                const batteryClass = item.battery > 60 ? 'text-emerald-300' : (item.battery > 25 ? 'text-amber-300' : 'text-rose-300');
-                const dotColor = item.battery > 25 ? '#22c55e' : '#f43f5e';
+                const batteryColor = item.battery > 60 ? 'bg-emerald-500' : (item.battery > 25 ? 'bg-amber-500' : 'bg-rose-500');
+                const batteryTextColor = item.battery > 60 ? 'text-emerald-400' : (item.battery > 25 ? 'text-amber-400' : 'text-rose-400');
+                
                 const headingData = getDroneHeadingData(id);
                 const headingMarkup = headingData ? buildHeadingMarkup(headingData) : '';
                 const dangerData = getDroneDangerData(item.status);
                 const dangerMarkup = dangerData ? buildDangerMarkup(dangerData) : '';
 
                 return `
-                    <li class="rounded-md border border-cyan-900/60 bg-slate-900/80 p-3">
+                    <li class="rounded-lg border border-white/5 bg-slate-900/40 p-3.5 space-y-3 shadow-inner">
                         <div class="flex justify-between items-center">
-                            <span class="font-display tracking-wide">${id}</span>
-                            <span class="${batteryClass} font-semibold">${item.battery}%</span>
+                            <span class="font-display text-[11px] tracking-[0.2em] font-bold text-cyan-300 uppercase">${id}</span>
+                            <span class="${batteryTextColor} font-mono text-[11px] font-bold">${item.battery}%</span>
                         </div>
-                        <div class="text-xs text-slate-300 mt-1">
-                            <span class="status-dot" style="background:${dotColor}"></span>${item.status}
+                        
+                        <div class="space-y-1.5">
+                            <div class="h-1 w-full bg-white/5 rounded-full overflow-hidden">
+                                <div class="h-full ${batteryColor} transition-all duration-700 ease-out" style="width: ${item.battery}%"></div>
+                            </div>
+                            <div class="flex items-center gap-1.5 text-[10px] uppercase font-bold text-slate-400 tracking-widest">
+                                <span class="w-1.5 h-1.5 rounded-full ${batteryColor} animate-pulse"></span>
+                                ${item.status}
+                            </div>
                         </div>
+
                         ${dangerMarkup}
                         ${headingMarkup}
                     </li>
@@ -4043,11 +4051,14 @@
             const distance = Number.isFinite(Number(danger.distance)) ? Math.max(0, Math.round(Number(danger.distance))) : 0;
 
             return `
-                <div class="mt-2 flex items-center gap-2 rounded-md border border-rose-500/30 bg-rose-950/25 px-2 py-1 text-[10px] uppercase tracking-[0.16em] text-rose-200">
-                    <span class="h-2 w-2 rounded-full bg-rose-400 shadow-[0_0_10px_rgba(248,113,113,0.65)]"></span>
-                    <span>Danger</span>
-                    <span class="text-rose-100">${direction}</span>
-                    <span class="text-slate-400">/ ${distance}m</span>
+                <div class="flex items-center justify-between rounded bg-rose-500/5 px-2 py-1.5 border border-rose-500/20">
+                    <div class="flex items-center gap-2">
+                        <span class="h-1.5 w-1.5 rounded-full bg-rose-500 animate-ping"></span>
+                        <span class="text-[9px] uppercase font-bold tracking-widest text-rose-300/80">Hazard</span>
+                    </div>
+                    <div class="text-[9px] font-mono text-rose-200">
+                        ${direction} <span class="text-white/20 px-1">|</span> ${distance}M
+                    </div>
                 </div>
             `;
         }
