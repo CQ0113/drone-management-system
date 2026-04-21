@@ -2623,6 +2623,26 @@
             appendMissionLog(logMsg);
 
             if (!runtime.setupLocked && !autoDetected) {
+                if (!dangerMapVisible) {
+                    const dangerMapToggleBtn = document.getElementById('danger-map-toggle-btn');
+                    const dangerLegendEl = document.getElementById('danger-legend');
+                    const dashboardPanelsEl = document.getElementById('dashboard-panels');
+
+                    dangerMapVisible = true;
+                    dangerMapGroup.visible = true;
+
+                    if (dangerMapToggleBtn) {
+                        dangerMapToggleBtn.textContent = 'Risk Layer: ON';
+                        dangerMapToggleBtn.classList.remove('text-slate-400', 'border-slate-700');
+                        dangerMapToggleBtn.classList.add('text-rose-400', 'border-rose-500/70', 'bg-rose-500/10');
+                    }
+
+                    if (dangerLegendEl) {
+                        dangerLegendEl.classList.remove('hidden');
+                        updateRiskLegendDocking(!dashboardPanelsEl?.classList.contains('hidden'));
+                    }
+                }
+
                 void syncSetupStateForRiskLayer().then(() => {
                     if (dangerMapVisible) {
                         return fetchAndRenderDangerMap();

@@ -36,14 +36,14 @@ return [
             ],
             'danger_zone' => [
                 'aggregation' => 'weighted',
-                'weight' => 0.30,
+                'weight' => 0.50,
                 'cap' => 300.0,
-                'distance_divisor' => 4.0,
+                'distance_divisor' => 8.0,
                 'threat_threshold' => 35.0,
                 'threat' => 'Operator-Marked Hazard Zone',
                 'severity_multipliers' => [
-                    1 => 1.0,
-                    2 => 3.0,
+                    1 => 1.5,
+                    2 => 3.5,
                 ],
             ],
             'drone_density' => [
