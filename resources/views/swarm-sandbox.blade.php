@@ -750,7 +750,7 @@
             </div>
         </aside>
 
-        <section id="dashboard-section" class="pointer-events-auto fixed left-4 right-4 bottom-3 z-30 glass-panel rounded-xl p-4 h-[350px] sm:h-[360px] md:bottom-4 md:h-[300px] overflow-hidden flex flex-col">
+        <section id="dashboard-section" class="pointer-events-auto fixed left-4 right-4 bottom-3 z-30 glass-panel rounded-xl p-4 h-[350px] sm:h-[360px] md:bottom-4 md:h-[300px] overflow-y-auto overflow-x-hidden terminal-scroll flex flex-col">
             <div class="mb-3 flex flex-col sm:flex-row sm:items-center justify-between border-b border-cyan-800/40 pb-3 gap-3">
                 <div class="flex flex-col sm:flex-row sm:items-center gap-3 md:gap-6">
                     <div class="flex items-center gap-2">
@@ -796,7 +796,7 @@
                         <div id="ollama-raw-log" class="terminal-scroll flex-1 min-h-0 overflow-y-auto bg-slate-950/40 rounded border border-white/5 px-2 py-1.5 text-[11px] leading-relaxed text-fuchsia-100/90 font-mono break-all"></div>
                     </div>
                 </div>
-                <div id="dashboard-tune-view" class="hidden grid h-full grid-cols-1 gap-3 auto-rows-fr lg:grid-cols-[minmax(280px,340px)_minmax(0,1fr)]">
+                <div id="dashboard-tune-view" class="hidden grid h-full grid-cols-1 gap-3 auto-rows-fr lg:grid-cols-[minmax(280px,340px)_minmax(0,1fr)] overflow-y-auto terminal-scroll">
                     <div class="flex h-full min-h-0 flex-col rounded-md border border-cyan-900/60 bg-slate-950/70 p-3 text-slate-100">
                         <div class="flex items-center justify-between mb-3">
                             <h2 class="font-display text-sm uppercase tracking-[0.2em] text-cyan-300">Planner Tuning</h2>
@@ -834,7 +834,7 @@
                         </div>
                     </div>
                 </div>
-                <div id="dashboard-debug-view" class="hidden grid h-full grid-cols-1 gap-3 auto-rows-fr lg:grid-cols-4">
+                <div id="dashboard-debug-view" class="hidden grid h-full grid-cols-1 gap-3 auto-rows-fr lg:grid-cols-4 overflow-y-auto terminal-scroll">
                     <div class="h-full flex flex-col">
                         <div class="flex items-center justify-between mb-2">
                             <h2 class="font-display text-sm uppercase tracking-[0.2em] text-fuchsia-300">Stage 1 Raw Model</h2>
