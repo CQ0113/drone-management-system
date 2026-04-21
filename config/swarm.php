@@ -42,8 +42,8 @@ return [
                 'threat_threshold' => 35.0,
                 'threat' => 'Operator-Marked Hazard Zone',
                 'severity_multipliers' => [
-                    1 => 1.5,
-                    2 => 3.5,
+                    1 => 1.3,
+                    2 => 1.8,
                 ],
             ],
             'drone_density' => [

@@ -2607,7 +2607,7 @@
                 state.danger_zones.push({ x: zoneX, z: zoneZ, severity: 1 });
                 logMsg = autoDetected
                     ? `⚠ HAZARD CONFIRMED at X:${zoneX}, Z:${zoneZ} — Included in risk-layer analysis.`
-                    : `Danger Zone recorded at X:${zoneX}, Z:${zoneZ} (YELLOW risk). Click same zone again to upgrade to RED.`;
+                    : `Danger Zone recorded at X:${zoneX}, Z:${zoneZ} (ORANGE/High Risk). Click same zone again for RED/Critical.`;
             } else {
                 const zone = state.danger_zones[existingIndex] || {};
                 const currentSeverity = Number(zone.severity) >= 2 ? 2 : 1;
@@ -2616,9 +2616,9 @@
                     zone.x = zoneX;
                     zone.z = zoneZ;
                     state.danger_zones[existingIndex] = zone;
-                    logMsg = `Danger Zone at X:${zoneX}, Z:${zoneZ} upgraded to RED risk.`;
+                    logMsg = `Danger Zone at X:${zoneX}, Z:${zoneZ} upgraded to RED/Critical risk.`;
                 } else {
-                    logMsg = `Danger Zone at X:${zoneX}, Z:${zoneZ} is already RED risk.`;
+                    logMsg = `Danger Zone at X:${zoneX}, Z:${zoneZ} is already at maximum RED/Critical risk.`;
                 }
             }
 
