@@ -798,41 +798,62 @@
                         <div id="ollama-raw-log" class="terminal-scroll flex-1 min-h-0 overflow-y-auto bg-slate-950/40 rounded border border-white/5 px-2 py-1.5 text-[11px] leading-relaxed text-fuchsia-100/90 font-mono break-all"></div>
                     </div>
                 </div>
-                <div id="dashboard-tune-view" class="hidden grid h-full grid-cols-1 gap-3 auto-rows-fr lg:grid-cols-[minmax(280px,340px)_minmax(0,1fr)]">
-                    <div class="flex h-full min-h-0 flex-col rounded-md border border-cyan-900/60 bg-slate-950/70 p-3 text-slate-100">
-                        <div class="flex items-center justify-between mb-3">
-                            <h2 class="font-display text-sm uppercase tracking-[0.2em] text-cyan-300">Planner Tuning</h2>
-                            <span class="text-xs uppercase tracking-[0.15em] text-slate-400">Cadence</span>
+                <div id="dashboard-tune-view" class="hidden grid h-full grid-cols-1 gap-4 lg:grid-cols-[minmax(300px,360px)_1fr]">
+                    <!-- Left: Planner Tuning -->
+                    <div class="flex h-full min-h-0 flex-col rounded-lg border border-cyan-500/20 bg-slate-900/50 p-4 shadow-xl">
+                        <div class="flex items-center justify-between mb-4 border-b border-cyan-900/30 pb-3">
+                            <div class="flex items-center gap-2">
+                                <div class="w-1.5 h-1.5 rounded-full bg-cyan-400"></div>
+                                <h2 class="font-display text-sm uppercase tracking-widest text-cyan-300">Planner Tuning</h2>
+                            </div>
+                            <span class="text-[9px] uppercase tracking-[0.2em] text-slate-500">Cadence</span>
                         </div>
-                        <label for="model-check-every" class="block text-[10px] uppercase tracking-[0.12em] text-cyan-200">Ollama Refresh Every N Ticks</label>
-                        <input id="model-check-every" type="number" min="1" max="50" value="8" class="mt-1 w-full rounded border border-cyan-800/70 bg-slate-950/80 px-2 py-1 text-sm text-cyan-100 outline-none focus:border-cyan-400" />
-                        <div id="model-check-hint" class="mt-3 text-[11px] text-slate-300">Uses Ollama every 8 ticks, cached plan in between.</div>
-                        <div class="mt-4 rounded border border-cyan-900/40 bg-cyan-500/5 p-3 text-[11px] leading-relaxed text-slate-300">Tune mode groups all live planning and battery controls in one place so you can switch between runtime outputs and parameter adjustment inside the same dashboard.</div>
-                    </div>
-                    <div class="flex h-full min-h-0 flex-col rounded-md border border-sky-900/60 bg-slate-950/70 p-3 text-slate-100">
-                        <div class="flex items-center justify-between mb-2">
-                            <h2 class="font-display text-sm uppercase tracking-[0.2em] text-sky-300">Battery Lab</h2>
-                            <span class="text-xs uppercase tracking-[0.15em] text-slate-400">Tuning</span>
-                        </div>
-                        <div class="grid grid-cols-1 gap-3 lg:grid-cols-[220px_220px_minmax(0,1fr)]">
-                            <label class="text-[11px] uppercase tracking-[0.12em] text-sky-200">
-                                Move Units / 1%
-                                <input id="battery-move-input" type="number" min="2" max="20" step="0.1" class="mt-1 w-full rounded border border-sky-800/70 bg-slate-950/80 px-2 py-1 text-sm text-sky-100 outline-none focus:border-sky-400" />
-                            </label>
-                            <label class="text-[11px] uppercase tracking-[0.12em] text-sky-200">
-                                Scan Drain
-                                <input id="battery-scan-input" type="number" min="0" max="10" step="0.1" class="mt-1 w-full rounded border border-sky-800/70 bg-slate-950/80 px-2 py-1 text-sm text-sky-100 outline-none focus:border-sky-400" />
-                            </label>
-                            <div class="flex flex-wrap items-end gap-2 lg:justify-end">
-                                <button id="battery-save-btn" class="hud-btn rounded-md px-3 py-2 text-[11px] font-display uppercase tracking-[0.12em] text-sky-100">Apply Battery Settings</button>
-                                <button id="battery-trial-btn" class="hud-btn rounded-md px-3 py-2 text-[11px] font-display uppercase tracking-[0.12em] text-emerald-100">Run 60-Tick Trial</button>
-                                <button id="battery-chart-reset-btn" class="hud-btn rounded-md px-3 py-2 text-[11px] font-display uppercase tracking-[0.12em] text-slate-200">Reset Graph</button>
+                        
+                        <div class="space-y-4">
+                            <div>
+                                <label for="model-check-every" class="block text-[10px] uppercase tracking-widest text-cyan-200/70 mb-1.5">Ollama Refresh Every N Ticks</label>
+                                <input id="model-check-every" type="number" min="1" max="50" value="8" class="w-full rounded border border-cyan-800/50 bg-slate-950/80 px-3 py-2 text-sm text-cyan-50 outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400/30 transition-all font-mono" />
+                                <p id="model-check-hint" class="mt-2 text-[10px] text-slate-400 leading-relaxed italic">Currently optimized for 8 ticks.</p>
+                            </div>
+                            
+                            <div class="mt-2 rounded-md border border-cyan-900/30 bg-cyan-950/20 p-3">
+                                <p class="text-[10px] leading-relaxed text-slate-300">Tune mode synchronizes live planning parameters and drone telemetry offsets in real-time without requiring a full deployment restart.</p>
                             </div>
                         </div>
-                        <div id="battery-settings-status" class="mt-3 text-[11px] text-slate-300">Loading runtime battery settings...</div>
-                        <div id="battery-trial-summary" class="mt-1 text-[11px] text-slate-400">No battery trial data yet.</div>
-                        <div class="mt-3 flex-1 min-h-0 rounded-md border border-sky-900/50 bg-slate-950/90 p-2">
-                            <canvas id="battery-usage-chart" height="150"></canvas>
+                    </div>
+
+                    <!-- Right: Battery Lab -->
+                    <div class="flex h-full min-h-0 flex-col rounded-lg border border-sky-500/20 bg-slate-900/50 p-4 shadow-xl">
+                        <div class="flex items-center justify-between mb-4 border-b border-sky-900/30 pb-3">
+                            <div class="flex items-center gap-2">
+                                <div class="w-1.5 h-1.5 rounded-full bg-sky-400"></div>
+                                <h2 class="font-display text-sm uppercase tracking-widest text-sky-300">Battery Lab</h2>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button id="battery-save-btn" class="hud-btn rounded px-3 py-1 text-[9px] font-display uppercase tracking-widest text-sky-200 hover:text-white border-sky-800/50">Apply</button>
+                                <button id="battery-trial-btn" class="hud-btn rounded px-3 py-1 text-[9px] font-display uppercase tracking-widest text-emerald-300 hover:text-white border-emerald-800/50">Trial</button>
+                                <button id="battery-chart-reset-btn" class="hud-btn rounded px-3 py-1 text-[9px] font-display uppercase tracking-widest text-slate-400 hover:text-white border-slate-800/50">Reset</button>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                            <div class="space-y-1">
+                                <label class="text-[10px] uppercase tracking-widest text-sky-200/70">Move Units / 1%</label>
+                                <input id="battery-move-input" type="number" min="2" max="20" step="0.1" class="w-full rounded border border-sky-800/50 bg-slate-950/80 px-3 py-2 text-sm text-sky-50 outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400/30 transition-all font-mono" />
+                            </div>
+                            <div class="space-y-1">
+                                <label class="text-[10px] uppercase tracking-widest text-sky-200/70">Scan Drain</label>
+                                <input id="battery-scan-input" type="number" min="0" max="10" step="0.1" class="w-full rounded border border-sky-800/50 bg-slate-950/80 px-3 py-2 text-sm text-sky-50 outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400/30 transition-all font-mono" />
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-between mb-2">
+                            <div id="battery-settings-status" class="text-[10px] text-slate-400">Ready</div>
+                            <div id="battery-trial-summary" class="text-[10px] text-slate-500 font-mono"></div>
+                        </div>
+
+                        <div class="flex-1 min-h-[140px] w-full rounded border border-white/5 bg-slate-950/60 p-2 overflow-hidden relative">
+                             <canvas id="battery-usage-chart" class="w-full h-full"></canvas>
                         </div>
                     </div>
                 </div>
@@ -3830,19 +3851,27 @@
                 return;
             }
 
-            const rect = batteryUsageChartEl.getBoundingClientRect();
-            const width = Math.max(280, Math.floor(rect.width || batteryUsageChartEl.parentElement?.clientWidth || 280));
-            const height = Number(batteryUsageChartEl.getAttribute('height')) || 150;
-            batteryUsageChartEl.width = width;
-            batteryUsageChartEl.height = height;
+            const parent = batteryUsageChartEl.parentElement;
+            const width = parent ? parent.clientWidth : 400;
+            const height = parent ? parent.clientHeight : 150;
+            
+            // Set display size
+            batteryUsageChartEl.style.width = width + 'px';
+            batteryUsageChartEl.style.height = height + 'px';
+            
+            // Set actual drawing size (consider device pixel ratio for sharpness)
+            const dpr = window.devicePixelRatio || 1;
+            batteryUsageChartEl.width = width * dpr;
+            batteryUsageChartEl.height = height * dpr;
 
             const ctx = batteryUsageChartEl.getContext('2d');
             if (!ctx) {
                 return;
             }
 
+            ctx.scale(dpr, dpr);
             ctx.clearRect(0, 0, width, height);
-            ctx.fillStyle = '#02050a';
+            ctx.fillStyle = 'rgba(2, 5, 10, 0.4)';
             ctx.fillRect(0, 0, width, height);
 
             const padding = { top: 14, right: 10, bottom: 24, left: 30 };
@@ -3862,7 +3891,7 @@
 
             if (!history.length) {
                 ctx.fillStyle = '#94a3b8';
-                ctx.font = '12px Exo 2';
+                ctx.font = '11px "JetBrains Mono"';
                 ctx.fillText('Battery usage graph will appear after ticks start.', padding.left, padding.top + 24);
                 return;
             }
@@ -3892,15 +3921,15 @@
 
                 ctx.fillStyle = item.color;
                 ctx.fillRect(padding.left + (index * 62), height - 14, 10, 3);
-                ctx.font = '10px Exo 2';
+                ctx.font = '9px "JetBrains Mono"';
                 ctx.fillText(item.label, padding.left + 14 + (index * 62), height - 9);
             });
 
             ctx.fillStyle = '#94a3b8';
-            ctx.font = '10px Exo 2';
+            ctx.font = '9px "JetBrains Mono"';
             ctx.fillText('0', 10, padding.top + chartHeight + 3);
             ctx.fillText(maxY.toFixed(1), 6, padding.top + 8);
-            ctx.fillText(`Last ${history.length} ticks`, width - 74, height - 9);
+            ctx.fillText(`Last ${history.length} ticks`, width - 85, height - 9);
         }
 
         async function runBatteryBalanceTrial() {
