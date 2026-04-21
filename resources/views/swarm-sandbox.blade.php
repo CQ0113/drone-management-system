@@ -149,7 +149,7 @@
             animation: survivorPulse 0.9s ease-in-out infinite alternate;
         }
         .terminal-scroll {
-            overflow-y: auto !important;
+            overflow-y: scroll !important;
             overflow-x: hidden;
             overscroll-behavior: contain;
             scrollbar-width: auto;
@@ -752,7 +752,7 @@
             </div>
         </aside>
 
-        <section id="dashboard-section" class="pointer-events-auto fixed left-4 right-4 bottom-3 z-30 glass-panel rounded-xl p-4 h-[350px] sm:h-[360px] md:bottom-4 md:h-[300px] overflow-y-auto overflow-x-hidden terminal-scroll flex flex-col">
+        <section id="dashboard-section" class="pointer-events-auto fixed left-4 right-4 bottom-3 z-30 glass-panel rounded-xl p-4 h-[350px] sm:h-[360px] md:bottom-4 md:h-[300px] overflow-y-scroll overflow-x-hidden terminal-scroll flex flex-col">
             <div class="mb-3 flex flex-col sm:flex-row sm:items-center justify-between border-b border-cyan-800/40 pb-3 gap-3">
                 <div class="flex flex-col sm:flex-row sm:items-center gap-3 md:gap-6">
                     <div class="flex items-center gap-2">
@@ -767,7 +767,7 @@
                 </div>
                 <button id="toggle-dashboard-btn" class="hud-btn rounded-md px-4 py-1.5 text-[11px] font-display uppercase tracking-[0.15em] text-cyan-300 border border-cyan-700/50 hover:bg-cyan-900/40 transition-all">Collapse ▽</button>
             </div>
-            <div id="dashboard-panels" class="flex-1 min-h-0 mt-2 overflow-hidden">
+            <div id="dashboard-panels" class="flex-1 min-h-0 mt-2 overflow-visible">
                 <div id="dashboard-output-view" class="grid h-full grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
                     <div class="h-[200px] xl:h-full flex flex-col min-h-0 bg-slate-900/40 rounded-lg p-2 border border-white/5">
                         <div class="flex items-center justify-between mb-2 px-1">
