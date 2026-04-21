@@ -148,29 +148,31 @@
             animation: survivorPulse 0.9s ease-in-out infinite alternate;
         }
         .terminal-scroll {
-            overflow-y: scroll !important;
+            overflow-y: auto !important;
             overflow-x: hidden;
             overscroll-behavior: contain;
             scrollbar-width: thin;
-            scrollbar-color: rgba(34, 211, 238, 0.4) rgba(8, 18, 30, 0.4);
+            scrollbar-color: rgba(34, 211, 238, 0.8) rgba(8, 18, 30, 0.8);
         }
 
         .terminal-scroll::-webkit-scrollbar {
-            width: 8px;
+            width: 6px;
         }
 
         .terminal-scroll::-webkit-scrollbar-track {
-            background: rgba(8, 18, 30, 0.5);
-            border-radius: 4px;
+            background: rgba(8, 18, 30, 0.8);
+            border-radius: 10px;
         }
 
         .terminal-scroll::-webkit-scrollbar-thumb {
-            background: rgba(34, 211, 238, 0.4);
-            border-radius: 4px;
+            background: rgba(34, 211, 238, 0.7);
+            border-radius: 10px;
+            border: 1px solid rgba(8, 18, 30, 0.5);
         }
 
         .terminal-scroll::-webkit-scrollbar-thumb:hover {
-            background-color: rgba(34, 211, 238, 0.7);
+            background-color: rgba(34, 211, 238, 1.0);
+            box-shadow: 0 0 10px rgba(34, 211, 238, 0.5);
         }
 
         #hud-title {
@@ -748,7 +750,7 @@
             </div>
         </aside>
 
-        <section id="dashboard-section" class="pointer-events-auto fixed left-4 right-4 bottom-3 z-30 glass-panel rounded-xl p-4 h-[350px] sm:h-[360px] md:bottom-4 md:h-[300px] overflow-y-scroll terminal-scroll">
+        <section id="dashboard-section" class="pointer-events-auto fixed left-4 right-4 bottom-3 z-30 glass-panel rounded-xl p-4 h-[350px] sm:h-[360px] md:bottom-4 md:h-[300px] overflow-hidden flex flex-col">
             <div class="mb-3 flex flex-col sm:flex-row sm:items-center justify-between border-b border-cyan-800/40 pb-3 gap-3">
                 <div class="flex flex-col sm:flex-row sm:items-center gap-3 md:gap-6">
                     <div class="flex items-center gap-2">
@@ -763,35 +765,35 @@
                 </div>
                 <button id="toggle-dashboard-btn" class="hud-btn rounded-md px-4 py-1.5 text-[11px] font-display uppercase tracking-[0.15em] text-cyan-300 border border-cyan-700/50 hover:bg-cyan-900/40 transition-all">Collapse ▽</button>
             </div>
-            <div id="dashboard-panels" class="h-[calc(100%-2.5rem)] mt-2">
+            <div id="dashboard-panels" class="flex-1 min-h-0 mt-2 overflow-hidden">
                 <div id="dashboard-output-view" class="grid h-full grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                    <div class="h-full flex flex-col bg-slate-900/40 rounded-lg p-2 border border-white/5">
+                    <div class="h-[200px] xl:h-full flex flex-col min-h-0 bg-slate-900/40 rounded-lg p-2 border border-white/5">
                         <div class="flex items-center justify-between mb-2 px-1">
                             <h2 class="font-display text-[10px] uppercase tracking-widest text-cyan-400 font-bold">Mission Log</h2>
                             <span class="text-[9px] uppercase tracking-widest text-slate-500">Live Feed</span>
                         </div>
-                        <div id="mission-log" class="terminal-scroll flex-1 min-h-0 bg-slate-950/40 rounded border border-white/5 px-2 py-1.5 text-[11px] leading-relaxed text-slate-300 font-mono"></div>
+                        <div id="mission-log" class="terminal-scroll flex-1 min-h-0 overflow-y-auto bg-slate-950/40 rounded border border-white/5 px-2 py-1.5 text-[11px] leading-relaxed text-slate-300 font-mono"></div>
                     </div>
-                    <div class="h-full flex flex-col bg-slate-900/40 rounded-lg p-2 border border-white/5">
+                    <div class="h-[200px] xl:h-full flex flex-col min-h-0 bg-slate-900/40 rounded-lg p-2 border border-white/5">
                         <div class="flex items-center justify-between mb-2 px-1">
                             <h2 class="font-display text-[10px] uppercase tracking-widest text-emerald-400 font-bold">Strategy</h2>
                             <span class="text-[9px] uppercase tracking-widest text-slate-500">Reasoning</span>
                         </div>
-                        <div id="llm-decision-log" class="terminal-scroll flex-1 min-h-0 bg-slate-950/40 rounded border border-white/5 px-2 py-1.5 text-[11px] leading-relaxed text-emerald-100/90 font-mono"></div>
+                        <div id="llm-decision-log" class="terminal-scroll flex-1 min-h-0 overflow-y-auto bg-slate-950/40 rounded border border-white/5 px-2 py-1.5 text-[11px] leading-relaxed text-emerald-100/90 font-mono"></div>
                     </div>
-                    <div class="h-full flex flex-col bg-slate-900/40 rounded-lg p-2 border border-white/5">
+                    <div class="h-[200px] xl:h-full flex flex-col min-h-0 bg-slate-900/40 rounded-lg p-2 border border-white/5">
                         <div class="flex items-center justify-between mb-2 px-1">
                             <h2 class="font-display text-[10px] uppercase tracking-widest text-amber-400 font-bold">Registry</h2>
                             <span class="text-[9px] uppercase tracking-widest text-slate-500">Survivors</span>
                         </div>
-                        <div id="found-survivor-list" class="terminal-scroll flex-1 min-h-0 bg-slate-950/40 rounded border border-white/5 px-2 py-1.5 text-[11px] leading-relaxed text-amber-100/90 font-mono"></div>
+                        <div id="found-survivor-list" class="terminal-scroll flex-1 min-h-0 overflow-y-auto bg-slate-950/40 rounded border border-white/5 px-2 py-1.5 text-[11px] leading-relaxed text-amber-100/90 font-mono"></div>
                     </div>
-                    <div class="h-full flex flex-col bg-slate-900/40 rounded-lg p-2 border border-white/5">
+                    <div class="h-[200px] xl:h-full flex flex-col min-h-0 bg-slate-900/40 rounded-lg p-2 border border-white/5">
                         <div class="flex items-center justify-between mb-2 px-1">
                             <h2 class="font-display text-[10px] uppercase tracking-widest text-fuchsia-400 font-bold">Telemetry</h2>
                             <span class="text-[9px] uppercase tracking-widest text-slate-500">Raw Data</span>
                         </div>
-                        <div id="ollama-raw-log" class="terminal-scroll flex-1 min-h-0 bg-slate-950/40 rounded border border-white/5 px-2 py-1.5 text-[11px] leading-relaxed text-fuchsia-100/90 font-mono break-all"></div>
+                        <div id="ollama-raw-log" class="terminal-scroll flex-1 min-h-0 overflow-y-auto bg-slate-950/40 rounded border border-white/5 px-2 py-1.5 text-[11px] leading-relaxed text-fuchsia-100/90 font-mono break-all"></div>
                     </div>
                 </div>
                 <div id="dashboard-tune-view" class="hidden grid h-full grid-cols-1 gap-3 auto-rows-fr lg:grid-cols-[minmax(280px,340px)_minmax(0,1fr)]">
