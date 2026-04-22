@@ -561,6 +561,7 @@ private function getAvailableMapsList(): array
         );
         $mergedScannedCells = $this->radar->mergeScannedCells($scannedCells, $newScannedCells);
         $remainingDangerZones = $this->pruneScannedDangerZones($liveDangerZones, $mergedScannedCells);
+$remainingDangerZones = $this->pruneDangerZonesReachedByDrones($remainingDangerZones, $step['runtime']);
 
         $ragStoreStartedAt = microtime(true);
         $this->ragMemory->storeTickMemory(
@@ -1257,6 +1258,40 @@ public function getDefaultMap(string $mapId): JsonResponse
 
         return $remaining;
     }
+    /**
+ * Remove danger zones that any drone has physically reached.
+ *
+ * @param array<int, array{x: float, z: float, severity: int}> $dangerZones
+ * @param array<string, array<string, mixed>> $runtime
+ * @return array<int, array{x: float, z: float, severity: int}>
+ */
+private function pruneDangerZonesReachedByDrones(array $dangerZones, array $runtime): array
+{
+    if (empty($dangerZones) || empty($runtime)) {
+        return $dangerZones;
+    }
+
+    $resolveRadius = max(1.0, (float) env('SWARM_DANGER_RESOLVE_RADIUS', 3.0));
+
+    return array_values(array_filter($dangerZones, function (array $zone) use ($runtime, $resolveRadius): bool {
+        $zx = (float) data_get($zone, 'x', 0.0);
+        $zz = (float) data_get($zone, 'z', 0.0);
+
+        foreach ($runtime as $drone) {
+            if (!is_array($drone)) {
+                continue;
+            }
+            $dx = (float) data_get($drone, 'x', 0.0);
+            $dz = (float) data_get($drone, 'z', 0.0);
+
+            if ($this->distance($dx, $dz, $zx, $zz) <= $resolveRadius) {
+                return false; // drone reached this zone — remove it
+            }
+        }
+
+        return true; // no drone close enough — keep it
+    }));
+}
 
     /**
      * @param array<string, mixed> $plan
