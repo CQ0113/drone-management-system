@@ -651,12 +651,20 @@
                     <button id="btn-place-survivor" class="hud-btn w-full rounded-md py-2 px-3 text-left font-medium text-xs flex items-center gap-2" data-mode="survivor">
                         <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg> Place Survivor
                     </button>
-                    <button id="btn-place-obstacle" class="hud-btn w-full rounded-md py-2 px-3 text-left font-medium text-xs flex items-center gap-2" data-mode="obstacle">
-                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg> Place Obstacle
+                    <button class="hud-btn w-full rounded-md py-2.5 px-3 text-left font-medium text-sm flex items-center justify-between" data-mode="obstacle">
+                        <span>Place Obstacle</span>
                     </button>
-                    <button id="btn-place-danger-zone" class="hud-btn w-full rounded-md py-2 px-3 text-left font-medium text-xs flex items-center gap-2" data-mode="danger-zone">
-                        <svg class="w-3.5 h-3.5 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> Danger Zone
-                    </button>
+                 
+                    <!-- CV Detection Info -->
+<div class="space-y-2 mt-3 bg-cyan-950/20 p-2 rounded-lg border border-cyan-900/30">
+    <h3 class="text-[10px] uppercase tracking-widest text-cyan-400 font-display mb-1 ml-1">
+        CV Detection
+    </h3>
+    <p class="text-[10px] text-slate-400 ml-1">
+        Deploy swarm first, then click a drone in the telemetry panel to open its camera.
+    </p>
+</div>
+
                 </div>
                 <!-- Removal Tools -->
                 <div class="space-y-1.5">
@@ -4061,24 +4069,14 @@
                 const dangerMarkup = dangerData ? buildDangerMarkup(dangerData) : '';
 
                 return `
-                    <li class="rounded-lg border border-white/5 bg-slate-900/40 p-3.5 space-y-3 shadow-inner">
+                    <li class="rounded-md border border-cyan-900/60 bg-slate-900/80 p-3">
                         <div class="flex justify-between items-center">
                             <span class="font-display text-[11px] tracking-[0.2em] font-bold text-cyan-300 uppercase">${id}</span>
                             <span class="${batteryTextColor} font-mono text-[11px] font-bold">${item.battery}%</span>
                         </div>
-                        
-                        <div class="space-y-1.5">
-                            <div class="h-1 w-full bg-white/5 rounded-full overflow-hidden">
-                                <div class="h-full ${batteryColor} transition-all duration-700 ease-out" style="width: ${item.battery}%"></div>
-                            </div>
-                            <div class="flex items-center gap-1.5 text-[10px] uppercase font-bold text-slate-400 tracking-widest">
-                                <span class="w-1.5 h-1.5 rounded-full ${batteryColor} animate-pulse"></span>
-                                ${item.status}
-                            </div>
+                        <div class="text-xs text-slate-300 mt-1">
+                            <span class="status-dot" style="background:${dotColor}"></span>${item.status}
                         </div>
-
-                        ${dangerMarkup}
-                        ${headingMarkup}
                     </li>
                 `;
             }).join('');
@@ -5011,6 +5009,151 @@
                 cancelAnimationFrame(animationHandle);
             }
         });
+        // ── CV Webcam Scanner ─────────────────────────────────────
+async function triggerCVScan() {
+    const btn    = document.getElementById('btn-cv-scan');
+    const status = document.getElementById('cv-scan-status');
+
+    // Show scanning state
+    btn.disabled         = true;
+    btn.innerHTML        = '<span>📷 Scanning... (5s)</span>';
+    status.classList.remove('hidden');
+    status.textContent   = '⏳ Webcam active, scanning...';
+    status.style.color   = '#67e8f9';
+
+    try {
+        // Trigger scan via Laravel
+        const response = await fetch('/api/cv/trigger-scan', {
+            method: 'POST',
+            headers: {
+                'Content-Type':  'application/json',
+                'Accept':        'application/json',
+                'X-CSRF-TOKEN':  document.querySelector('meta[name="csrf-token"]')?.content || ''
+            }
+        });
+
+        const data = await response.json();
+
+        if (data.found > 0) {
+            status.textContent = `✅ Found ${data.found} survivor(s)!`;
+            status.style.color = '#4ade80';
+
+            // Place each detected survivor on the map
+            data.survivors.forEach(survivor => {
+                addCVSurvivor(survivor);
+            });
+
+        } else {
+            status.textContent = '❌ No survivors detected';
+            status.style.color = '#f87171';
+        }
+
+    } catch (e) {
+        status.textContent = '⚠️ Scanner error: ' + e.message;
+        status.style.color = '#fb923c';
+    }
+
+    // Reset button
+    btn.disabled      = false;
+    btn.innerHTML     = '<span>📷 Scan for Survivors</span>';
+}
+
+function addCVSurvivor(survivor) {
+    // Use the existing placeSurvivor function directly!
+    placeSurvivor(survivor.x, survivor.z);
+    console.log(`✅ CV Survivor placed at (${survivor.x}, ${survivor.z}) confidence=${survivor.confidence}%`);
+}
+let activeScanDroneId = null;
+
+async function openDroneCamera(droneId) {
+    // Check swarm is deployed
+    if (!runtime.setupLocked) {
+        appendMissionLog('⚠️ Deploy swarm first before opening drone camera!');
+        return;
+    }
+
+    // If already scanning this drone — STOP it
+    if (activeScanDroneId === droneId) {
+        await stopDroneCamera(droneId);
+        return;
+    }
+
+    // Get drone current position
+    const drone = runtime.drones[droneId];
+    if (!drone) {
+        appendMissionLog(`⚠️ Drone ${droneId} not found!`);
+        return;
+    }
+
+    activeScanDroneId = droneId;
+    const droneX = drone.mesh.position.x;
+    const droneZ = drone.mesh.position.z;
+
+    appendMissionLog(`📷 ${droneId}: Camera activated at (${droneX.toFixed(1)}, ${droneZ.toFixed(1)})`);
+
+    // Show STOP button on drone panel
+    dronePanelState[droneId].status    = '📷 Camera scanning...';
+    dronePanelState[droneId].scanning  = true;
+    renderDroneStatus();
+
+    try {
+        const response = await fetch('/api/cv/trigger-scan', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept':       'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || ''
+            }
+        });
+
+        const data = await response.json();
+
+        if (data.found > 0) {
+            appendMissionLog(`✅ ${droneId}: Detected ${data.found} survivor(s)!`);
+
+            data.survivors.forEach(survivor => {
+                const survivorX = droneX + survivor.x * 0.3;
+                const survivorZ = droneZ + survivor.z * 0.3;
+                placeSurvivor(survivorX, survivorZ);
+                appendMissionLog(`🧍 Survivor placed near ${droneId} at (${survivorX.toFixed(1)}, ${survivorZ.toFixed(1)}) confidence: ${survivor.confidence}%`);
+            });
+
+        } else {
+            appendMissionLog(`❌ ${droneId}: No survivors detected`);
+        }
+
+    } catch (e) {
+        appendMissionLog(`⚠️ ${droneId}: Camera error - ${e.message}`);
+    }
+
+    // Reset after scan completes
+    activeScanDroneId              = null;
+    dronePanelState[droneId].scanning = false;
+    dronePanelState[droneId].status   = 'Active';
+    renderDroneStatus();
+}
+
+async function stopDroneCamera(droneId) {
+    appendMissionLog(`🛑 ${droneId}: Camera scan stopped`);
+
+    try {
+        await fetch('/api/cv/stop-scan', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept':       'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || ''
+            }
+        });
+    } catch (e) {
+        console.warn('Stop scan error:', e);
+    }
+
+    activeScanDroneId                 = null;
+    dronePanelState[droneId].scanning = false;
+    dronePanelState[droneId].status   = 'Active';
+    renderDroneStatus();
+}
     </script>
 </body>
 </html>
