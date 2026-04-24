@@ -17,8 +17,6 @@ This project models a three-drone search-and-rescue swarm in a real-time Three.j
 
 ## Methodology Diagram
 
-Replace the placeholder URL below with your own methodology diagram image URL.
-
 <p align="center">
   <img src="Images\Methodology.png" alt="GOAP and event-driven LLM routing methodology diagram" width="900">
 </p>
