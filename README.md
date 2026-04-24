@@ -112,6 +112,56 @@ while ($true) {
 
 -----
 
+## 📊 Benchmark Harness
+
+This repo now includes a two-part benchmark harness under [benchmarks/k6/swarm-api-benchmark.js](benchmarks/k6/swarm-api-benchmark.js) and [benchmarks/scripts/mission-kpi-benchmark.mjs](benchmarks/scripts/mission-kpi-benchmark.mjs).
+
+### 1) API Load and Latency (k6)
+
+Benchmark tick endpoint latency, failure rate, and planner timing under concurrent load.
+
+```bash
+# Prerequisite: install k6 (https://k6.io/docs/get-started/installation/)
+npm run bench:api
+```
+
+Optional tuning with env vars:
+
+```bash
+BASE_URL=http://127.0.0.1:8000 MAP_ID=map2 VUS=10 DURATION=60s FORCE_REPLAN_EVERY=6 npm run bench:api
+```
+
+### 2) Mission KPI Benchmark (Node)
+
+Runs sequential ticks and writes a KPI report JSON (coverage, survivor discovery, danger proximity, battery efficiency, latency percentiles).
+
+```bash
+npm run bench:mission
+```
+
+Optional tuning:
+
+```bash
+node benchmarks/scripts/mission-kpi-benchmark.mjs --baseUrl http://127.0.0.1:8000 --map map3 --ticks 180 --forceReplanEvery 6 --dangerRadius 2
+```
+
+Output is written to `benchmarks/output/mission-kpi-<timestamp>.json`.
+
+### 3) Run Both
+
+```bash
+npm run bench:all
+```
+
+### Suggested Targets
+
+  * Tick HTTP `p95 < 500ms`
+  * Tick error rate `< 1%`
+  * Stable coverage/minute across repeated runs
+  * Low danger proximity events over time
+
+-----
+
 ## 📜 License
 
 Mission-ready under the **MIT License**.

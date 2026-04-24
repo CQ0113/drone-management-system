@@ -742,8 +742,25 @@
                     <span class="text-[10px] uppercase tracking-[0.15em] text-slate-400">Live</span>
                 </div>
                 <div class="rounded-md border border-emerald-900/60 bg-slate-950/70 p-2">
-                    <div class="text-[10px] uppercase tracking-[0.15em] text-emerald-200">Radar Ping</div>
-                    <pre id="ai-radar-ping" class="terminal-scroll mt-1 max-h-[110px] whitespace-pre-wrap break-words text-[11px] leading-relaxed text-emerald-100 font-mono">Awaiting radar ping...</pre>
+                    <div class="text-[10px] uppercase tracking-[0.15em] text-emerald-200">Radar Ping By Drone</div>
+                    <div class="mt-2 flex flex-col gap-2">
+                        <div class="rounded border border-emerald-900/60 bg-slate-900/70 p-2">
+                            <div class="text-[10px] uppercase tracking-[0.15em] text-emerald-300">D1</div>
+                            <pre id="ai-radar-ping-d1" class="terminal-scroll mt-1 max-h-[100px] whitespace-pre-wrap break-words text-[11px] leading-relaxed text-emerald-100 font-mono">Awaiting radar ping...</pre>
+                        </div>
+                        <div class="rounded border border-emerald-900/60 bg-slate-900/70 p-2">
+                            <div class="text-[10px] uppercase tracking-[0.15em] text-emerald-300">D2</div>
+                            <pre id="ai-radar-ping-d2" class="terminal-scroll mt-1 max-h-[100px] whitespace-pre-wrap break-words text-[11px] leading-relaxed text-emerald-100 font-mono">Awaiting radar ping...</pre>
+                        </div>
+                        <div class="rounded border border-emerald-900/60 bg-slate-900/70 p-2">
+                            <div class="text-[10px] uppercase tracking-[0.15em] text-emerald-300">D3</div>
+                            <pre id="ai-radar-ping-d3" class="terminal-scroll mt-1 max-h-[100px] whitespace-pre-wrap break-words text-[11px] leading-relaxed text-emerald-100 font-mono">Awaiting radar ping...</pre>
+                        </div>
+                    </div>
+                </div>
+                <div class="rounded-md border border-rose-900/60 bg-slate-950/70 p-2">
+                    <div class="text-[10px] uppercase tracking-[0.15em] text-rose-200">Danger Zone Radar</div>
+                    <pre id="ai-danger-zone-radar" class="terminal-scroll mt-1 max-h-[110px] whitespace-pre-wrap break-words text-[11px] leading-relaxed text-rose-100 font-mono">Awaiting danger-zone radar...</pre>
                 </div>
                 <div class="rounded-md border border-cyan-900/60 bg-slate-950/70 p-2">
                     <div class="text-[10px] uppercase tracking-[0.15em] text-cyan-200">Vector Commands</div>
@@ -1070,7 +1087,10 @@
         const telemetryRadarBtn = document.getElementById('telemetry-radar-btn');
         const telemetryStatusViewEl = document.getElementById('telemetry-status-view');
         const telemetryRadarViewEl = document.getElementById('telemetry-radar-view');
-        const radarPingEl = document.getElementById('ai-radar-ping');
+        const radarPingD1El = document.getElementById('ai-radar-ping-d1');
+        const radarPingD2El = document.getElementById('ai-radar-ping-d2');
+        const radarPingD3El = document.getElementById('ai-radar-ping-d3');
+        const dangerZoneRadarEl = document.getElementById('ai-danger-zone-radar');
         const vectorCommandsEl = document.getElementById('ai-vector-commands');
         const overrideMessageInput = document.getElementById('override-message');
         const overrideSendBtn = document.getElementById('override-send-btn');
@@ -4604,8 +4624,98 @@
             return label;
         }
 
+        function normalizeDroneRadarKey(value) {
+            if (typeof value !== 'string') {
+                return '';
+            }
+
+            const compact = value.trim().toUpperCase();
+            if (!compact.length) {
+                return '';
+            }
+
+            const digitsOnly = compact.replace(/[^0-9]/g, '');
+            if (digitsOnly.length) {
+                return `D${digitsOnly}`;
+            }
+
+            return compact;
+        }
+
+        function buildDangerZoneRadarSummary() {
+            const zones = Array.isArray(state.danger_zones) ? state.danger_zones : [];
+            if (!zones.length) {
+                return 'No danger zones marked.';
+            }
+
+            const severeCount = zones.filter((zone) => Number(zone && zone.severity) >= 2).length;
+            const lines = [
+                `Total zones: ${zones.length}`,
+                `High severity: ${severeCount}`,
+            ];
+
+            const droneIds = Object.keys(runtime.drones)
+                .filter((id) => runtime.drones[id])
+                .sort();
+
+            if (!droneIds.length) {
+                lines.push('Drone telemetry unavailable.');
+                return lines.join('\n');
+            }
+
+            droneIds.forEach((id) => {
+                const drone = runtime.drones[id];
+                const droneX = Number.isFinite(Number(drone && drone.targetX))
+                    ? Number(drone.targetX)
+                    : Number(drone && drone.mesh && drone.mesh.position ? drone.mesh.position.x : NaN);
+                const droneZ = Number.isFinite(Number(drone && drone.targetZ))
+                    ? Number(drone.targetZ)
+                    : Number(drone && drone.mesh && drone.mesh.position ? drone.mesh.position.z : NaN);
+
+                if (!Number.isFinite(droneX) || !Number.isFinite(droneZ)) {
+                    lines.push(`${id}: position unavailable`);
+                    return;
+                }
+
+                let nearest = null;
+                zones.forEach((zone, zoneIndex) => {
+                    const zoneX = Number(zone && zone.x);
+                    const zoneZ = Number(zone && zone.z);
+                    if (!Number.isFinite(zoneX) || !Number.isFinite(zoneZ)) {
+                        return;
+                    }
+
+                    const dist = Math.hypot(zoneX - droneX, zoneZ - droneZ);
+                    if (!nearest || dist < nearest.dist) {
+                        nearest = {
+                            index: zoneIndex + 1,
+                            x: zoneX,
+                            z: zoneZ,
+                            severity: Number(zone && zone.severity) >= 2 ? 2 : 1,
+                            dist,
+                        };
+                    }
+                });
+
+                if (!nearest) {
+                    lines.push(`${id}: no valid danger zone coordinates`);
+                    return;
+                }
+
+                const riskBand = nearest.dist <= 3
+                    ? 'HIGH'
+                    : (nearest.dist <= 7 ? 'MEDIUM' : 'LOW');
+                lines.push(
+                    `${id}: nearest Z${nearest.index} @ (${nearest.x.toFixed(1)}, ${nearest.z.toFixed(1)}), ` +
+                    `dist ${nearest.dist.toFixed(1)}, sev ${nearest.severity}, risk ${riskBand}`
+                );
+            });
+
+            return lines.join('\n');
+        }
+
         function updateRadarDiagnostics(tick) {
-            if (!radarPingEl && !vectorCommandsEl) {
+            if (!radarPingD1El && !radarPingD2El && !radarPingD3El && !dangerZoneRadarEl && !vectorCommandsEl) {
                 return;
             }
 
@@ -4616,8 +4726,41 @@
                 ? tick.debug.vector_commands_text.trim()
                 : '';
 
-            if (radarPingEl) {
-                radarPingEl.textContent = radarPing.length ? radarPing : '(radar ping unavailable)';
+            const radarByDrone = {
+                D1: '(radar ping unavailable)',
+                D2: '(radar ping unavailable)',
+                D3: '(radar ping unavailable)',
+            };
+
+            if (radarPing.length) {
+                const lines = radarPing
+                    .split(/\r?\n/)
+                    .map((line) => line.trim())
+                    .filter((line) => line.length > 0);
+
+                lines.forEach((line) => {
+                    const match = line.match(/^([^:]+):\s*(.*)$/);
+                    if (!match) {
+                        return;
+                    }
+                    const key = normalizeDroneRadarKey(match[1]);
+                    if (key in radarByDrone) {
+                        radarByDrone[key] = line;
+                    }
+                });
+            }
+
+            if (radarPingD1El) {
+                radarPingD1El.textContent = radarByDrone.D1;
+            }
+            if (radarPingD2El) {
+                radarPingD2El.textContent = radarByDrone.D2;
+            }
+            if (radarPingD3El) {
+                radarPingD3El.textContent = radarByDrone.D3;
+            }
+            if (dangerZoneRadarEl) {
+                dangerZoneRadarEl.textContent = buildDangerZoneRadarSummary();
             }
             if (vectorCommandsEl) {
                 vectorCommandsEl.textContent = vectorText.length ? vectorText : '(vector commands unavailable)';
@@ -4625,8 +4768,17 @@
         }
 
         function clearRadarDiagnostics() {
-            if (radarPingEl) {
-                radarPingEl.textContent = 'Awaiting radar ping...';
+            if (radarPingD1El) {
+                radarPingD1El.textContent = 'Awaiting radar ping...';
+            }
+            if (radarPingD2El) {
+                radarPingD2El.textContent = 'Awaiting radar ping...';
+            }
+            if (radarPingD3El) {
+                radarPingD3El.textContent = 'Awaiting radar ping...';
+            }
+            if (dangerZoneRadarEl) {
+                dangerZoneRadarEl.textContent = 'Awaiting danger-zone radar...';
             }
             if (vectorCommandsEl) {
                 vectorCommandsEl.textContent = 'Awaiting vector commands...';

@@ -1,0 +1,68 @@
+{
+  "timestamp": "2026-04-23T06:24:17.957Z",
+  "config": {
+    "baseUrl": "http://127.0.0.1:8000",
+    "mapId": "map1",
+    "objective": "search_and_rescue",
+    "ticks": 1,
+    "forceReplanEvery": 8,
+    "tickDelayMs": 0,
+    "progressEvery": 1,
+    "dangerRadius": 2,
+    "outputDir": "benchmarks/output"
+  },
+  "init": {
+    "latency_ms": 16183.66,
+    "map_name": "Basic Training Ground"
+  },
+  "run": {
+    "duration_ms": 16694.32,
+    "ticks_attempted": 1,
+    "ticks_successful": 1,
+    "tick_errors": 0,
+    "tick_error_rate": 0
+  },
+  "latency": {
+    "tick_http_avg_ms": 16693.53,
+    "tick_http_p50_ms": 16693.53,
+    "tick_http_p95_ms": 16693.53,
+    "tick_http_p99_ms": 16693.53
+  },
+  "timings": {
+    "planner_avg_ms": 11929,
+    "simulation_avg_ms": 97.65,
+    "server_total_p95_ms": 12892.51,
+    "server_total_p99_ms": 12892.51
+  },
+  "quality": {
+    "final_scanned_cells": 296,
+    "final_found_survivors": 0,
+    "time_to_first_survivor_ms": null,
+    "warnings_total": 0,
+    "parse_errors_total": 1,
+    "danger_proximity_events": 0,
+    "coverage_per_minute": 1063.84,
+    "battery_consumed_sum": 0,
+    "coverage_per_battery_percent": null
+  },
+  "source_breakdown": {
+    "ollama-fallback-parse-fallback": 1
+  },
+  "per_tick": [
+    {
+      "tick": 1,
+      "ok": true,
+      "source": "ollama-fallback-parse-fallback",
+      "latency_ms": 16693.53,
+      "planning_ms": 11929,
+      "simulation_ms": 97.65,
+      "total_ms": 12892.51,
+      "scanned_cells": 296,
+      "found_survivors": 0,
+      "warnings": 0,
+      "parse_error": true,
+      "telemetry_count": 3,
+      "danger_zone_count": 0
+    }
+  ]
+}

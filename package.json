@@ -5,7 +5,10 @@
     "scripts": {
         "build": "vite build",
         "dev": "vite",
-        "mcp:drone": "npm --prefix mcp/drone-command-server start"
+        "mcp:drone": "npm --prefix mcp/drone-command-server start",
+        "bench:api": "k6 run benchmarks/k6/swarm-api-benchmark.js",
+        "bench:mission": "node benchmarks/scripts/mission-kpi-benchmark.mjs",
+        "bench:all": "npm run bench:api && npm run bench:mission"
     },
     "devDependencies": {
         "@tailwindcss/vite": "^4.0.0",
