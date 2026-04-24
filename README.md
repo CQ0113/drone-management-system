@@ -186,8 +186,10 @@ Run the background AI tick loop in a separate terminal:
 php artisan swarm:run-ai --init-if-missing
 ```
 CV + Physics Bridge
+```bash
 cd airsim-bridge
 uvicorn bridge:app --port 8001 --reload
+```
 Open the command center:
 
 ```text
