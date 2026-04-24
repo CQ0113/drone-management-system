@@ -76,7 +76,7 @@ Laravel cache state -> UI polling and benchmark output
 | `SwarmRadarService` | Produces area/radar scan context and tracked coverage cells. |
 | `SwarmRagMemoryService` | Stores and retrieves short mission summaries for planner context. |
 | `McpDroneCommandExecutor` | Executes planner actions through the optional Node.js MCP bridge. |
-|'Computer Vision Module' | The CV module adds real-time survivor detection using the laptop webcam as a simulated drone camera feed.
+| `Computer Vision Module` | The CV module adds real-time survivor detection using the laptop webcam as a simulated drone camera feed.
 
 
 ## Technology Stack
