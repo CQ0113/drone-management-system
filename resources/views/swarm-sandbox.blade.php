@@ -651,8 +651,11 @@
                     <button id="btn-place-survivor" class="hud-btn w-full rounded-md py-2 px-3 text-left font-medium text-xs flex items-center gap-2" data-mode="survivor">
                         <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg> Place Survivor
                     </button>
-                    <button class="hud-btn w-full rounded-md py-2.5 px-3 text-left font-medium text-sm flex items-center justify-between" data-mode="obstacle">
-                        <span>Place Obstacle</span>
+                    <button class="hud-btn w-full rounded-md py-2 px-3 text-left font-medium text-xs flex items-center gap-2" data-mode="obstacle">
+                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg> Place Obstacle
+                    </button>
+                    <button id="btn-place-danger-zone" class="hud-btn w-full rounded-md py-2 px-3 text-left font-medium text-xs flex items-center gap-2" data-mode="danger-zone">
+                        <svg class="w-3.5 h-3.5 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> Place Danger Zone
                     </button>
                  
                     <!-- CV Detection Info -->
@@ -702,7 +705,7 @@
                 <!-- Action Buttons Footer -->
                 <div class="pt-4 mt-3 border-t border-cyan-800/50 space-y-2.5 pb-2">
                     <button id="deploy-btn" class="w-full rounded-lg py-3.5 bg-gradient-to-r from-emerald-600 to-emerald-400 hover:from-emerald-500 hover:to-emerald-300 text-emerald-950 font-display tracking-[0.15em] font-extrabold uppercase transition-all shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 transform hover:-translate-y-0.5">
-                        Launch Swarm
+                        Deploy Swarm
                     </button>
                     <div class="grid grid-cols-2 gap-2">
                         <button id="restart-btn" class="w-full rounded-md py-2 bg-slate-800 hover:bg-amber-500/20 border border-amber-600/50 text-amber-400 text-[10px] font-display tracking-[0.1em] font-bold uppercase transition-colors">
@@ -4060,8 +4063,8 @@
 
             droneStatusListEl.innerHTML = ids.map((id) => {
                 const item = dronePanelState[id] || { battery: 0, status: 'Offline' };
-                const batteryColor = item.battery > 60 ? 'bg-emerald-500' : (item.battery > 25 ? 'bg-amber-500' : 'bg-rose-500');
                 const batteryTextColor = item.battery > 60 ? 'text-emerald-400' : (item.battery > 25 ? 'text-amber-400' : 'text-rose-400');
+                const dotColor = item.battery > 25 ? '#22c55e' : '#f43f5e';
                 
                 const headingData = getDroneHeadingData(id);
                 const headingMarkup = headingData ? buildHeadingMarkup(headingData) : '';
@@ -4069,14 +4072,19 @@
                 const dangerMarkup = dangerData ? buildDangerMarkup(dangerData) : '';
 
                 return `
-                    <li class="rounded-md border border-cyan-900/60 bg-slate-900/80 p-3">
+                    <li class="rounded-md border border-cyan-900/60 bg-slate-900/80 p-3 space-y-2 cursor-pointer hover:bg-slate-800 transition-colors group" onclick="openDroneCamera('${id}')">
                         <div class="flex justify-between items-center">
-                            <span class="font-display text-[11px] tracking-[0.2em] font-bold text-cyan-300 uppercase">${id}</span>
+                            <div class="flex items-center gap-2">
+                                <span class="font-display text-[11px] tracking-[0.2em] font-bold text-cyan-300 uppercase">${id}</span>
+                                <svg class="w-2.5 h-2.5 text-cyan-500 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                            </div>
                             <span class="${batteryTextColor} font-mono text-[11px] font-bold">${item.battery}%</span>
                         </div>
-                        <div class="text-xs text-slate-300 mt-1">
+                        <div class="text-[11px] text-slate-300">
                             <span class="status-dot" style="background:${dotColor}"></span>${item.status}
                         </div>
+                        ${headingMarkup}
+                        ${dangerMarkup}
                     </li>
                 `;
             }).join('');
