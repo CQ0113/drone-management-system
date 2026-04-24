@@ -90,6 +90,8 @@ Laravel cache state -> UI polling and benchmark output
 | Storage | SQLite and Laravel cache |
 | Automation | Artisan command runner, Node.js MCP bridge |
 | Benchmarking | k6 and Node.js mission KPI runner |
+| Computer Vision | YOLOv8 nano, OpenCV, Python FastAPI |
+| Physics Validation | Python FastAPI bridge (port 8001) |
 
 ## Requirements
 
@@ -118,6 +120,7 @@ touch database/database.sqlite
 php artisan migrate
 
 npm run build
+pip install fastapi uvicorn requests ultralytics opencv-python cvzone pymavlink
 ```
 
 For PowerShell, create the SQLite file with:
